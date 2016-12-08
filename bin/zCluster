@@ -412,10 +412,7 @@ if __name__ == '__main__':
         
     if cacheDir != None:
         retrieverOptions['altCacheDir']=cacheDir
-    
-    if os.path.exists("pzEngineCache") == False:
-        os.makedirs("pzEngineCache")
-        
+            
     photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine("pzEngineCache")
         
     # Either make a null test catalog, or parse the one we asked for

@@ -30,7 +30,7 @@ to calculate and apply Galactic extinction corrections. The `dust_getval` execut
 $PATH, and the appropriate environment variables set.
 
 IPython isn't really required, but is used for debugging. Note that astropy could be used to replace some
-of these dependencies in the future.
+of the dependencies in the future.
 
 There is also an optional dependency, if you want to run the code in parallel:
     
@@ -44,16 +44,21 @@ over the internet. The MPI mode is still useful though on any machine with multi
 As root:
     
 ```
-    sudo python setup.py install
+sudo python setup.py install
 ```
 
 Or, in your home directory:
     
 ```
-   python setup.py install --prefix=$HOME/local
+python setup.py install --prefix=$HOME/local
 ```
 
 Then add `$HOME/local/bin` to $PATH, and e.g., `$HOME/local/lib/python2.7/site-packages` to $PYTHONPATH.
+
+```
+export PATH=$HOME/local/bin:$PATH    
+export PYTHONPATH=$HOME/local/lib/python2.7/site-packages`
+```
 
 ## Running zCluster
 

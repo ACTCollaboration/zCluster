@@ -8,5 +8,5 @@ zClusterComparisonPlot 400SDSmall.csv zCluster_400SDSmall_SDSSDR12.fits
 
 # Big example - full 400SD catalog, using SDSS data
 zCluster 400SDAll.csv SDSSDR12
-zClusterComparisonPlot 400SDAll.csv zCluster_400SDSmall_SDSSDR12.fits
+zClusterComparisonPlot 400SDAll.csv zCluster_400SDAll_SDSSDR12.fits
 
