@@ -1,0 +1,3 @@
+recursive-include examples *
+include COPYING
+include README.md

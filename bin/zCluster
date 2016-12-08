@@ -1,0 +1,524 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+    Copyright 2016 Matt Hilton (matt.hilton@mykolab.com)
+    
+    This file is part of zCluster.
+
+    zCluster is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Sourcery is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with zCluster.  If not, see <http://www.gnu.org/licenses/>.
+
+"""
+
+import os
+import sys
+import argparse
+import glob
+import zCluster
+from zCluster import *
+import pylab as plt
+import cPickle
+import numpy as np
+from astLib import *
+from scipy import interpolate
+import atpy
+import datetime
+#import multiprocessing as mp
+import IPython
+plt.matplotlib.interactive(False)
+
+# For MNRAS
+plt.matplotlib.rcParams['pdf.fonttype'] = 42
+plt.matplotlib.rcParams['ps.fonttype'] = 42
+
+# For some unknown reason, mathtext in matplotlib is behaving weirdly since Ubuntu 16.10 upgrade
+try:
+    plt.matplotlib.rc('text', usetex=True)
+except:
+    pass
+
+#-------------------------------------------------------------------------------------------------------------
+def parseClusterCatalog(fileName):
+    """Parses .fits or .csv table with name, RADeg, decDeg columns into dictionary list
+    
+    """
+    
+    if fileName.split(".")[-1] == "csv":
+        tab=atpy.Table(fileName, type = 'ascii')
+    else:
+        tab=atpy.Table(fileName)
+    catalog=[]
+    wantedKeys=['name', 'RADeg', 'decDeg']
+    for row in tab:
+        objDict={}
+        for key in wantedKeys:
+            if key == 'name':
+                objDict[key]=str(row[key])
+            else:
+                objDict[key]=row[key]
+        catalog.append(objDict)
+    
+    return catalog
+
+#-------------------------------------------------------------------------------------------------------------
+def makePlots(catalog, zPriorMax, outDir):
+    """Makes plots of p(z), z for each object.
+    
+    """
+    
+    plotsDir=outDir+os.path.sep+"Plots"
+    if os.path.exists(plotsDir) == False:
+        os.makedirs(plotsDir)
+            
+    for obj in catalog:
+        result=obj['zClusterResult']
+        if result != None:            
+            
+            # NOTE: in calculateRedshiftAndOdds, prior hasn't been applied to pz, but has been to zOdds
+            pz=result['pz']
+            zArray=result['pz_z']
+            prior=np.ones(pz.shape)
+            if zPriorMax != None:
+                prior[np.greater(zArray, zPriorMax)]=0.0
+                prior[np.less(zArray, 0.05)]=0.0
+                pz=pz*prior
+                norm=np.trapz(pz, zArray)
+                pz=pz/norm   
+            
+            #plt.plot(result['pz_z'], result['pz'])
+            #plt.ylabel("p(z)")
+            #plt.xlabel("z")
+            #y=np.linspace(result['pz'].min(), result['pz'].max()*1.1, 4)
+            #plt.plot([result['z']]*len(y), y, 'k--')
+            #plt.ylim(0, result['pz'].max()*1.1)
+            #plt.title("%s - z = %.2f (odds = %.2f)" % (obj['name'], result['z'], result['odds'])) 
+            #plt.savefig(plotsDir+os.path.sep+obj['name'].replace(" ", "_")+".png")      
+            #plt.close()
+            
+            # Plot of normalised odds and p(z)        
+            norm=np.trapz(result['zOdds'], result['pz_z'])
+            result['zOdds']=result['zOdds']/norm
+            
+            plt.figure(figsize=(9, 5))
+            
+
+            fontDict={'size': 18, 'family': 'serif'}
+            ax=plt.axes([0.085, 0.11, 0.89, 0.81])
+            
+            plt.tick_params(axis='both', which='major', labelsize=15)
+            plt.tick_params(axis='both', which='minor', labelsize=15)
+                
+            plt.plot(result['pz_z'], result['zOdds'], 'k', lw = 2, label = r'$n_{\Delta z}(z)$')
+            plt.plot(result['pz_z'], pz, 'k:', lw = 1, label = r'$n(z)$')
+            #dzOdds=0.2
+            #smoothPix=int(round(0.2/(result['pz_z'][1]-result['pz_z'][0])))
+            #plt.plot(result['pz_z'], ndimage.uniform_filter1d(pz, smoothPix), 'r--', lw = 1)
+
+            plotMax=max([pz.max(), result['zOdds'].max()])
+            plt.ylabel(r"$n_{\Delta z}(z)$ | $n(z)$ (normalised)", fontdict = fontDict)
+            plt.xlabel(r"$z$", fontdict = fontDict)
+            y=np.linspace(result['zOdds'].min(), plotMax*1.1, 4)
+            plt.plot([result['z']]*len(y), y, 'k--')
+            plt.ylim(0, plotMax*1.1)
+            plt.xlim(0, zPriorMax*1.5)
+            leg=plt.legend(loc = 'upper right', numpoints = 1) 
+            leg.draw_frame(False)
+            plt.title("%s (z = %.2f)" % (obj['name'].replace("_", " "), result['z'])) 
+            plt.savefig(plotsDir+os.path.sep+"pz_"+obj['name'].replace(" ", "_")+".pdf")
+            plt.close()
+            
+#-------------------------------------------------------------------------------------------------------------
+def writeRedshiftsCatalog(catalog, outFileName):
+    """Writes a .fits table with cluster photo-zs in it
+    
+    """
+    
+    if os.path.exists(outFileName) == True:
+        os.remove(outFileName)
+    
+    tab=atpy.Table()
+    keys=['name', 'RADeg', 'decDeg']
+    resultKeys=[]
+    for obj in catalog:
+        if 'zClusterResult' in obj.keys() and obj['zClusterResult'] != None:
+            resultKeys=obj['zClusterResult'].keys()
+            break
+    if resultKeys != []:
+        del resultKeys[resultKeys.index('pz')]
+        del resultKeys[resultKeys.index('pz_z')]
+        del resultKeys[resultKeys.index('zOdds')]
+    
+    for key in keys:
+        arr=[]
+        for obj in catalog:
+            arr.append(obj[key])
+        tab.add_column(key, arr)
+    for key in resultKeys:
+        arr=[]
+        for obj in catalog:
+            if 'zClusterResult' in obj.keys() and obj['zClusterResult'] != None and key in obj['zClusterResult'].keys():
+                arr.append(obj['zClusterResult'][key])
+            else:
+                arr.append(-99)
+        tab.add_column(key, arr)
+    
+    tab.table_name="zCluster"
+    tab.write(outFileName)
+
+#-------------------------------------------------------------------------------------------------------------
+def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir, zPriorMin,
+                 zPriorMax, weightsType, maxRMpc, zMethod):
+    """Runs zCluster algorithm on each object in catalog.
+    
+    """
+    
+    for obj in catalog:
+        print ">>> %s:" % (obj['name'])
+        objOutDir=outDir+os.path.sep+obj['name'].replace(" ", "_")
+        if os.path.exists(objOutDir) == False:
+            os.makedirs(objOutDir)
+        
+        pickleFileName=objOutDir+os.path.sep+"obj.pickle"
+        if os.path.exists(pickleFileName) == False:
+            stuff="retry"
+            while stuff == "retry":
+                stuff=retriever(obj['RADeg'], obj['decDeg'], optionsDict = retrieverOptions)
+            galaxyCatalog, eazyFilterCodes=stuff[0], stuff[1]
+            if galaxyCatalog != None:
+                
+                photoRedshiftEngine.calcPhotoRedshifts(galaxyCatalog, calcMLRedshiftAndOdds = True)
+                                        
+                obj['zClusterResult']=clusterFinding.estimateClusterRedshift(obj['RADeg'], obj['decDeg'], galaxyCatalog, zPriorMin, zPriorMax, weightsType, maxRMpc, zMethod)
+
+                # Write out galaxy catalog with photo-zs in both FITS and DS9 .reg format
+                # Also r-i colour, useful for sanity checking of BCGs
+                for gobj in galaxyCatalog:
+                    gobj['r-i']=gobj['r']-gobj['i']
+                    gobj['r-z']=gobj['r']-gobj['z']
+
+                wantedKeys=['id', 'RADeg', 'decDeg', 'u', 'uErr', 'g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'z', 'zErr', 'Ks', 'KsErr', 'zPhot', 'odds', 'r-i', 'r-z']
+                if os.path.exists(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_"))) == True:
+                    os.remove(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_")))
+                tab=atpy.Table()
+                for key in wantedKeys:
+                    arr=[]
+                    for gobj in galaxyCatalog:
+                        try:
+                            arr.append(gobj[key])
+                        except:
+                            arr.append(99)
+                            #print "missing key, eh?"
+                            #IPython.embed()
+                            #sys.exit()
+                    tab.add_column(key, np.array(arr))
+                # NOTE: to cut down on disk space this takes, include only galaxies within some radius
+                # Chosen one is just over 1.5 Mpc at z = 0.1
+                tab.add_column("rDeg", astCoords.calcAngSepDeg(tab['RADeg'], tab['decDeg'], obj['RADeg'], obj['decDeg']))
+                tab=tab.where(tab['rDeg'] < 14./60.0)
+                tab.table_name="zCluster"
+                tab.write(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_")))
+                catalogTools.catalog2DS9(galaxyCatalog, objOutDir+os.path.sep+"galaxyCatalog_%s.reg" % (obj['name'].replace(" ", "_")), 
+                                        idKeyToUse = 'id', addInfo = [{'key': 'i', 'fmt': '%.3f'}, {'key': 'zPhot', 'fmt': '%.2f'}]) 
+                
+            else:
+                obj['zClusterResult']=None
+            
+            pickleFile=file(pickleFileName, "w")
+            pickler=cPickle.Pickler(pickleFile)
+            pickler.dump(obj)
+            pickleFile.close()
+            
+        else:
+            print "... loading previously pickled result ..."
+            pickleFile=file(pickleFileName, "r")
+            pickler=cPickle.Unpickler(pickleFile)
+            loadedObj=pickler.load()
+            pickleFile.close()
+            for key in loadedObj.keys():
+                obj[key]=loadedObj[key]
+ 
+    return catalog
+
+#-------------------------------------------------------------------------------------------------------------
+def getRoughFootprint(database):
+    """Returns RAMin, RAMax, decMin, decMax for given photometric survey indicated by database. Used for
+    null tests.
+    
+    """
+
+    if database in ['SDSSDR7', 'SDSSDR8', 'SDSSDR10', 'SDSSDR12']:
+        RAMin, RAMax, decMin, decMax=[130.0, 250.0, 0.0, 60.0]
+    elif database == 'S82':
+        RAMin, RAMax, decMin, decMax=[-60.0, 60.0, -1.2, 1.2]
+    elif database == 'CFHTLenS':
+        RAMin, RAMax, decMin, decMax=[30.5, 38.5, -11.5, -2.5]
+    else:
+        print "WARNING: no rough footprint defined for database '%s' yet" % (database)
+        return None
+    
+    return RAMin, RAMax, decMin, decMax
+    
+#-------------------------------------------------------------------------------------------------------------
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser("zCluster")
+    parser.add_argument("catalogFileName", help="""A .fits table or a .csv file with columns 'name', 'RADeg',
+                        'decDeg'. Set to 'nullTest', to create a catalog with 1000 random positions
+                        that are more than 5 arcmin away from redMaPPer and NED clusters.""")
+    parser.add_argument("database", help="""The photometric database to use. Options are 'SDSSDR12', 'S82' 
+                        (for SDSS DR7 Stripe 82 co-add); 'CFHTLenS'; 'DECaLS' (DR3); or the path to a
+                        .fits table with columns in the appropriate format ('ID', 'RADeg', 'decDeg', and
+                        magnitude column names in the form 'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.).""")
+    parser.add_argument("-o", "--output-label", dest="outLabel", help="""Label to use for outputs  
+                        (default: catalogFileName_database, stripped of file extension). 
+                        A redshift catalog called zCluster_outLabel.fits will be created. Cached
+                        results for each entry in the input cluster catalog and associated plots will
+                        be written into the directory outLabel/, together with a log file that
+                        records the arguments used for running zCluster.""", default = None)
+    parser.add_argument("-w", "--weights-type", dest="weightsType", help="""Radial weighting type. Options
+                        are 'NFW', 'flat', or 'radial' (default: NFW).""", default = 'NFW')
+    parser.add_argument("-R", "--max-radius-Mpc", dest="maxRMpc", help="""Maximum radius in Mpc within 
+                        which to calculate delta statistic for each cluster (default: 0.5).""", 
+                        default = 0.5)
+    parser.add_argument("-m", "--method", dest="method", help="""Method to use for the maximum likelihood
+                        redshift. Options are 'max' or 'odds' (default: odds).""", 
+                        default = 'odds')
+    parser.add_argument("-c", "--cachedir", dest="cacheDir", default = None, help="""Cache directory location
+                        (default: $HOME/zCluster/cache). Downloaded photometric catalogs will be stored 
+                        here.""")
+    parser.add_argument("-M", "--mpi", dest="MPIEnabled", action="store_true", help="""Enable MPI. If you
+                        want to use this, run zCluster using something like: mpirun --np 4 zCluster ...""", 
+                        default = False)
+    parser.add_argument("-e", "--max-mag-error", dest="maxMagError", help="""Maximum acceptable 
+                        photometric error (in magnitudes).""", default = 0.25)
+    parser.add_argument("-z", "--z-prior-min", dest="zPriorMin", help="""Set minimum redshift of prior.""", 
+                        default = None)
+    parser.add_argument("-Z", "--z-prior-max", dest="zPriorMax", help="""Set maximum redshift of prior.""", 
+                        default = None)
+    parser.add_argument("-s", "--add-SDSS", dest="addSDSS", action="store_true", help="""If using 
+                        a user-supplied FITS galaxy photometic catalog, add in additional SDSS 
+                        photometry if available.""", default = False)
+
+    args = parser.parse_args()
+
+    catalogFileName=args.catalogFileName
+    database=args.database
+    outLabel=args.outLabel
+    cacheDir=args.cacheDir
+    weightsType=args.weightsType
+    maxRMpc=float(args.maxRMpc)
+    method=args.method
+    MPIEnabled=args.MPIEnabled
+    maxMagError=float(args.maxMagError)
+    
+    if outLabel == None:
+        baseOutputLabel=os.path.split(catalogFileName)[-1]
+        baseOutputLabel=baseOutputLabel.replace(".fits", "").replace(".csv", "")
+        baseOutputLabel=baseOutputLabel+"_%s" % (database.replace(".fits", ""))
+    else:
+        baseOutputLabel=outLabel
+        
+    outDir=baseOutputLabel
+    outFileName="zCluster_"+baseOutputLabel+".fits"
+
+    if method not in ['odds', 'max']:
+        raise Exception, "method must be 'odds' or 'max'"
+    
+    if weightsType not in ['flat', 'radial', 'NFW']:
+        raise Exception, "weights must be 'flat', 'radial', or 'NFW'"
+    
+    if MPIEnabled ==True:
+        from mpi4py import MPI
+        comm=MPI.COMM_WORLD
+        size=comm.Get_size()
+        rank=comm.Get_rank()
+        if size == 1:
+            raise Exception, "if you want to use MPI, run with mpirun --np 4 zCluster ..."
+    else:
+        rank=0
+                       
+    # Default prior cuts are defined for each database here... 
+    # Can be overridden with args.zPriorMin, args.zPriorMax... see below
+    retrieverOptions={}
+    if database == 'S82':
+        retriever=catalogRetriever.S82Retriever
+        zPriorMin=0.20
+        zPriorMax=1.2
+        retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'SDSSDR7':
+        retriever=catalogRetriever.SDSSDR7Retriever
+    elif database == 'SDSSDR8':
+        retriever=catalogRetriever.SDSSDR8Retriever
+    elif database == 'SDSSDR10':
+        retriever=catalogRetriever.SDSSDR10Retriever
+    elif database == 'SDSSDR12':
+        retriever=catalogRetriever.SDSSDR12Retriever
+        zPriorMin=0.05
+        zPriorMax=0.7
+        retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'CFHTLenS':
+        retriever=catalogRetriever.CFHTLenSRetriever
+        zPriorMin=0.05
+        zPriorMax=1.2
+        retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'DECaLS':
+        retriever=catalogRetriever.DECaLSRetriever
+        zPriorMin=0.05
+        zPriorMax=1.2
+        retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'CFHTDeep':
+        retriever=catalogRetriever.CFHTDeepRetriever
+    elif database == 'CFHTWide':
+        retriever=catalogRetriever.CFHTWideRetriever
+        zPriorMin=0.05
+        zPriorMax=1.2
+    else:
+        # Assume this is a FITS file in format of ACAM or SOI photometric pipelines
+        # NOTE: SOI has 5' field of view, and targets have no z from SDSS anyway, so zPriorMin = 0.5 
+        # 'addSDSS' option here queries SDSS, cross matches, and adds e.g. g-band mags if we don't have them
+        zPriorMin=0.5 
+        zPriorMax=1.6
+        retriever=catalogRetriever.FITSRetriever
+        retrieverOptions={'fileName': database, 'addSDSS': options.addSDSS}
+
+    # Allow prior overrides from command line
+    if args.zPriorMax != None:
+        zPriorMax=float(args.zPriorMax)
+    if args.zPriorMin != None:
+        zPriorMin=float(args.zPriorMin)
+
+    # Set-up output dir and log the options we're running with
+    if rank == 0 and os.path.exists(outDir) == False:
+        os.makedirs(outDir)
+        logFile=file(outDir+os.path.sep+"zCluster.log", "w")
+        logFile.write("started: %s\n" % (datetime.datetime.now().isoformat()))
+        for key in args.__dict__.keys():
+            logFile.write("%s: %s\n" % (key, str(args.__dict__[key])))
+        logFile.close()
+        
+    if cacheDir != None:
+        retrieverOptions['altCacheDir']=cacheDir
+    
+    if os.path.exists("pzEngineCache") == False:
+        os.makedirs("pzEngineCache")
+        
+    photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine("pzEngineCache")
+        
+    # Either make a null test catalog, or parse the one we asked for
+    runningNullTest=False
+    if catalogFileName == 'nullTest':
+        runningNullTest=True
+        # Generate a catalog of random points
+        print ">>> Running null test ..."
+        catalogFileName="nullTest.fits"
+        if os.path.exists(catalogFileName) == False:
+            rmTab=atpy.Table(zCluster.__path__[0]+os.path.sep+"data"+os.path.sep+"redmapper_dr8_public_v5.10_catalog.fits")
+            RAMin, RAMax, decMin, decMax=getRoughFootprint(database)
+            catalog=[]
+            count=0
+            while count < 1000:
+                obj={}
+                obj['name']='null%d' % (count)
+                obj['RADeg']=np.random.uniform(RAMin, RAMax)
+                obj['decDeg']=np.random.uniform(decMin, decMax)
+                if obj['RADeg'] < 0:
+                    obj['RADeg']=360.0+obj['RADeg']
+                NEDInfo=catalogTools.getNEDInfo(obj, crossMatchRadiusDeg = 5.0/60.0, refetch = True)
+                rDeg=astCoords.calcAngSepDeg(obj['RADeg'], obj['decDeg'], rmTab['RA'], rmTab['DEC'])
+                if NEDInfo == None and (rDeg.min()*60.0) > 5.0:                    
+                    catalog.append(obj)
+                    count=count+1
+                else:
+                    print "... rejected position near NED or RM cluster ..."
+            writeRedshiftsCatalog(catalog, catalogFileName)
+        else:
+            print "... using existing nullTest.fits catalog..."
+            catalog=parseClusterCatalog(catalogFileName)
+            catalog=catalog[:500] # For testing   
+    else:
+        catalog=parseClusterCatalog(catalogFileName)
+    
+    if MPIEnabled == True:
+        objsPerNode=len(catalog)/size
+        startIndex=objsPerNode*rank
+        if rank == size-1:
+            endIndex=len(catalog)
+        else:
+            endIndex=objsPerNode*(rank+1)
+        catalog=catalog[startIndex:endIndex]
+    
+    catalog=runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir, 
+                         zPriorMin, zPriorMax, weightsType, maxRMpc, method)
+    
+    # If running under MPI, gather everything back together
+    # Rank 0 process will continue with plots
+    if MPIEnabled == True:
+        if rank == 0:
+            wholeCatalog=catalog
+            for i in range(1, size):
+                catalogPart=comm.recv(source = i, tag = 11)
+                wholeCatalog=wholeCatalog+catalogPart
+            catalog=wholeCatalog
+        else:
+            comm.send(catalog, dest = 0, tag = 11)
+            sys.exit()
+    
+    if runningNullTest == False:
+        print ">>> Making plots ..."
+        makePlots(catalog, zPriorMax, outDir)
+    
+    if runningNullTest == True:
+        deltaArr=[]
+        for obj in catalog:
+            if 'zClusterResult' in obj.keys() and obj['zClusterResult'] != None:
+                if 'delta' in obj['zClusterResult'].keys():
+                    deltaArr.append(obj['zClusterResult']['delta'])
+                elif 'SNR' in obj['zClusterResult'].keys():
+                    deltaArr.append(obj['zClusterResult']['SNR'])
+            else:
+                deltaArr.append(0)
+        deltaArr=np.array(deltaArr)
+        #deltaArr[np.less(deltaArr, 0)]=0    # or should we allow -ve?
+        deltaArr.sort()
+        cumulativeRange=np.linspace(0, 100, 401)
+        cumulativeArr=[]
+        for c in cumulativeRange:
+            count=np.greater(deltaArr, c).sum()
+            cumulativeArr.append(count)
+        cumulativeArr=np.array(cumulativeArr, dtype = float)
+        percentileArr=(cumulativeArr/deltaArr.shape[0])*100
+        
+        plt.figure(figsize=(9,6.5))
+
+        fontDict={'size': 18, 'family': 'serif'}
+    
+        ax=plt.axes([0.085, 0.09, 0.89, 0.9])
+        plt.tick_params(axis='both', which='major', labelsize=15)
+        plt.tick_params(axis='both', which='minor', labelsize=15)
+        plt.plot(cumulativeRange, percentileArr, 'k', lw = 2)
+        plotMax=100
+        plt.ylabel(r"null test detections (% > $\delta$)", fontdict = fontDict)
+        plt.xlabel(r"$\delta$", fontdict = fontDict)
+        plt.ylim(0, percentileArr.max()*1.1)
+        plt.xlim(0, cumulativeRange[np.where(percentileArr == 0)[0][0]]+2)
+        plt.savefig(outDir+os.path.sep+"nullTest.pdf")
+        plt.close()
+        
+        print ">>> Null test stats:"
+        for n in range(2, 9):
+            print "... percentage false detections at delta > %d = %.2f" % (n, percentileArr[np.equal(cumulativeRange, n)][0])
+
+    # Want this either way
+    writeRedshiftsCatalog(catalog, outFileName)
+    

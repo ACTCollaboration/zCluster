@@ -1,0 +1,229 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+    Copyright 2016 Matt Hilton (matt.hilton@mykolab.com)
+    
+    This file is part of zCluster.
+
+    zCluster is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Sourcery is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with zCluster.  If not, see <http://www.gnu.org/licenses/>.
+
+"""
+
+import os
+import sys
+import argparse
+import atpy
+from zCluster import *
+import pylab as plt
+import numpy as np
+import IPython
+plt.matplotlib.interactive(False)
+
+# For MNRAS
+plt.matplotlib.rcParams['pdf.fonttype'] = 42
+plt.matplotlib.rcParams['ps.fonttype'] = 42
+
+# For some unknown reason, mathtext in matplotlib is behaving weirdly since Ubuntu 16.10 upgrade
+try:
+    plt.matplotlib.rc('text', usetex=True)
+except:
+    pass
+
+#-------------------------------------------------------------------------------------------------------------
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser("zClusterComparisonPlot")
+    parser.add_argument("inCatalog", help="""A .fits table or a .csv file with columns 'name', 'RADeg',
+                        'decDeg', 'z'. The last column here is the redshift which is for comparison with
+                        the zCluster output. Objects are matched against zClusterCatalog based on the 'name'
+                        columns.""")
+    parser.add_argument("zClusterCatalog", help="""Path to a zCluster .fits table, i.e., the output of
+                        the zCluster code.""")
+    parser.add_argument("-o", "--output-label", dest="outLabel", help="""Label to use for output  
+                        (default: comparison_inCatalogFileName_zClusterCatalog, stripped of file extension). 
+                        The code will write both a plot (.pdf) and a .fits table in the current
+                        directory. Note that '.' in outLabel will be replaced with 'p' in the plot
+                        file name in order to be latex friendly.""", default = None)
+    parser.add_argument("-t", "--title", dest="plotTitle", help="Plot title.", default = None)
+    parser.add_argument("-z", "--zmax", dest="zMax", help="""Maximum redshift for statistics 
+                        (default: 0.6).""", default = 0.6)
+    parser.add_argument("-d", "--deltamin", dest="deltaMin", help="""Minimum delta for statistics 
+                        (default: 3.0).""", default = 3.0)
+    parser.add_argument("-l", "--inlabel", dest="inLabel", help="""Subscript label for input redshifts
+                        (default: spec).""", default = "spec")
+    parser.add_argument("-y", "--yrange", dest="yRangeStr", help="""Range of the plot y-axis (which
+                        is the difference between the inCatalog redshift and the redshift in 
+                        zClusterCatalog), given in the format yMin:yMax.""", default = "-0.5:0.5")
+    args = parser.parse_args()
+
+    inCatalogFileName=args.inCatalog
+    outCatalogFileName=args.zClusterCatalog
+
+    if args.plotTitle != None:
+        plotTitle=str(options.plotTitle)
+    else:
+        plotTitle=None
+    if args.zMax != None:
+        zMax=float(args.zMax)
+    if args.deltaMin != None:
+        deltaMin=float(args.deltaMin)
+    if args.inLabel != None:
+        inLabel=str(args.inLabel)
+    if args.yRangeStr != None:
+        yRangeStr=str(args.yRangeStr)
+    else:
+        yRangeStr=args.yRangeStr
+        
+    if inCatalogFileName.split(".")[-1] == "csv":
+        inTab=atpy.Table(inCatalogFileName, type = 'ascii')
+    else:
+        inTab=atpy.Table(inCatalogFileName)
+        
+    outTab=atpy.Table(outCatalogFileName)
+
+    if args.outLabel == None:
+        outFileName="comparison_"+os.path.split(inCatalogFileName)[-1].replace(".fits", "").replace(".csv", "")+"_vs_"+outCatalogFileName
+    else:
+        outFileName=outLabel+".fits"
+    plotFileName=outFileName.replace(".fits", "")
+    plotFileName=plotFileName.replace(".", "p")+".pdf"
+
+    if 'z' in inTab.keys():
+        zKey='z'
+    elif 'redshift' in inTab.keys():
+        zKey='redshift'
+    else:
+        raise Exception, "didn't find 'z' or 'redshift' column in input table %s" % (inCatalogFileName)
+    
+    # Match on names
+    outTab.add_column("zIn", np.zeros(len(outTab)))
+    for irow in inTab:
+        for orow in outTab:
+            if str(irow['name']) == str(orow['name']):
+                orow['zIn']=irow[zKey]
+    tab=outTab.where(outTab['zIn'] > 0.0)
+    tab.add_column('zDiff', tab['zIn']-tab['z'])
+    tab=tab.where(tab['z'] > 0) # because filled in -99 for fails/missing clusters (e.g., not in S82)
+    
+    zIn=tab['zIn']
+    zOut=tab['z']
+    delta=tab['delta']
+    diff=tab['zDiff']
+    odds=tab['odds']
+    
+    # Stats based on zPriorCut (needs to be given since we don't know it here)
+    if zMax != None:
+        print ">>> Stats for zIn < %.2f:" % (zMax)
+        mask=np.less(zIn, zMax)
+        maskedDiff=zIn[mask]-zOut[mask]
+        meanMaskedDiff=np.mean(maskedDiff)
+        stdMaskedDiff=np.std(maskedDiff)
+        print "... median (zIn - zOut) = %.3f" % (np.median(maskedDiff))
+        print "... mean (zIn - Zout) = %.3f" % (meanMaskedDiff)
+        print "... sigma (zIn - zOut) = %.3f" % (stdMaskedDiff)
+
+    ## Stats based on odds cut
+    #oddsMin=0.35
+    #print ">>> Stats for odds > %.2f:" % (oddsMin)
+    #mask=np.greater(odds, oddsMin)
+    #notMask=np.less(odds, oddsMin)
+    #maskedDiff=zIn[mask]-zOut[mask]
+    #meanMaskedDiff=np.mean(maskedDiff)
+    #stdMaskedDiff=np.std(maskedDiff)
+    #print "... median (zIn - zOut) = %.3f" % (np.median(maskedDiff))
+    #print "... mean (zIn - Zout) = %.3f" % (meanMaskedDiff)
+    #print "... sigma (zIn - zOut) = %.3f" % (stdMaskedDiff)
+        
+    # Stats based on delta cut
+    if deltaMin != None:
+        print ">>> Stats for delta > %.2f:" % (deltaMin)
+        mask=np.greater(delta, deltaMin)
+        notMask=np.less(delta, deltaMin)
+        maskedDiff=zIn[mask]-zOut[mask]
+        meanMaskedDiff=np.mean(maskedDiff)
+        stdMaskedDiff=np.std(maskedDiff)
+        print "... median (zIn - zOut) = %.3f" % (np.median(maskedDiff))
+        print "... mean (zIn - Zout) = %.3f" % (meanMaskedDiff)
+        print "... sigma (zIn - zOut) = %.3f" % (stdMaskedDiff)
+        
+    # Plot
+    plt.figure(figsize=(18, 6.5))
+    fontDict={'size': 18, 'family': 'serif'}
+
+    plt.subplot(121)
+    plt.subplots_adjust(left = 0.05, bottom = 0.1, right = 0.98, top = 0.97, wspace = 0.13, hspace = 0.2)
+    plt.tick_params(axis='both', which='major', labelsize=15)
+    plt.tick_params(axis='both', which='minor', labelsize=15)
+    
+    plt.plot(zIn[notMask], diff[notMask], 'wo', label = r'$\delta < %.0f$' % (deltaMin))
+    plt.plot(zIn[mask], diff[mask], 'ko', label = r'$\delta > %.0f$' % (deltaMin))
+    yPlotRange=np.linspace(-1, 1, 10)
+    xPlotRange=np.linspace(0, zIn.max()*1.1, 10)
+    plt.plot(xPlotRange, [meanMaskedDiff]*len(xPlotRange), 'k--', lw = 2, 
+             label = r'mean ($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, meanMaskedDiff))
+    plt.plot(xPlotRange, [meanMaskedDiff-stdMaskedDiff]*len(xPlotRange), 'k:', lw = 2, 
+             label = r'$\sigma $($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, stdMaskedDiff))
+    plt.plot(xPlotRange, [meanMaskedDiff+stdMaskedDiff]*len(xPlotRange), 'k:')
+    plt.plot(np.linspace(0, zIn.max()*1.1, 3), [0]*3, 'k-', lw = 1)
+    plt.xlim(0, zIn.max()*1.1)
+    if yRangeStr != None:
+        yMin, yMax=yRangeStr.split(":")
+        yMin=float(yMin)
+        yMax=float(yMax)
+        plt.ylim(yMin, yMax)
+    #if plotTitle != None:
+        #plt.title(plotTitle)
+    leg=plt.legend(numpoints = 1, loc = 'upper left', prop = fontDict)
+    leg.draw_frame(False)
+    plt.xlabel(r"$z_{\mathrm{%s}}$" % (inLabel), fontdict = fontDict)
+    plt.ylabel(r"$z_{\mathrm{%s}}$-$z_{\mathrm{c}}$" % (inLabel), fontdict = fontDict)
+
+    plt.subplot(122)
+    plt.tick_params(axis='both', which='major', labelsize=15)
+    plt.tick_params(axis='both', which='minor', labelsize=15)
+    plt.plot(delta[notMask], diff[notMask], 'wo', label = r'$\delta$ < $%.0f$' % (deltaMin))
+    plt.plot(delta[mask], diff[mask], 'ko', label = r'$\delta$ > $%.0f$' % (deltaMin))
+    yPlotRange=np.linspace(-1, 1, 10)
+    xPlotRange=np.linspace(0, delta.max()*1.1, 10)
+    plt.plot(xPlotRange, [meanMaskedDiff]*len(xPlotRange), 'k--', lw = 2, 
+             label = r'mean($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, meanMaskedDiff))
+    plt.plot(xPlotRange, [meanMaskedDiff-stdMaskedDiff]*len(xPlotRange), 'k:', lw = 2, 
+             label = r'$\sigma$($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, stdMaskedDiff))
+    plt.plot(xPlotRange, [meanMaskedDiff+stdMaskedDiff]*len(xPlotRange), 'k:')
+    plt.plot(np.linspace(0, delta.max()*1.1, 3), [0]*3, 'k-', lw = 1)
+    plt.xlim(0, delta.max()*1.1)
+    if yRangeStr != None and yRangeStr != 'auto':
+        yMin, yMax=yRangeStr.split(":")
+        yMin=float(yMin)
+        yMax=float(yMax)
+        plt.ylim(yMin, yMax)
+    if plotTitle != None:
+        plt.figtext(0.965, 0.88, plotTitle, ha = 'right', size = 24)
+    #leg=plt.legend(numpoints = 1, loc = 'upper left', prop = fontDict)
+    #leg.draw_frame(False)
+    plt.xlabel(r"$\delta$", fontdict = fontDict)
+    plt.ylabel(r"$z_{\mathrm{%s}}$-$z_{\mathrm{c}}$" % (inLabel), fontdict = fontDict)
+    
+    plt.savefig(plotFileName)
+    plt.close()
+    
+    # Output for more fiddling
+    tab.table_name="zCluster comparison"
+    if os.path.exists(outFileName) == True:
+        os.remove(outFileName)
+    tab.write(outFileName)
+    
+
+    

@@ -1,0 +1,394 @@
+#!/usr/bin/env python
+
+"""
+
+    Interactive display of image/CMD and selection of the BCG. SDSS only at this point.
+
+    Copyright 2016 Matt Hilton (matt.hilton@mykolab.com)
+    
+    This file is part of zCluster.
+
+    zCluster is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Sourcery is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with zCluster.  If not, see <http://www.gnu.org/licenses/>.
+
+"""
+
+import os
+import sys
+import urllib
+import numpy as np
+import atpy
+import pyfits
+from zCluster import *
+import pylab as plt
+from astLib import *
+from PIL import Image
+import IPython
+import argparse
+from matplotlib.widgets import Button
+from matplotlib.widgets import RadioButtons
+#plt.matplotlib.interactive(False)
+
+#-------------------------------------------------------------------------------------------------------------
+# Globals because we yanked this out of sourcery SourceBrowser
+
+cacheDir="cache"
+configDict={'plotSizeArcmin': 8.0, 'figSize': (14, 7.5)}
+
+if os.path.exists(cacheDir) == False:
+    os.makedirs(cacheDir)
+
+#-------------------------------------------------------------------------------------------------------------
+def fetchSDSSImage(obj, refetch = False):
+    """Fetches the SDSS .jpg for the given image size using the casjobs webservice.
+    
+    makeSDSSPlots loads these jpegs in, and use matplotlib to make them into plots with
+    coord axes etc.
+    
+    The way we're handling image directories is a bit clunky at the moment...
+    
+    """
+
+    sdssCacheDir=cacheDir+os.path.sep+"SDSS"
+    if os.path.exists(sdssCacheDir) == False:
+        os.makedirs(sdssCacheDir)
+        
+    name=obj['name']
+    RADeg=obj['RADeg']
+    decDeg=obj['decDeg']                
+    outFileName=sdssCacheDir+os.path.sep+name.replace(" ", "_")+".jpg"
+    SDSSWidth=1200.0
+    SDSSScale=(configDict['plotSizeArcmin']*60.0)/SDSSWidth # 0.396127
+    if os.path.exists(outFileName) == False or refetch == True:
+        urlString="http://skyservice.pha.jhu.edu/DR10/ImgCutout/getjpeg.aspx?ra="+str(RADeg)+"&dec="+str(decDeg)
+        urlString=urlString+"&scale="+str(SDSSScale)+"&width="+str(int(SDSSWidth))+"&height="+str(int(SDSSWidth))
+        try:
+            urllib.urlretrieve(urlString, filename = outFileName)
+        except:
+            print "... WARNING: couldn't get SDSS image ..."
+            print urlString
+            outFileName=None
+                
+#-------------------------------------------------------------------------------------------------------------
+class CMDImageCombo:
+    """Combination CMD and clickable image plot in one.
+    
+    """
+    
+    def __init__(self, cluster, galTab, surveyLabel, clipSizeArcmin = None, zColumn = 'z', matchTab = None):
+        """Needs all the info to make a clickable image plot and CMD.
+        
+        cluster should be a table row or dict with keys 'name', 'RADeg', 'decDeg'
+        
+        """
+        
+        self.cluster=cluster
+        self.redshiftColumn=zColumn
+        self.galTab=galTab
+        self.matchTab=matchTab
+        self.keepBCG=None
+        
+        # Just in case they are passed as strings (e.g., if direct from the url)
+        name=cluster['name']
+        RADeg=cluster['RADeg']
+        decDeg=cluster['decDeg']
+        
+        sizeDeg=configDict['plotSizeArcmin']/60.0
+        
+        # Load data
+        inJPGPath=cacheDir+os.path.sep+surveyLabel+os.path.sep+name.replace(" ", "_")+".jpg"
+        if os.path.exists(inJPGPath) == False:
+            return None
+        
+        im=Image.open(inJPGPath)
+        data=np.array(im)
+        try:
+            data=np.flipud(data)
+            data=np.fliplr(data)
+        except:
+            #"... something odd about image (1d?) - aborting ..."
+            return None
+        
+        R=data[:, :, 0]
+        G=data[:, :, 1]
+        B=data[:, :, 2]
+        
+        # Make a WCS
+        sizeArcmin=configDict['plotSizeArcmin']
+        xSizeDeg, ySizeDeg=sizeArcmin/60.0, sizeArcmin/60.0
+        xSizePix=R.shape[1]
+        ySizePix=R.shape[0]
+        xRefPix=xSizePix/2.0
+        yRefPix=ySizePix/2.0
+        xOutPixScale=xSizeDeg/xSizePix
+        yOutPixScale=ySizeDeg/ySizePix
+        cardList=pyfits.CardList()
+        cardList.append(pyfits.Card('NAXIS', 2))
+        cardList.append(pyfits.Card('NAXIS1', xSizePix))
+        cardList.append(pyfits.Card('NAXIS2', ySizePix))
+        cardList.append(pyfits.Card('CTYPE1', 'RA---TAN'))
+        cardList.append(pyfits.Card('CTYPE2', 'DEC--TAN'))
+        cardList.append(pyfits.Card('CRVAL1', RADeg))
+        cardList.append(pyfits.Card('CRVAL2', decDeg))
+        cardList.append(pyfits.Card('CRPIX1', xRefPix+1))
+        cardList.append(pyfits.Card('CRPIX2', yRefPix+1))
+        cardList.append(pyfits.Card('CDELT1', xOutPixScale))
+        cardList.append(pyfits.Card('CDELT2', xOutPixScale))    # Makes more sense to use same pix scale
+        cardList.append(pyfits.Card('CUNIT1', 'DEG'))
+        cardList.append(pyfits.Card('CUNIT2', 'DEG'))
+        newHead=pyfits.Header(cards=cardList)
+        wcs=astWCS.WCS(newHead, mode='pyfits')
+        
+        # Optional zoom
+        if clipSizeArcmin != None:
+            clipSizeArcmin=float(clipSizeArcmin)
+            RClip=astImages.clipImageSectionWCS(R, wcs, RADeg, decDeg, clipSizeArcmin/60.0)
+            GClip=astImages.clipImageSectionWCS(G, wcs, RADeg, decDeg, clipSizeArcmin/60.0)
+            BClip=astImages.clipImageSectionWCS(B, wcs, RADeg, decDeg, clipSizeArcmin/60.0)
+            R=RClip['data']
+            G=GClip['data']
+            B=BClip['data']
+            wcs=RClip['wcs']
+
+        cutLevels=[[R.min(), R.max()], [G.min(), G.max()], [B.min(), B.max()]]
+                                                
+        # Make image plot
+        self.imageFig=plt.figure(figsize = configDict['figSize'])
+        axes=[0.07,0.085,0.5,0.85]
+        axesLabels="sexagesimal"
+        self.imagePlot=astPlots.ImagePlot([R, G, B], wcs, cutLevels = cutLevels, title = name, axes = axes, 
+                                          axesLabels = axesLabels)
+        
+        # Cut down object catalog to only things we can see in image
+        mask=[]
+        for g in self.galTab:
+            if self.imagePlot.wcs.coordsAreInImage(g['RADeg'], g['decDeg']) == True:
+                mask.append(True)
+            else:
+                mask.append(False)
+        self.galTab=self.galTab.where(np.array(mask))
+        #self.galTab=self.galTab.where(mask)
+        
+        # Make CMD
+        self.cmd=plt.axes([0.63, 0.4, 0.35, 0.535])
+        self.drawCMD()
+
+        self.imagePlot.draw()
+        if self.matchTab != None:
+            self.imagePlot.addPlotObjects(self.matchTab['RADeg'], self.matchTab['decDeg'], 'BCG', symbol='circle', size=10.0, color='white')  
+            
+        # Buttons
+        axok=plt.axes([0.63, 0.25, 0.1, 0.075])
+        self.okButton=Button(axok, 'Record BCG')
+        self.okButton.on_clicked(self.okClicked)
+
+        axignore=plt.axes([0.73, 0.25, 0.1, 0.075])
+        self.ignoreButton=Button(axignore, 'Skip')        
+        self.ignoreButton.on_clicked(self.ignoreClicked)
+    
+        # Mode selection - sticky to galaxies in the catalog/cmd plot or 'freehand'
+        axradio = plt.axes([0.63, 0.12, 0.2, 0.1])
+        self.radio=RadioButtons(axradio, ['Nearest Galaxy', 'Free Selection'])
+
+        # Activate clickiness
+        self.imageFig.canvas.mpl_connect('button_press_event', self.onclick)
+        self.imageFig.canvas.mpl_connect('pick_event', self.onpick)
+
+        #plt.axes(self.imagePlot.axes)
+                
+
+    def okClicked(self, blah):
+        self.keepBCG=True
+        plt.close()
+
+    
+    def ignoreClicked(self, blah):
+        self.keepBCG=False
+        plt.close()
+
+
+    def getSelectedMode(self):
+        selected=(0.0, 0.0, 1.0, 1.0)   # colour tuple of the currently selected thing
+        for c, l in zip(self.radio.circles, self.radio.labels):
+            if c.get_facecolor() == selected:
+                modeText=l.get_text()
+        return modeText
+
+    
+    def drawCMD(self):
+        """Draw the CMD, highlighting galaxies with phot-z within some z cut and the selected object in the
+        image plot.
+        
+        """
+        ax=plt.axes(self.cmd)
+        plt.cla()
+        zpMask=np.logical_and(np.greater(self.galTab['zPhot'], self.cluster[zColumn]-0.1), np.less(self.galTab['zPhot'], self.cluster[zColumn]+0.1))
+        plt.plot(self.galTab['i'], self.galTab['r-i'], 'b.', picker = 5)
+        plt.plot(self.galTab['i'][zpMask], self.galTab['r-i'][zpMask], 'r.')
+        if self.matchTab != None:
+            plt.plot(self.matchTab['i'], self.matchTab['r-i'], 'go')
+        else:
+            print "no match tab"
+        plt.ylim(-0.5, 1.5)
+        plt.xlim(15, 23)
+        plt.xlabel("i")
+        plt.ylabel("r-i")        
+        
+        
+    def onclick(self, event):
+        """Get coords of where we clicked, update plots.
+        
+        """
+        
+        button=event.button
+        x=event.xdata
+        y=event.ydata
+        
+        if event.inaxes == self.imagePlot.axes:
+
+            modeText=self.getSelectedMode()
+            
+            if modeText == 'Nearest Galaxy':
+                RADeg, decDeg=self.imagePlot.wcs.pix2wcs(x, y)
+                rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, self.galTab['RADeg'], self.galTab['decDeg'])
+                self.matchTab=self.galTab.where(np.equal(rDeg, rDeg.min()))
+            elif modeText == 'Free Selection':
+                RADeg, decDeg=self.imagePlot.wcs.pix2wcs(event.xdata, event.ydata)
+                freeTab=atpy.Table()
+                for key in self.galTab.keys():
+                    freeTab.add_column(key, np.zeros(1))
+                freeTab['RADeg'][0]=RADeg
+                freeTab['decDeg'][0]=decDeg
+                freeTab.table_name="FreeSelection"
+                self.matchTab=freeTab
+                
+            self.drawCMD()
+            
+            if button == 1: 
+                self.imagePlot.addPlotObjects(self.matchTab['RADeg'], self.matchTab['decDeg'], 'BCG', symbol='circle', size=10.0, color='white')
+
+            self.imagePlot.draw()
+
+
+    def onpick(self, event):
+        """Select an object in the CMD and highlight it in the image plot.
+        
+        """
+        thispoint = event.artist
+        xdata = thispoint.get_xdata()
+        ydata = thispoint.get_ydata()
+        ind = event.ind
+        colour=ydata[ind]
+        mag=xdata[ind]
+
+        # Find closest point
+        minDiff=1e6
+        for m, c in zip(mag, colour):
+            diff=np.sqrt((self.galTab['r-i']-c)**2 + (self.galTab['i']-m)**2)
+            if diff.min() < minDiff:
+                self.matchTab=self.galTab.where(np.equal(diff, diff.min()))
+        self.drawCMD()
+        self.imagePlot.addPlotObjects(self.matchTab['RADeg'], self.matchTab['decDeg'], 'BCG', symbol='circle', size=10.0, color='white')        
+        self.imagePlot.draw()
+
+        
+#-------------------------------------------------------------------------------------------------------------
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser("zClusterBCG")
+    parser.add_argument("catalogFileName", help="""A .fits table with keys 'name', 'RADeg', 'decDeg', 
+                        and 'z' or 'redshift'. An output table including additional columns with the
+                        chosen BCG coordinates will be written as catalogFileName_incBCG.fits.""")
+    parser.add_argument("resultsDir", help="""A directory containing zCluster results that matches 
+                        against cluster names in clusterTable.fits.""")
+    parser.add_argument("-n", "--name", dest="name", help="Select/edit BCG only for the named object.")
+    parser.add_argument("-s", "--size", dest="sizeArcmin", help="Size of the image plot in arcmin.")
+    args = parser.parse_args()
+    
+    catalogFileName=args.catalogFileName
+    resultsDir=args.resultsDir
+    
+    clusTab=atpy.Table(catalogFileName)
+    if 'z' in clusTab.keys():
+        zColumn='z'
+    elif 'redshift' in clusTab.keys():
+        zColumn='redshift'
+    else:
+        raise Exception, "No redshift column found"
+    
+    if 'BCG_RADeg' not in clusTab.keys():
+        clusTab.add_column('BCG_RADeg', np.zeros(len(clusTab)))
+    if 'BCG_decDeg' not in clusTab.keys():
+        clusTab.add_column('BCG_decDeg', np.zeros(len(clusTab)))
+
+    # Add something so that we can adjust a single BCG if given on command line
+    # Keep things straight by making a mask of objects to look at with just that one object selected
+    # But still iterate over all rows of clusTab, hoovering up previous BCG positions and adding to clusTab
+    # After loop, write out clusTab as catalogFileName with _incBCGPos appended
+    selectionMask=np.ones(len(clusTab), dtype = bool)
+    if args.name != None:
+        selectionMask[np.where(clusTab['name'] != args.name)]=False
+    
+    if args.sizeArcmin == None:
+        clipSizeArcmin=6.0
+    else:
+        clipSizeArcmin=float(args.sizeArcmin)
+        
+    # Cache previously measured BCG positions
+    bcgCacheDir="BCGsCache"
+    if os.path.exists(bcgCacheDir) == False:
+        os.makedirs(bcgCacheDir)
+        
+    for cluster, selected in zip(clusTab, selectionMask):
+        print ">>> %s" % (cluster['name'])
+        
+        galTab=atpy.Table(resultsDir+os.path.sep+cluster['name'].replace(" ", "_")+os.path.sep+"galaxyCatalog_"+cluster['name'].replace(" ", "_")+".fits")
+
+        outFileName=bcgCacheDir+os.path.sep+cluster['name'].replace(" ", "_")+"_BCG.fits"
+        if os.path.exists(outFileName) == True:
+            print "... found previously determined BCG position ..."
+            matchTab=atpy.Table(outFileName)
+        else:
+            matchTab=None
+    
+        if selected == True:
+            fetchSDSSImage(cluster)
+            cmdImage=CMDImageCombo(cluster, galTab, 'SDSS', clipSizeArcmin = clipSizeArcmin, zColumn = zColumn, matchTab = matchTab)
+            #if matchTab != None:
+                #cmdImage.keepBCG=True
+                
+            plt.show(block = True)
+
+            # Store BCG pos separately
+            if cmdImage.keepBCG == True:
+                outFileName=bcgCacheDir+os.path.sep+cluster['name'].replace(" ", "_")+"_BCG.fits"
+                if os.path.exists(outFileName) == True:
+                    os.remove(outFileName)
+                cmdImage.matchTab.write(outFileName)
+                matchTab=cmdImage.matchTab
+            else:
+                matchTab=None
+        
+        if matchTab != None:
+            cluster['BCG_RADeg']=matchTab['RADeg'][0]
+            cluster['BCG_decDeg']=matchTab['decDeg'][0]
+    
+    # Write out new table 
+    outFileName=catalogFileName.replace(".fits", "_incBCGPos.fits")
+    if os.path.exists(outFileName) == True:
+        os.remove(outFileName)
+    clusTab.write(outFileName)
+
+        
+        
+    
