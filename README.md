@@ -53,7 +53,7 @@ Or, in your home directory:
    python setup.py install --prefix=$HOME/local
 ```
 
-Then add `$HOME/local/bin` to $PATH, and e.g., `$HOME/local/lib/python2.5/site-packages` to $PYTHONPATH.
+Then add `$HOME/local/bin` to $PATH, and e.g., `$HOME/local/lib/python2.7/site-packages` to $PYTHONPATH.
 
 ## Running zCluster
 
