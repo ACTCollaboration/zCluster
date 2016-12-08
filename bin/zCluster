@@ -399,8 +399,11 @@ if __name__ == '__main__':
         zPriorMin=float(args.zPriorMin)
 
     # Set-up output dir and log the options we're running with
-    if rank == 0 and os.path.exists(outDir) == False:
-        os.makedirs(outDir)
+    if rank == 0:
+        if os.path.exists(outDir) == False:
+            os.makedirs(outDir)
+        if os.path.exists("pzEngineCache") == False:
+            os.makedirs("pzEngineCache")
         logFile=file(outDir+os.path.sep+"zCluster.log", "w")
         logFile.write("started: %s\n" % (datetime.datetime.now().isoformat()))
         for key in args.__dict__.keys():
