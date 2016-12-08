@@ -57,7 +57,7 @@ Then add `$HOME/local/bin` to $PATH, and e.g., `$HOME/local/lib/python2.7/site-p
 
 ```
 export PATH=$HOME/local/bin:$PATH    
-export PYTHONPATH=$HOME/local/lib/python2.7/site-packages`
+export PYTHONPATH=$HOME/local/lib/python2.7/site-packages:$PYTHONPATH
 ```
 
 ## Running zCluster
