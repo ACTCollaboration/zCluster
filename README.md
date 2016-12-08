@@ -26,8 +26,8 @@ zCluster itself is written in pure python (2.7.x). It requires the following add
 * IPython (2.4.1)
 
 In addition, for surveys other than SDSS, the Schlegel et al. `dust_getval` code and maps are needed, in order
-to calculate and apply Galactic extinction corrections. The `dust_getval` needs to be in your $PATH, and
-the appropriate environment variables set.
+to calculate and apply Galactic extinction corrections. The `dust_getval` executable needs to be in your 
+$PATH, and the appropriate environment variables set.
 
 IPython isn't really required, but is used for debugging. Note that astropy could be used to replace some
 of these dependencies in the future.
