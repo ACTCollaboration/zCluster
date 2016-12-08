@@ -1,75 +1,84 @@
-zCluster
---------
+# zCluster
 
-NOTE - this README is out of date in many places!
+A code for measuring galaxy cluster photometric redshifts. For details of the algorithm, its
+performance, and the output of the code, refer to the ACTPol D56 clusters paper.
 
-Required python modules (current versions running on given in brackets, earlier/later versions probably work):
+zCluster has built-in support for querying large photometric surveys - currently:
+    
+* SDSS (DR7 -- DR12)
+* SDSS Stripe 82
+* CFHTLenS
+* DECaLS (DR3 - experimental!)
 
-* pyfits (2.1.3)
-* numpy (1.5)
-* scipy (0.7.2)
-* matplotlib (0.99.3)
-* astLib (svn possibly, if so: 
-          % svn co https://astlib.svn.sourceforge.net/svnroot/astlib/trunk astlib
-          otherwise, email me and I'll send a .tar.gz)
+zCluster can also run on user supplied .fits table photometric catalogs, provided that they have columns
+named `ID`, `RADeg`, `decDeg`, and magnitude column names in the form `u_MAG_AUTO`, `u_MAGERR_AUTO` etc..
 
-IPython isn't really required, but I like to use IPython.embed() for debugging.
+## Software needed
 
-To install:
+zCluster itself is written in pure python (2.7.x). It requires the following additional python modules 
+(current versions used by the author are given in brackets, earlier and later versions also probably work):
 
- - as root:
-   % sudo python setup.py install
+* pyfits (3.3)
+* numpy (1.11.1)
+* scipy (0.17.1)
+* matplotlib (1.5.2)
+* astLib (git version probably: get it with `git clone http://git.code.sf.net/p/astlib/git astlib-git`)
+* IPython (2.4.1)
 
- - to home directory:
-   % python setup.py install --prefix=$HOME/local
-   Then add $HOME/local/bin to $PATH, and e.g. $HOME/local/lib/python2.5/site-packages to $PYTHONPATH
+In addition, for surveys other than SDSS, the Schlegel et al. `dust_getval` code and maps are needed, in order
+to calculate and apply Galactic extinction corrections. The `dust_getval` needs to be in your $PATH, and
+the appropriate environment variables set.
 
-To run:
+IPython isn't really required, but is used for debugging. Note that astropy could be used to replace some
+of these dependencies in the future.
 
-Single core:
-	zCluster redmapperTest.fits SDSSDR12 NFW 0.5 odds
+There is also an optional dependency, if you want to run the code in parallel:
+    
+* mpi4py (2.0.0)
 
-Using MPI:
-	mpirun --np 4 zCluster redmapperTest.fits SDSSDR12 NFW 0.5 odds -M
+Note that if you want to run the code on a cluster, the bottleneck will be fetching the photometric catalogs
+over the internet. The MPI mode is still useful though on any machine with multiple cores.
 
+## Installation
 
-NOTE: Below here is very out of date - interface to photo-z running code changed a lot, but hooks to BPZ
-and EAZY haven't been updated.
+As root:
+    
+```
+    sudo python setup.py install
+```
 
-Under the examples dir there is a script that runs the various different scripts in turn - to run this:
- 
- % cd examples/
- % sh runAll400SDSDSSDR7_chiSq.sh
+Or, in your home directory:
+    
+```
+   python setup.py install --prefix=$HOME/local
+```
 
-This runs a version of the algorithm on the included 400SD cluster catalogue, fetching the photometry from SDSS 
-as it goes (downloaded files are cached under $HOME/.zCluster). There are four scripts (run any of these
-without any arguments to see what they take as input parameters):
+Then add `$HOME/local/bin` to $PATH, and e.g., `$HOME/local/lib/python2.5/site-packages` to $PYTHONPATH.
 
- * zCluster:
-   This runs the algorithm to measure the photo-zs. There are a few different options for measuring the galaxy
-   zs, these are 'EAZY', 'BPZ', or 'chiSq' (the latter is my own simple algorithm, which oddly works best).
-   Versions of EAZY and BPZ are already included in the package and automatically get installed where it can
-   find them.
- 
- * zClusterComparisonPlot:
-   This compares output cluster photo-zs with those in the input catalogue. It makes a plot like the one on 
-   this page (dated 11 Feb 2011): http://www.astro.ljmu.ac.uk/~xcs/index.php?n=Restricted.CFHTLS
+## Running zCluster
 
-These scripts below are superceded by the sourcery stuff (https://github.com/mattyowl/sourcery) but haven't been 
-removed yet...
+See the `examples/` dir. Here you will find two cluster catalog files (in .csv format rather than .fits),
+`400SDAll.csv` and `400SDSmall.csv`. The latter contains just the first 20 rows of the former, and is enough
+to check that the code is working.
 
- * zClusterGetImages:
-   This fetches SDSS jpeg images for each object in the catalogue.
+This example runs zCluster using SDSS DR12 photometry on part of the [Burenin et al. (2007)](http://adsabs.harvard.edu/abs/2007ApJS..172..561B) 400SD cluster catalog.
 
- * zClusterBrowser:
-   This makes a bunch of webpages with a big table of results, plus pages for each object showing various plots
-   (SDSS image, cluster pseudo-P(z) distribution, CMD etc.). Note that the lines plotted on the CMDs are in
-   theory the same evolving CMR model from my thesis and which is still used (I believe) in Nic's CMR zs.
-   
-Misc notes:
+`zCluster 400SDSmall.csv SDSSDR12`
 
-The version of bpz included in here is patched to work on Kubuntu 10.10+ by me - i.e. it's not the version on the bpz
-webpage, although it has the same name.
+This example will result in the creation of a catalog file called `zCluster_400SDSmall_SDSSDR12.fits`,
+and a directory (where the results for individual clusters are cached) called `400SDSmall_SDSSDR12/`.
 
-Please email me with any questions (hiltonm@ukzn.ac.za)
+If you want to check how well zCluster is doing versus spectroscopic redshifts, you can use the
+zClusterComparisonPlot code.
+
+`zClusterComparisonPlot 400SDSmall.csv zCluster_400SDSmall_SDSSDR12.fits`
+
+This will produce a plot named `comparison_400SDSmall_vs_zCluster_400SDSmall_SDSSDR12.pdf`, as well
+outputting relevant statistics to the console.
+
+You can find out about other options for both codes using the `-h` flag.
+
+## Comments, bug reports, help, suggestions etc..
+
+Please contact Matt Hilton <matt.hilton@mykolab.com>.
 
