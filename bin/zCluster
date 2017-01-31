@@ -194,11 +194,11 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
             stuff="retry"
             while stuff == "retry":
                 stuff=retriever(obj['RADeg'], obj['decDeg'], optionsDict = retrieverOptions)
-            galaxyCatalog, eazyFilterCodes=stuff[0], stuff[1]
+            galaxyCatalog=stuff
             if galaxyCatalog != None:
                 
                 photoRedshiftEngine.calcPhotoRedshifts(galaxyCatalog, calcMLRedshiftAndOdds = True)
-                                        
+                    
                 obj['zClusterResult']=clusterFinding.estimateClusterRedshift(obj['RADeg'], obj['decDeg'], galaxyCatalog, zPriorMin, zPriorMax, weightsType, maxRMpc, zMethod)
 
                 # Write out galaxy catalog with photo-zs in both FITS and DS9 .reg format
@@ -301,7 +301,7 @@ if __name__ == '__main__':
                         want to use this, run zCluster using something like: mpirun --np 4 zCluster ...""", 
                         default = False)
     parser.add_argument("-e", "--max-mag-error", dest="maxMagError", help="""Maximum acceptable 
-                        photometric error (in magnitudes).""", default = 0.25)
+                        photometric error (in magnitudes; default: 0.25).""", default = 0.25)
     parser.add_argument("-z", "--z-prior-min", dest="zPriorMin", help="""Set minimum redshift of prior.""", 
                         default = None)
     parser.add_argument("-Z", "--z-prior-max", dest="zPriorMax", help="""Set maximum redshift of prior.""", 
@@ -390,7 +390,7 @@ if __name__ == '__main__':
         zPriorMin=0.5 
         zPriorMax=1.6
         retriever=catalogRetriever.FITSRetriever
-        retrieverOptions={'fileName': database, 'addSDSS': options.addSDSS}
+        retrieverOptions={'fileName': database, 'addSDSS': args.addSDSS}
 
     # Allow prior overrides from command line
     if args.zPriorMax != None:

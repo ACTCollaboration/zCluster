@@ -212,26 +212,8 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
         # different run number, so object doesn't get added to catalog.
         if catalog == []:
             catalog=None
-
-    # Work out what EAZY filters we will be using on the basis of mags in the catalog
-    if catalog != None:
-        eazyFilterCodes={}
-        eazyFilterCodes['prior']='r'
-        for key in catalog[0].keys():
-            if key == 'u':
-                eazyFilterCodes[key]='F73'
-            elif key == 'g':
-                eazyFilterCodes[key]='F75'
-            elif key == 'r':
-                eazyFilterCodes[key]='F74'
-            elif key == 'i':
-                eazyFilterCodes[key]='F76'
-            elif key == 'z':
-                eazyFilterCodes[key]='F77'         
-    else:
-        eazyFilterCodes=None
             
-    return [catalog, eazyFilterCodes]
+    return catalog
 
 #-------------------------------------------------------------------------------------------------------------
 def checkMagErrors(photDict, maxMagError, minBands = 3, bands = ['u', 'g', 'r', 'i', 'z']):
@@ -432,36 +414,8 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
                     keep=True
                 if keep == True:
                     catalog.append(photDict)
-
-    #if outFileName == '/home/matty/.zCluster/cache/SDSSDR8_12.7471_-9.4872_0.1500.csv':
-        #print "Hm?"
-        #ipshell()
-        #sys.exit()
-
-    # Work out what EAZY filters we will be using on the basis of mags in the catalog
-    if catalog != None:
-        eazyFilterCodes={}
-        eazyFilterCodes['prior']='r'
-        try:
-            for key in catalog[0].keys():
-                if key == 'u':
-                    eazyFilterCodes[key]='F73'
-                elif key == 'g':
-                    eazyFilterCodes[key]='F75'
-                elif key == 'r':
-                    eazyFilterCodes[key]='F74'
-                elif key == 'i':
-                    eazyFilterCodes[key]='F76'
-                elif key == 'z':
-                    eazyFilterCodes[key]='F77'    
-        except:
-            # empty catalog after all
-            catalog=None
-            eazyFilterCodes=None
-    else:
-        eazyFilterCodes=None
         
-    return [catalog, eazyFilterCodes]
+    return catalog
 
 #-------------------------------------------------------------------------------------------------------------
 def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
@@ -579,26 +533,8 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
     
     else:
         catalog=None
-        
-    # Work out what EAZY filters we will be using on the basis of mags in the catalog
-    if catalog != None:
-        eazyFilterCodes={}
-        eazyFilterCodes['prior']='r'
-        for key in catalog[0].keys():
-            if key == 'u':
-                eazyFilterCodes[key]='F88'
-            elif key == 'g':
-                eazyFilterCodes[key]='F89'
-            elif key == 'r':
-                eazyFilterCodes[key]='F90'
-            elif key == 'i':
-                eazyFilterCodes[key]='F91'
-            elif key == 'z':
-                eazyFilterCodes[key]='F92'         
-    else:
-        eazyFilterCodes=None
-        
-    return [catalog, eazyFilterCodes]
+                
+    return catalog
 
 #-------------------------------------------------------------------------------------------------------------
 def SDSSDR7Retriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
@@ -757,26 +693,8 @@ def CFHTLenSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
                     #keep=False
                 if keep == True:
                     catalog.append(photDict)
-                
-    # Work out what EAZY filters we will be using on the basis of mags in the catalog
-    if catalog != None:
-        eazyFilterCodes={}
-        eazyFilterCodes['prior']='r'
-        for key in catalog[0].keys():
-            if key == 'u':
-                eazyFilterCodes[key]='F88'
-            elif key == 'g':
-                eazyFilterCodes[key]='F89'
-            elif key == 'r':
-                eazyFilterCodes[key]='F90'
-            elif key == 'i':
-                eazyFilterCodes[key]='F91'
-            elif key == 'z':
-                eazyFilterCodes[key]='F92'         
-    else:
-        eazyFilterCodes=None
-        
-    return [catalog, eazyFilterCodes]
+                    
+    return catalog
 
 #-------------------------------------------------------------------------------------------------------------
 def CFHTRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, survey = 'deep', optionsDict = {}):
@@ -902,24 +820,6 @@ def CFHTRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, survey = 'deep', opt
     #pylab.ylim(-0.5, 3)
     #ipshell()
     #sys.exit()
-
-    # Work out what EAZY filters we will be using on the basis of mags in the catalog
-    if catalog != None:
-        eazyFilterCodes={}
-        eazyFilterCodes['prior']='r'
-        for key in catalog[0].keys():
-            if key == 'u':
-                eazyFilterCodes[key]='F88'
-            elif key == 'g':
-                eazyFilterCodes[key]='F89'
-            elif key == 'r':
-                eazyFilterCodes[key]='F90'
-            elif key == 'i':
-                eazyFilterCodes[key]='F91'
-            elif key == 'z':
-                eazyFilterCodes[key]='F92'         
-    else:
-        eazyFilterCodes=None
     
     # If we also wanted to retrieve image
     # Retrieve 5' i-band image of 2215 from CFHTLS - this gives a page with link to image to download
@@ -927,7 +827,7 @@ def CFHTRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, survey = 'deep', opt
     #ipshell()
     #sys.exit()
     
-    return [catalog, eazyFilterCodes]
+    return catalog
     
 #-------------------------------------------------------------------------------------------------------------
 def CFHTDeepRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
@@ -937,8 +837,8 @@ def CFHTDeepRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}
     
     """ 
     
-    catalog, eazyFilterCodes=CFHTRetriever(RADeg, decDeg, halfBoxSizeDeg, survey = 'deep')
-    return [catalog, eazyFilterCodes]
+    catalog=CFHTRetriever(RADeg, decDeg, halfBoxSizeDeg, survey = 'deep')
+    return catalog
 
 #-------------------------------------------------------------------------------------------------------------
 def CFHTWideRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
@@ -948,8 +848,8 @@ def CFHTWideRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}
     
     """
     
-    catalog, eazyFilterCodes=CFHTRetriever(RADeg, decDeg, halfBoxSizeDeg, survey = 'wide')
-    return [catalog, eazyFilterCodes]
+    catalog=CFHTRetriever(RADeg, decDeg, halfBoxSizeDeg, survey = 'wide')
+    return catalog
 
 #-------------------------------------------------------------------------------------------------------------
 def getEBMinusV(RADeg, decDeg):
@@ -991,7 +891,7 @@ def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
     rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, tab['RADeg'], tab['decDeg'])
     if rDeg.min() > halfBoxSizeDeg:
         print "... no galaxies found in FITS catalog near RA, dec = (%.6f, %.6f) ..." % (RADeg, decDeg)
-        return None, None
+        return None
     tab=tab.where(rDeg < halfBoxSizeDeg)
     
     # Options we may wish to play with
@@ -1077,128 +977,5 @@ def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
     # different run number, so object doesn't get added to catalog.
     if catalog == []:
         catalog=None
-
-    # Work out what EAZY filters we will be using on the basis of mags in the catalog
-    if catalog != None:
-        eazyFilterCodes={}
-        eazyFilterCodes['prior']='r'
-        for key in catalog[0].keys():
-            if key == 'u':
-                eazyFilterCodes[key]='F73'
-            elif key == 'g':
-                eazyFilterCodes[key]='F75'
-            elif key == 'r':
-                eazyFilterCodes[key]='F74'
-            elif key == 'i':
-                eazyFilterCodes[key]='F76'
-            elif key == 'z':
-                eazyFilterCodes[key]='F77'         
-    else:
-        eazyFilterCodes=None
             
-    return [catalog, eazyFilterCodes]   
-    
-#-------------------------------------------------------------------------------------------------------------
-def loadMehrtensCatalog():
-    """Loads in Nicola's catalog of confirmed clusters with Ts and zs. We make the RA, dec coords from the
-    cluster names.
-    
-    """
-        
-    inFile=file(zCluster.__path__[0]+os.path.sep+"Mehrtens2011/catalogueFeb22nd.tex", "r")
-    lines=inFile.readlines()
-    inFile.close()
-
-    catalog=[]
-    for line in lines:
-        if line[:6] == "XMMXCS":
-            bits=line.split("&")
-            objDict={}
-            objDict['name']=bits[0].replace("$", "").rstrip(" ")
-            objDict['RADeg']=astCoords.hms2decimal(objDict['name'][8:10]+":"+objDict['name'][10:12]+":"+objDict['name'][12:16], ":")
-            objDict['decDeg']=astCoords.dms2decimal(objDict['name'][16:19]+":"+objDict['name'][19:21]+":"+objDict['name'][21:25], ":")
-            objDict['scts']=int(bits[1])
-            noRedshift=False
-            try:
-                objDict['z']=float(bits[2])
-            except:
-                noRedshift=True
-            if bits[3].find("g") != -1:
-                objDict['zooClass']='gold'
-            elif bits[3].find("s") != -1:
-                objDict['zooClass']='silver'
-            elif bits[3].find("Lit") != -1:
-                objDict['zooClass']='lit'
-            elif bits[3].find("Spec") != -1:
-                objDict['zooClass']='Spec'
-            else:
-                print "eh, what class?"
-                ipshell()
-                sys.exit()
-            noTemperature=False
-            try:
-                objDict['TkeV']=float(bits[4][:bits[4].find("$")])
-                objDict['TkeVPlusErr']=bits[4][bits[4].find("^")+2:]
-                objDict['TkeVPlusErr']=float(objDict['TkeVPlusErr'][:objDict['TkeVPlusErr'].find("}")])
-                objDict['TkeVMinusErr']=bits[4][bits[4].find("_")+2:]
-                objDict['TkeVMinusErr']=float(objDict['TkeVMinusErr'][:objDict['TkeVMinusErr'].find("}")]) 
-            except:
-                # In this case, no T in Nicola's table, skip it
-                noTemperature=True
-            if noRedshift == False:
-                catalog.append(objDict)
-
     return catalog
-
-#-------------------------------------------------------------------------------------------------------------
-def loadSDSSZooResults(catalog):
-    """Loads in SDSS zoo results, flag objects using Nic's numbers
-    
-    4 = gold
-    3 = silver
-    2 = bronze
-    1 = other
-    -1 = bad, don't want to see again
-    
-    """
-    
-    inFileName=zCluster.__path__[0]+os.path.sep+"Mehrtens2011/SDSSZoo100cts_OverallClassifications.txt"
-    inFile=file(inFileName)
-    lines=inFile.readlines()
-    inFile.close()
-    
-    for obj in catalog:
-        obj['zooClass']=0
-        for line in lines:
-            if len(line) > 0 and line[0] != "#":
-                name, avClass, minClass, blah, blah=line.split("\t")
-                if name == obj['name']:
-                    obj['zooClass']=int(minClass) # conservative option, rounded down average classification
-    
-    return catalog
-
-#-------------------------------------------------------------------------------------------------------------
-def loadMinimalZooResults(inFileName, catalog):
-    """Loads in zoo results, in simple format name, zooClass. Flag objects using Nic's numbering scheme:
-    
-    4 = gold
-    3 = silver
-    2 = bronze
-    1 = other
-    
-    """
-    
-    inFile=file(inFileName)
-    lines=inFile.readlines()
-    inFile.close()
-    
-    for obj in catalog:
-        obj['zooClass']=0
-        for line in lines:
-            if len(line) > 0 and line[0] != "#":
-                name, minClass=line.split("\t")
-                if name == obj['name']:
-                    obj['zooClass']=int(minClass) # conservative option, rounded down average classification
-    
-    return catalog
-    

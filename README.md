@@ -23,6 +23,7 @@ zCluster itself is written in pure python (2.7.x). It requires the following add
 * scipy (0.17.1)
 * matplotlib (1.5.2)
 * astLib (git version probably: get it with `git clone http://git.code.sf.net/p/astlib/git astlib-git`)
+* atpy (0.9.7)
 * IPython (2.4.1)
 
 In addition, for surveys other than SDSS, the Schlegel et al. `dust_getval` code and maps are needed, in order
