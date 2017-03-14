@@ -32,7 +32,7 @@ import cPickle
 import numpy as np
 from astLib import *
 from scipy import interpolate
-import atpy
+import astropy.table as atpy
 import datetime
 #import multiprocessing as mp
 import IPython
@@ -55,9 +55,9 @@ def parseClusterCatalog(fileName):
     """
     
     if fileName.split(".")[-1] == "csv":
-        tab=atpy.Table(fileName, type = 'ascii')
+        tab=atpy.Table().read(fileName, type = 'ascii')
     else:
-        tab=atpy.Table(fileName)
+        tab=atpy.Table().read(fileName)
     catalog=[]
     wantedKeys=['name', 'RADeg', 'decDeg']
     for row in tab:
@@ -163,7 +163,7 @@ def writeRedshiftsCatalog(catalog, outFileName):
         arr=[]
         for obj in catalog:
             arr.append(obj[key])
-        tab.add_column(key, arr)
+        tab.add_column(atpy.Column(arr, key))
     for key in resultKeys:
         arr=[]
         for obj in catalog:
@@ -171,7 +171,10 @@ def writeRedshiftsCatalog(catalog, outFileName):
                 arr.append(obj['zClusterResult'][key])
             else:
                 arr.append(-99)
-        tab.add_column(key, arr)
+        tab.add_column(atpy.Column(arr, key))
+    
+    # Since generally we cross match against sourcery tables, we may as well zap the non-results as we don't need
+    tab=tab[np.where(tab['z'] > 0.)]
     
     tab.table_name="zCluster"
     tab.write(outFileName)
@@ -221,11 +224,11 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                             #print "missing key, eh?"
                             #IPython.embed()
                             #sys.exit()
-                    tab.add_column(key, np.array(arr))
+                    tab.add_column(atpy.Column(np.array(arr), key))
                 # NOTE: to cut down on disk space this takes, include only galaxies within some radius
                 # Chosen one is just over 1.5 Mpc at z = 0.1
-                tab.add_column("rDeg", astCoords.calcAngSepDeg(tab['RADeg'], tab['decDeg'], obj['RADeg'], obj['decDeg']))
-                tab=tab.where(tab['rDeg'] < 14./60.0)
+                tab.add_column(atpy.Column(astCoords.calcAngSepDeg(tab['RADeg'], tab['decDeg'], obj['RADeg'], obj['decDeg']), "rDeg"))
+                tab=tab[np.where(tab['rDeg'] < 14./60.0)]
                 tab.table_name="zCluster"
                 tab.write(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_")))
                 catalogTools.catalog2DS9(galaxyCatalog, objOutDir+os.path.sep+"galaxyCatalog_%s.reg" % (obj['name'].replace(" ", "_")), 
@@ -423,7 +426,7 @@ if __name__ == '__main__':
         print ">>> Running null test ..."
         catalogFileName="nullTest.fits"
         if os.path.exists(catalogFileName) == False:
-            rmTab=atpy.Table(zCluster.__path__[0]+os.path.sep+"data"+os.path.sep+"redmapper_dr8_public_v5.10_catalog.fits")
+            rmTab=atpy.Table().read()(zCluster.__path__[0]+os.path.sep+"data"+os.path.sep+"redmapper_dr8_public_v5.10_catalog.fits")
             RAMin, RAMax, decMin, decMax=getRoughFootprint(database)
             catalog=[]
             count=0

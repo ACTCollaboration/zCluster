@@ -499,7 +499,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
         # We could use DECaLS extinction coeffs, but for now do the same as we are elsewhere   
         # Skipping Y for now
         corrDict={'u': 5.155, 'g': 3.793, 'r': 2.751, 'i': 2.086, 'z': 1.479, 'Ks': 0.367}    
-        EBMinusV=getEBMinusV(RADeg, decDeg) # assume same across field (much faster)
+        EBMinusV=getEBMinusV(RADeg, decDeg, optionsDict = optionsDict) # assume same across field (much faster)
 
         catalog=[]
         for row in tab: 
@@ -774,7 +774,7 @@ def CFHTRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, survey = 'deep', opt
     else:
         catalog=[]
         idCount=0
-        EBMinusV=getEBMinusV(RADeg, decDeg) # assume same across field (much faster)
+        EBMinusV=getEBMinusV(RADeg, decDeg, optionsDict = optionsDict) # assume same across field (much faster)
         for line in lines[1:]: # first line always heading
             if len(line) > 3:
                 photDict={}
@@ -852,19 +852,29 @@ def CFHTWideRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
-def getEBMinusV(RADeg, decDeg):
-    """Get E(B-V) due to Galactic dust from Schlegel maps.
+def getEBMinusV(RADeg, decDeg, optionsDict = {}):
+    """Get E(B-V) due to Galactic dust from Schlegel maps, using IRSA web service
     
     """
+
+    makeCacheDir()
+    if 'altCacheDir' in optionsDict.keys():
+        cacheDir=optionsDict['altCacheDir']
+    else:
+        cacheDir=CACHE_DIR
+        
+    fileName=cacheDir+os.path.sep+"SchlegelIRSA_%.6f_%.6f.xml" % (RADeg, decDeg)
+    if os.path.exists(fileName) == False:
+        url="http://irsa.ipac.caltech.edu/cgi-bin/DUST/nph-dust?locstr="+str(RADeg)+"%20"+str(decDeg)+"%20Equ%20J2000"
+        urllib.urlretrieve(url, filename = fileName)
     
-    galLong, galLat=astCoords.convertCoords("J2000", "GALACTIC", RADeg, decDeg, 2000)
-    
-    process=subprocess.Popen(['dust_getval', str(galLong), str(galLat)], shell = False, stdout=subprocess.PIPE)
-    output=process.communicate()
-    try:
-        EBMinusV=float(output[0].split("\n")[1].split()[-1])
-    except:
-        raise Exception, "Couldn't get E(B-V) - check Schlegel code and maps correctly installed"
+    inFile=file(fileName, "r")
+    lines=inFile.readlines()
+    inFile.close()
+    for i in range(len(lines)):
+        if lines[i].find("refPixelValueSFD") != -1:
+            break
+    EBMinusV=float(lines[i+1].split(" (")[0])
 
     return EBMinusV
 
@@ -904,7 +914,7 @@ def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
         
     # Dust correction setup
     corrDict={'u': 5.155, 'g': 3.793, 'r': 2.751, 'i': 2.086, 'z': 1.479, 'Ks': 0.367}    
-    EBMinusV=getEBMinusV(np.mean(tab['RADeg']), np.mean(tab['decDeg']))
+    EBMinusV=getEBMinusV(np.mean(tab['RADeg']), np.mean(tab['decDeg']), optionsDict = optionsDict)
     
     # Work out available bands
     acceptableBands=['u', 'g', 'r', 'i', 'z', 'Ks']
