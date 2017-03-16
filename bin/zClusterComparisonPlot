@@ -24,7 +24,7 @@
 import os
 import sys
 import argparse
-import atpy
+import astropy.table as atpy
 from zCluster import *
 import pylab as plt
 import numpy as np
@@ -87,11 +87,11 @@ if __name__ == '__main__':
         yRangeStr=args.yRangeStr
         
     if inCatalogFileName.split(".")[-1] == "csv":
-        inTab=atpy.Table(inCatalogFileName, type = 'ascii')
+        inTab=atpy.Table().read(inCatalogFileName, type = 'ascii')
     else:
-        inTab=atpy.Table(inCatalogFileName)
+        inTab=atpy.Table().read(inCatalogFileName)
         
-    outTab=atpy.Table(outCatalogFileName)
+    outTab=atpy.Table().read(outCatalogFileName)
 
     if args.outLabel == None:
         outFileName="comparison_"+os.path.split(inCatalogFileName)[-1].replace(".fits", "").replace(".csv", "")+"_vs_"+outCatalogFileName
@@ -108,14 +108,14 @@ if __name__ == '__main__':
         raise Exception, "didn't find 'z' or 'redshift' column in input table %s" % (inCatalogFileName)
     
     # Match on names
-    outTab.add_column("zIn", np.zeros(len(outTab)))
+    outTab.add_column(atpy.Column(np.zeros(len(outTab)), "zIn"))
     for irow in inTab:
         for orow in outTab:
             if str(irow['name']) == str(orow['name']):
                 orow['zIn']=irow[zKey]
-    tab=outTab.where(outTab['zIn'] > 0.0)
-    tab.add_column('zDiff', tab['zIn']-tab['z'])
-    tab=tab.where(tab['z'] > 0) # because filled in -99 for fails/missing clusters (e.g., not in S82)
+    tab=outTab[np.where(outTab['zIn'] > 0.0)]
+    tab.add_column(atpy.Column(tab['zIn']-tab['z'], 'zDiff'))
+    tab=tab[np.where(tab['z'] > 0)] # because filled in -99 for fails/missing clusters (e.g., not in S82)
     
     zIn=tab['zIn']
     zOut=tab['z']
