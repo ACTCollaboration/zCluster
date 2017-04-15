@@ -434,7 +434,7 @@ if __name__ == '__main__':
         print ">>> Running null test ..."
         catalogFileName="nullTest.fits"
         if os.path.exists(catalogFileName) == False:
-            rmTab=atpy.Table().read()(zCluster.__path__[0]+os.path.sep+"data"+os.path.sep+"redmapper_dr8_public_v5.10_catalog.fits")
+            rmTab=atpy.Table().read(zCluster.__path__[0]+os.path.sep+"data"+os.path.sep+"redmapper_dr8_public_v5.10_catalog.fits")
             RAMin, RAMax, decMin, decMax=getRoughFootprint(database)
             catalog=[]
             count=0
