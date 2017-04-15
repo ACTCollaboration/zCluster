@@ -174,7 +174,11 @@ def writeRedshiftsCatalog(catalog, outFileName):
         tab.add_column(atpy.Column(arr, key))
     
     # Since generally we cross match against sourcery tables, we may as well zap the non-results as we don't need
-    tab=tab[np.where(tab['z'] > 0.)]
+    # The try... except bit here is because we've also used this routine to write the nullTest catalog, which doesn't have zs
+    try:
+        tab=tab[np.where(tab['z'] > 0.)]
+    except:
+        pass
     
     tab.table_name="zCluster"
     tab.write(outFileName)
