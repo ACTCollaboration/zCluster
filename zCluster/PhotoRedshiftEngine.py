@@ -102,6 +102,12 @@ class PhotoRedshiftEngine:
         self.modelFlux=np.array(modelFlux)  
         self.modelFlux2=self.modelFlux**2
         
+        # We might use these...
+        dlRange=[]
+        for z in self.zRange:
+            dlRange.append(astCalc.dl(z))
+        self.dlRange=np.array(dlRange)
+        
     
     def calcPhotoRedshifts(self, galaxyCatalog, calcMLRedshiftAndOdds = False):
         """Calculates photometric redshifts and adds to the galaxy catalog in place.
@@ -152,9 +158,16 @@ class PhotoRedshiftEngine:
             chiSqProb=stats.chisqprob(chiSq, len(self.bands)-2)
             chiSqProb=chiSqProb.reshape([self.numModels, self.zRange.shape[0]])
             pz=np.sum(chiSqProb, axis = 0)            
+            # If we wanted to impose a mag prior, we'd do it here...
+            magPriorCut=-24.
+            magPriorBand=self.bands.index('r')
+            absMag=magAB[magPriorBand]-5.0*np.log10(1e5*self.dlRange)
+            pPrior=np.array(np.greater(absMag, magPriorCut), dtype = float)
+            pz=pz*pPrior
+            # Normalise
             pzNorm=np.trapz(pz, self.zRange)
             if pzNorm != 0:
-                pz=pz/pzNorm  
+                pz=pz/pzNorm 
             if calcMLRedshiftAndOdds == True:
                 zp, odds=self.calculateMLRedshiftAndOdds(pz, dzOdds = 0.2)
                 galaxy['zPhot']=zp

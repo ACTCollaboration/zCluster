@@ -235,7 +235,192 @@ def checkMagErrors(photDict, maxMagError, minBands = 3, bands = ['u', 'g', 'r', 
         keep=False
     
     return keep
-                    
+
+#-------------------------------------------------------------------------------------------------------------
+def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
+    """Retrieves PS1 photometry at the given position.
+    
+    """
+    
+    print "PS1 retriever"
+    IPython.embed()
+    sys.exit()
+    
+    # PhotoPrimary avoids star-galaxy classification problems at higher z, which we need when making slit masks
+    # BUT contamination from stars etc. increases scatter in (z_spec - z_phot) by a fair bit (outliers)
+    #tableName="PhotoPrimary"
+    tableName="Galaxy"
+    
+    makeCacheDir()
+    
+    if 'altCacheDir' in optionsDict.keys():
+        cacheDir=optionsDict['altCacheDir']
+    else:
+        cacheDir=CACHE_DIR
+    
+    if os.path.exists(cacheDir) == False:
+        os.makedirs(cacheDir)
+    
+    if DR == 7:
+        url='http://cas.sdss.org/astrodr7/en/tools/search/x_sql.asp'
+        outFileName=cacheDir+os.path.sep+"SDSSDR7_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
+        lineSkip=1
+    elif DR == 8:
+        url='http://skyserver.sdss3.org/dr8/en/tools/search/x_sql.asp'
+        outFileName=cacheDir+os.path.sep+"SDSSDR8_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
+        lineSkip=1
+    elif DR == 10:      
+        url='http://skyserver.sdss3.org/dr10/en/tools/search/x_sql.aspx'
+        outFileName=cacheDir+os.path.sep+"SDSSDR10_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
+        lineSkip=2
+    elif DR == 12:
+        # For some reason, SDSS changed their whole web API in ~May 2016 without calling it a new DR
+        #url='http://skyserver.sdss.org/dr12/en/tools/search/x_sql.aspx'        
+        #url='http://skyserver.sdss.org/dr12/en/tools/search/x_results.aspx'
+        url='http://skyserver.sdss.org/dr12/en/tools/search/x_results.aspx?searchtool=SQL&TaskName=Skyserver.Search.SQL&syntax=NoSyntax&ReturnHtml=false&'
+        outFileName=cacheDir+os.path.sep+"SDSSDR12_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
+        lineSkip=2		
+   
+    outFileName=outFileName.replace(".csv", "_%s.csv" % (tableName))
+                                    
+    print "... getting SDSS DR%d photometry (file: %s) ..." % (DR, outFileName)
+
+    # First, check if we previously downloaded a catalog and it went wrong - if it did, delete the file so
+    # we can try fetching it again
+    #if os.path.exists(outFileName) == True:
+        #inFile=file(outFileName, "r")
+        #lines=inFile.readlines()
+        #inFile.close()
+        #if lines[0].find("No objects have been found") != -1 or len(lines) > 1 and lines[1][:5] == "ERROR":
+            #os.remove(outFileName)
+        
+    if os.path.exists(outFileName) == False or 'refetch' in optionsDict.keys() and optionsDict['refetch'] == True:
+        
+        print "... fetching from the internet ..."
+        
+        # Clean galaxy photometry query - note flags for r-band only, may want to change
+        # We may want to add something that does multiple queries if we want a bigger area from the standard
+        # SDSS query interface
+        # NOTE: disabled the 'clean' photometry flags on 21/09/2015
+        RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
+        # Sanity check: if RAMin, RAMax have order reversed, SDSS gives us nothing
+        if RAMin > RAMax:
+            print "RAMin, RAMax reversed"
+            IPython.embed()
+            sys.exit()
+            newRAMax=RAMin
+            RAMin=RAMax
+            RAMax=newRAMax
+        if decMin > decMax:
+            print "decMin, decMax reversed"
+            IPython.embed()
+            sys.exit()
+            newDecMax=decMin
+            decMin=decMax
+            decMax=newDecMax
+        # Was FROM Galaxy,and taken out mag err constrain on 23 Oct 2015
+        # PhotoPrimary is like PhotoObj but without multiple matches
+        sql="""SELECT ra,dec,dered_u,dered_g,dered_r,dered_i,dered_z,Err_u,Err_g,Err_r,Err_i,Err_z,flags_r,run 
+            FROM %s
+            WHERE 
+            ra BETWEEN %.6f and %.6f AND dec BETWEEN %.6f and %.6f 
+            -- AND ((flags_r & 0x10000000) != 0) 
+            -- detected in BINNED1 
+            -- AND ((flags_r & 0x8100000c00a0) = 0) 
+            -- not NOPROFILE, PEAKCENTER, NOTCHECKED, PSF_FLUX_INTERP, SATURATED, 
+            -- or BAD_COUNTS_ERROR. 
+            -- if you want to accept objects with interpolation problems for PSF mags, 
+            -- change this to: AND ((flags_r & 0x800a0) = 0) 
+            -- AND (((flags_r & 0x400000000000) = 0) or (psfmagerr_r <= 0.2)) 
+            -- not DEBLEND_NOPEAK or small PSF error 
+            -- (substitute psfmagerr in other band as appropriate) 
+            -- AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0) 
+            -- not INTERP_CENTER or not COSMIC_RAY - omit this AND clause if you want to 
+            -- accept objects with interpolation problems for PSF mags.
+            --AND Err_g < 0.5 AND Err_r < 0.5 AND Err_i < 0.5 
+            """ % (tableName, RAMin, RAMax, decMin, decMax)
+    
+        # Filter SQL so that it'll work
+        fsql = ''
+        for line in sql.split('\n'):
+            fsql += line.split('--')[0] + ' ' + os.linesep;
+    
+        params=urllib.urlencode({'cmd': fsql, 'format': "csv"})
+        response=None
+        while response == None:
+            try:
+                response=urllib2.urlopen(url+'%s' % (params))
+            except:
+                print "Network down? Waiting 30 sec..."
+                time.sleep(30)
+
+        lines=response.read()
+        lines=lines.split("\n")
+        
+        outFile=file(outFileName, "w")
+        for line in lines:
+            outFile.write(line+"\n")
+        outFile.close()
+    
+    else:
+        
+        inFile=file(outFileName, "r")
+        lines=inFile.readlines()
+        inFile.close()
+    
+    # Parse .csv into catalog
+    if lines[0].find("No objects have been found") != -1 or len(lines) > 1 and lines[1][:5] == "ERROR":
+        catalog=None
+    else:
+        catalog=[]
+        idCount=0
+        for line in lines[lineSkip:]: # first line or two (depending on DR) always heading
+            if len(line) > 3:
+                photDict={}
+                idCount=idCount+1
+                bits=line.replace("\n", "").split(",")
+                photDict['id']=idCount    # just so we have something
+                try:
+                    photDict['RADeg']=float(bits[0])
+                except:
+                    if lines[1][:46] == '"ERROR: Maximum 60 queries allowed per minute.':
+                        print "... exceeded server queries per minute limit - waiting ..."
+                        time.sleep(70)
+                        os.remove(outFileName)
+                        return "retry"
+                    else:
+                        if line.find("<html>") != -1:
+                            time.sleep(70)
+                            os.remove(outFileName)
+                            return "retry"
+                        else:
+                            print "what?"
+                            IPython.embed()
+                            sys.exit()
+                photDict['decDeg']=float(bits[1])
+                photDict['u']=float(bits[2])
+                photDict['g']=float(bits[3])
+                photDict['r']=float(bits[4])
+                photDict['i']=float(bits[5])
+                photDict['z']=float(bits[6])
+                photDict['uErr']=float(bits[7])
+                photDict['gErr']=float(bits[8])
+                photDict['rErr']=float(bits[9])
+                photDict['iErr']=float(bits[10])
+                photDict['zErr']=float(bits[11])
+                photDict['run']=int(bits[13])
+                # Apply mag error cuts if given
+                # We're just making the mag unconstrained here (missing data), rather than applying a limit
+                # If we don't have a minimum of three useful bands, reject
+                if 'maxMagError' in optionsDict.keys():
+                    keep=checkMagErrors(photDict, optionsDict['maxMagError'])
+                else:
+                    keep=True
+                if keep == True:
+                    catalog.append(photDict)
+        
+    return catalog
+
 #-------------------------------------------------------------------------------------------------------------
 def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict = {}):
     """Retrieves SDSS main photometry at the given position.

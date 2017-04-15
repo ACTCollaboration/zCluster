@@ -186,12 +186,14 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
     
     """
     
+    count=0
     for obj in catalog:
-        print ">>> %s:" % (obj['name'])
-        objOutDir=outDir+os.path.sep+obj['name'].replace(" ", "_")
+        count=count+1
+        print ">>> %s (%d/%d):" % (obj['name'], count, len(catalog))
+        objOutDir=outDir+os.path.sep+obj['name']
         if os.path.exists(objOutDir) == False:
             os.makedirs(objOutDir)
-        
+            
         pickleFileName=objOutDir+os.path.sep+"obj.pickle"
         if os.path.exists(pickleFileName) == False:
             stuff="retry"
@@ -236,7 +238,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                 
             else:
                 obj['zClusterResult']=None
-            
+
             pickleFile=file(pickleFileName, "w")
             pickler=cPickle.Pickler(pickleFile)
             pickler.dump(obj)
@@ -280,7 +282,7 @@ if __name__ == '__main__':
                         'decDeg'. Set to 'nullTest', to create a catalog with 1000 random positions
                         that are more than 5 arcmin away from redMaPPer and NED clusters.""")
     parser.add_argument("database", help="""The photometric database to use. Options are 'SDSSDR12', 'S82' 
-                        (for SDSS DR7 Stripe 82 co-add); 'CFHTLenS'; 'DECaLS' (DR3); or the path to a
+                        (for SDSS DR7 Stripe 82 co-add); 'CFHTLenS'; 'PS1'; 'DECaLS' (DR3); or the path to a
                         .fits table with columns in the appropriate format ('ID', 'RADeg', 'decDeg', and
                         magnitude column names in the form 'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.).""")
     parser.add_argument("-o", "--output-label", dest="outLabel", help="""Label to use for outputs  
@@ -309,6 +311,7 @@ if __name__ == '__main__':
                         default = None)
     parser.add_argument("-Z", "--z-prior-max", dest="zPriorMax", help="""Set maximum redshift of prior.""", 
                         default = None)
+    parser.add_argument("-n", "--name", dest="name", help="Find photo-z of only the named cluster in the catalog.")
     parser.add_argument("-s", "--add-SDSS", dest="addSDSS", action="store_true", help="""If using 
                         a user-supplied FITS galaxy photometic catalog, add in additional SDSS 
                         photometry if available.""", default = False)
@@ -357,7 +360,7 @@ if __name__ == '__main__':
     if database == 'S82':
         retriever=catalogRetriever.S82Retriever
         zPriorMin=0.20
-        zPriorMax=1.2
+        zPriorMax=1.5
         retrieverOptions={'maxMagError': maxMagError}
     elif database == 'SDSSDR7':
         retriever=catalogRetriever.SDSSDR7Retriever
@@ -368,7 +371,12 @@ if __name__ == '__main__':
     elif database == 'SDSSDR12':
         retriever=catalogRetriever.SDSSDR12Retriever
         zPriorMin=0.05
-        zPriorMax=0.7
+        zPriorMax=0.8
+        retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'PS1':
+        retriever=catalogRetriever.PS1Retriever
+        zPriorMin=0.05
+        zPriorMax=0.8
         retrieverOptions={'maxMagError': maxMagError}
     elif database == 'CFHTLenS':
         retriever=catalogRetriever.CFHTLenSRetriever
@@ -378,14 +386,14 @@ if __name__ == '__main__':
     elif database == 'DECaLS':
         retriever=catalogRetriever.DECaLSRetriever
         zPriorMin=0.05
-        zPriorMax=1.2
+        zPriorMax=1.5
         retrieverOptions={'maxMagError': maxMagError}
     elif database == 'CFHTDeep':
         retriever=catalogRetriever.CFHTDeepRetriever
     elif database == 'CFHTWide':
         retriever=catalogRetriever.CFHTWideRetriever
         zPriorMin=0.05
-        zPriorMax=1.2
+        zPriorMax=1.5
     else:
         # Assume this is a FITS file in format of ACAM or SOI photometric pipelines
         # NOTE: SOI has 5' field of view, and targets have no z from SDSS anyway, so zPriorMin = 0.5 
@@ -452,6 +460,17 @@ if __name__ == '__main__':
     else:
         catalog=parseClusterCatalog(catalogFileName)
     
+    # Optionally only running on a single cluster
+    if args.name != None:
+        foundObj=False
+        for objDict in catalog:
+            if objDict['name'] == args.name:
+                foundObj=True
+                break
+        catalog=[objDict]
+        if foundObj == False:
+            raise Exception, "didn't find %s in input catalog" % (args.name)
+
     if MPIEnabled == True:
         objsPerNode=len(catalog)/size
         startIndex=objsPerNode*rank
@@ -460,7 +479,7 @@ if __name__ == '__main__':
         else:
             endIndex=objsPerNode*(rank+1)
         catalog=catalog[startIndex:endIndex]
-    
+
     catalog=runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir, 
                          zPriorMin, zPriorMax, weightsType, maxRMpc, method)
     
@@ -476,11 +495,7 @@ if __name__ == '__main__':
         else:
             comm.send(catalog, dest = 0, tag = 11)
             sys.exit()
-    
-    if runningNullTest == False:
-        print ">>> Making plots ..."
-        makePlots(catalog, zPriorMax, outDir)
-    
+        
     if runningNullTest == True:
         deltaArr=[]
         for obj in catalog:
@@ -525,3 +540,7 @@ if __name__ == '__main__':
     # Want this either way
     writeRedshiftsCatalog(catalog, outFileName)
     
+    if runningNullTest == False:
+        print ">>> Making plots ..."
+        makePlots(catalog, zPriorMax, outDir)
+        

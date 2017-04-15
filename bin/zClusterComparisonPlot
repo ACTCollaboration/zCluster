@@ -133,6 +133,7 @@ if __name__ == '__main__':
         print "... median (zIn - zOut) = %.3f" % (np.median(maskedDiff))
         print "... mean (zIn - Zout) = %.3f" % (meanMaskedDiff)
         print "... sigma (zIn - zOut) = %.3f" % (stdMaskedDiff)
+        print "... N = %d ..." % (len(maskedDiff))
 
     ## Stats based on odds cut
     #oddsMin=0.35
@@ -154,9 +155,16 @@ if __name__ == '__main__':
         maskedDiff=zIn[mask]-zOut[mask]
         meanMaskedDiff=np.mean(maskedDiff)
         stdMaskedDiff=np.std(maskedDiff)
+        maskedDiff_over1plusz=(zIn[mask]-zOut[mask])/(1+zIn[mask])
+        meanMaskedDiff_over1plusz=np.mean(maskedDiff_over1plusz)
+        stdMaskedDiff_over1plusz=np.std(maskedDiff_over1plusz)
         print "... median (zIn - zOut) = %.3f" % (np.median(maskedDiff))
         print "... mean (zIn - Zout) = %.3f" % (meanMaskedDiff)
         print "... sigma (zIn - zOut) = %.3f" % (stdMaskedDiff)
+        print "... median (zIn - zOut) / (1 + zIn) = %.3f" % (np.median(maskedDiff_over1plusz))
+        print "... mean (zIn - Zout) / (1 + zIn)  = %.3f" % (meanMaskedDiff_over1plusz)
+        print "... sigma (zIn - zOut) / (1 + zIn)  = %.3f" % (stdMaskedDiff_over1plusz)
+        print "... N = %d ..." % (len(maskedDiff))
         
     # Plot
     plt.figure(figsize=(18, 6.5))
