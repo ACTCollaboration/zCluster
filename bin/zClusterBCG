@@ -27,7 +27,7 @@ import os
 import sys
 import urllib
 import numpy as np
-import atpy
+import astropy.table as atpy
 import pyfits
 from zCluster import *
 import pylab as plt
@@ -78,7 +78,8 @@ def fetchSDSSImage(obj, refetch = False):
             print "... WARNING: couldn't get SDSS image ..."
             print urlString
             outFileName=None
-                
+        os.system("convert -gamma 2 %s %s" % (outFileName, outFileName))
+
 #-------------------------------------------------------------------------------------------------------------
 class CMDImageCombo:
     """Combination CMD and clickable image plot in one.
@@ -132,21 +133,20 @@ class CMDImageCombo:
         yRefPix=ySizePix/2.0
         xOutPixScale=xSizeDeg/xSizePix
         yOutPixScale=ySizeDeg/ySizePix
-        cardList=pyfits.CardList()
-        cardList.append(pyfits.Card('NAXIS', 2))
-        cardList.append(pyfits.Card('NAXIS1', xSizePix))
-        cardList.append(pyfits.Card('NAXIS2', ySizePix))
-        cardList.append(pyfits.Card('CTYPE1', 'RA---TAN'))
-        cardList.append(pyfits.Card('CTYPE2', 'DEC--TAN'))
-        cardList.append(pyfits.Card('CRVAL1', RADeg))
-        cardList.append(pyfits.Card('CRVAL2', decDeg))
-        cardList.append(pyfits.Card('CRPIX1', xRefPix+1))
-        cardList.append(pyfits.Card('CRPIX2', yRefPix+1))
-        cardList.append(pyfits.Card('CDELT1', xOutPixScale))
-        cardList.append(pyfits.Card('CDELT2', xOutPixScale))    # Makes more sense to use same pix scale
-        cardList.append(pyfits.Card('CUNIT1', 'DEG'))
-        cardList.append(pyfits.Card('CUNIT2', 'DEG'))
-        newHead=pyfits.Header(cards=cardList)
+        newHead=pyfits.Header()
+        newHead['NAXIS']=2
+        newHead['NAXIS1']=xSizePix
+        newHead['NAXIS2']=ySizePix
+        newHead['CTYPE1']='RA---TAN'
+        newHead['CTYPE2']='DEC--TAN'
+        newHead['CRVAL1']=RADeg
+        newHead['CRVAL2']=decDeg
+        newHead['CRPIX1']=xRefPix+1
+        newHead['CRPIX2']=yRefPix+1
+        newHead['CDELT1']=xOutPixScale
+        newHead['CDELT2']=xOutPixScale    # Makes more sense to use same pix scale
+        newHead['CUNIT1']='DEG'
+        newHead['CUNIT2']='DEG'
         wcs=astWCS.WCS(newHead, mode='pyfits')
         
         # Optional zoom
@@ -176,7 +176,7 @@ class CMDImageCombo:
                 mask.append(True)
             else:
                 mask.append(False)
-        self.galTab=self.galTab.where(np.array(mask))
+        self.galTab=self.galTab[np.where(np.array(mask))]
         #self.galTab=self.galTab.where(mask)
         
         # Make CMD
@@ -185,7 +185,8 @@ class CMDImageCombo:
 
         self.imagePlot.draw()
         if self.matchTab != None:
-            self.imagePlot.addPlotObjects(self.matchTab['RADeg'], self.matchTab['decDeg'], 'BCG', symbol='circle', size=10.0, color='white')  
+            self.imagePlot.addPlotObjects(np.array(self.matchTab['RADeg']), np.array(self.matchTab['decDeg']), 
+                                          'BCG', symbol='circle', size=10.0, color='white')  
             
         # Buttons
         axok=plt.axes([0.63, 0.25, 0.1, 0.075])
@@ -261,12 +262,12 @@ class CMDImageCombo:
             if modeText == 'Nearest Galaxy':
                 RADeg, decDeg=self.imagePlot.wcs.pix2wcs(x, y)
                 rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, self.galTab['RADeg'], self.galTab['decDeg'])
-                self.matchTab=self.galTab.where(np.equal(rDeg, rDeg.min()))
+                self.matchTab=self.galTab[np.where(np.equal(rDeg, rDeg.min()))]
             elif modeText == 'Free Selection':
                 RADeg, decDeg=self.imagePlot.wcs.pix2wcs(event.xdata, event.ydata)
                 freeTab=atpy.Table()
                 for key in self.galTab.keys():
-                    freeTab.add_column(key, np.zeros(1))
+                    freeTab.add_column(atpy.Column(np.zeros(1), key))
                 freeTab['RADeg'][0]=RADeg
                 freeTab['decDeg'][0]=decDeg
                 freeTab.table_name="FreeSelection"
@@ -275,7 +276,8 @@ class CMDImageCombo:
             self.drawCMD()
             
             if button == 1: 
-                self.imagePlot.addPlotObjects(self.matchTab['RADeg'], self.matchTab['decDeg'], 'BCG', symbol='circle', size=10.0, color='white')
+                self.imagePlot.addPlotObjects(np.array(self.matchTab['RADeg']), np.array(self.matchTab['decDeg']), 
+                                              'BCG', symbol='circle', size=10.0, color='white')
 
             self.imagePlot.draw()
 
@@ -296,9 +298,10 @@ class CMDImageCombo:
         for m, c in zip(mag, colour):
             diff=np.sqrt((self.galTab['r-i']-c)**2 + (self.galTab['i']-m)**2)
             if diff.min() < minDiff:
-                self.matchTab=self.galTab.where(np.equal(diff, diff.min()))
+                self.matchTab=self.galTab[np.where(np.equal(diff, diff.min()))]
         self.drawCMD()
-        self.imagePlot.addPlotObjects(self.matchTab['RADeg'], self.matchTab['decDeg'], 'BCG', symbol='circle', size=10.0, color='white')        
+        self.imagePlot.addPlotObjects(np.array(self.matchTab['RADeg']), np.array(self.matchTab['decDeg']), 'BCG', 
+                                      symbol='circle', size=10.0, color='white')        
         self.imagePlot.draw()
 
         
@@ -318,7 +321,7 @@ if __name__ == '__main__':
     catalogFileName=args.catalogFileName
     resultsDir=args.resultsDir
     
-    clusTab=atpy.Table(catalogFileName)
+    clusTab=atpy.Table().read(catalogFileName)
     if 'z' in clusTab.keys():
         zColumn='z'
     elif 'redshift' in clusTab.keys():
@@ -352,12 +355,12 @@ if __name__ == '__main__':
     for cluster, selected in zip(clusTab, selectionMask):
         print ">>> %s" % (cluster['name'])
         
-        galTab=atpy.Table(resultsDir+os.path.sep+cluster['name'].replace(" ", "_")+os.path.sep+"galaxyCatalog_"+cluster['name'].replace(" ", "_")+".fits")
+        galTab=atpy.Table().read(resultsDir+os.path.sep+cluster['name'].replace(" ", "_")+os.path.sep+"galaxyCatalog_"+cluster['name'].replace(" ", "_")+".fits")
 
         outFileName=bcgCacheDir+os.path.sep+cluster['name'].replace(" ", "_")+"_BCG.fits"
         if os.path.exists(outFileName) == True:
             print "... found previously determined BCG position ..."
-            matchTab=atpy.Table(outFileName)
+            matchTab=atpy.Table().read(outFileName)
         else:
             matchTab=None
     
