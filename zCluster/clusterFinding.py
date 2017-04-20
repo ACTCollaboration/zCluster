@@ -189,7 +189,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
         print "Hmm - failed in z, odds calc: what happened?"
         IPython.embed()
         sys.exit()
-                
+        
     # Local background - 0.6 deg radius gives us out to 4 Mpc radius at z = 0.1
     zIndex=np.where(zArray == z)[0][0]
     clusterNzDictForSNR=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, 'flat', maxDistanceMpc = maxRMpc)
@@ -199,10 +199,17 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     delta=bckSubtractedCount/(bckAreaNorm*localBckNzDict['NzWeightedSum'][zIndex])
     errDelta=np.sqrt(bckSubtractedCount/bckSubtractedCount**2 + 
                      localBckNzDict['NzWeightedSum'][zIndex]/localBckNzDict['NzWeightedSum'][zIndex]**2)*delta
-
     if np.isnan(errDelta) == True:
         errDelta=0
         
+    # Or... take z as that which maximises delta(z)?
+    # Or... calc delta(z) first, then restrict range over which calc z in usual way?
+    #clusterNzDictForSNR=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, 'flat', maxDistanceMpc = maxRMpc)
+    #localBckNzDict=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, 'flat', minDistanceMpc = 3.0, maxDistanceMpc = 4.0)
+    #bckAreaNorm=clusterNzDictForSNR['areaMpc2']/localBckNzDict['areaMpc2']
+    #bckSubtractedCount=clusterNzDictForSNR['NzWeightedSum']-bckAreaNorm*localBckNzDict['NzWeightedSum']
+    #delta=bckSubtractedCount/(bckAreaNorm*localBckNzDict['NzWeightedSum'])
+    
     print "... zCluster = %.2f, odds = %.2f, ngal = %d, delta = %.1f, errDelta = %.1f (RADeg = %.6f, decDeg = %.6f) ..." % (z, odds, bckSubtractedCount, delta, errDelta, RADeg, decDeg)
 
     return {'z': z, 'odds': odds, 'pz': pzWeightedMean, 'zOdds': zOdds, 'pz_z': zArray, 

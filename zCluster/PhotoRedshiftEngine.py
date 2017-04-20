@@ -116,7 +116,7 @@ class PhotoRedshiftEngine:
         m=-21.5+5.*np.log10(astCalc.dl(0.1)*1e5)
         magEvo=bc03.getMagEvolution(r, m, 0.1, 3.0, zStepSize=0.05, magType='AB')   
         tck=interpolate.splrep(magEvo['z'], magEvo['mag'])
-        self.magPriorCut=interpolate.splev(self.zRange, tck)-5.*np.log10(self.dlRange*1e5)-3.
+        self.magPriorCut=interpolate.splev(self.zRange, tck)-5.*np.log10(self.dlRange*1e5)-2.
         self.magPriorBand=self.bands.index('r')
    
     
