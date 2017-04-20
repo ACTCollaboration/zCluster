@@ -385,7 +385,7 @@ if __name__ == '__main__':
     elif database == 'CFHTLenS':
         retriever=catalogRetriever.CFHTLenSRetriever
         zPriorMin=0.05
-        zPriorMax=1.2
+        zPriorMax=1.5
         retrieverOptions={'maxMagError': maxMagError}
     elif database == 'DECaLS':
         retriever=catalogRetriever.DECaLSRetriever
@@ -403,7 +403,7 @@ if __name__ == '__main__':
         # NOTE: SOI has 5' field of view, and targets have no z from SDSS anyway, so zPriorMin = 0.5 
         # 'addSDSS' option here queries SDSS, cross matches, and adds e.g. g-band mags if we don't have them
         zPriorMin=0.5 
-        zPriorMax=1.6
+        zPriorMax=2.0
         retriever=catalogRetriever.FITSRetriever
         retrieverOptions={'fileName': database, 'addSDSS': args.addSDSS}
 
@@ -421,8 +421,11 @@ if __name__ == '__main__':
             os.makedirs("pzEngineCache")
         logFile=file(outDir+os.path.sep+"zCluster.log", "w")
         logFile.write("started: %s\n" % (datetime.datetime.now().isoformat()))
-        for key in args.__dict__.keys():
-            logFile.write("%s: %s\n" % (key, str(args.__dict__[key])))
+        for key in args.__dict__.keys(): 
+            if key not in ['zPriorMin', 'zPriorMax']:
+                logFile.write("%s: %s\n" % (key, str(args.__dict__[key])))
+        logFile.write("zPriorMin: %.3f\n" % (zPriorMin))
+        logFile.write("zPriorMax: %.3f\n" % (zPriorMax))
         logFile.close()
         
     if cacheDir != None:
