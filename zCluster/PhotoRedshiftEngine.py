@@ -39,7 +39,7 @@ class PhotoRedshiftEngine:
     
     """
     
-    def __init__(self, cacheDir, zMin = 0.01, zMax = 3.0, zStep = 0.01):
+    def __init__(self, cacheDir, magsBrighterMStarCut, zMin = 0.01, zMax = 3.0, zStep = 0.01):
         """Sets up the stuff we would otherwise calculate every time, i.e., the templates.
         
         """
@@ -109,15 +109,17 @@ class PhotoRedshiftEngine:
         self.dlRange=np.array(dlRange)
         
         # More sophisticated mag prior...
-        # Using m* in r-band at z = 0.1 from Popesso et al. and BC03 tau = 0.1 Gyr, solar metallicity, zf = 3
+        # Using m* in i-band at z = 0.1 from Popesso et al. and BC03 tau = 0.1 Gyr, solar metallicity, zf = 3
         # Cut is m*-3, i.e., should leave in BCGs
+        MStar=-21.8
+        MStarBand='i'
         bc03=astSED.BC03Model(zCluster.__path__[0]+os.path.sep+"data"+os.path.sep+"tau0p1Gyr_m62.20")
-        r=self.passbandsList[self.bands.index('r')]
-        m=-21.5+5.*np.log10(astCalc.dl(0.1)*1e5)
-        magEvo=bc03.getMagEvolution(r, m, 0.1, 3.0, zStepSize=0.05, magType='AB')   
+        passband=self.passbandsList[self.bands.index(MStarBand)]
+        m=MStar+5.*np.log10(astCalc.dl(0.1)*1e5)
+        magEvo=bc03.getMagEvolution(passband, m, 0.1, 3.0, zStepSize=0.05, magType='AB')   
         tck=interpolate.splrep(magEvo['z'], magEvo['mag'])
-        self.magPriorCut=interpolate.splev(self.zRange, tck)-5.*np.log10(self.dlRange*1e5)-2.
-        self.magPriorBand=self.bands.index('r')
+        self.magPriorCut=interpolate.splev(self.zRange, tck)-5.*np.log10(self.dlRange*1e5)-magsBrighterMStarCut
+        self.magPriorBand=self.bands.index(MStarBand)
    
     
     def calcPhotoRedshifts(self, galaxyCatalog, calcMLRedshiftAndOdds = False):
