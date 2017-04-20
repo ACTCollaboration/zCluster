@@ -318,7 +318,7 @@ if __name__ == '__main__':
     #parser.add_argument("-b", "--brighter-mstar-cut", dest="magsBrighterMStarCut", help="""Set bright magnitude cut 
                         #(magnitudes brighter than M*, i.e., -b 2 is M*-2).""", default = 2.0)
     parser.add_argument("-b", "--brighter-absmag-cut", dest="absMagCut", help="""Set bright absolute magnitude cut.""", 
-                        default = -23.)
+                        default = -24.)
     parser.add_argument("-n", "--name", dest="name", help="Find photo-z of only the named cluster in the catalog.")
     parser.add_argument("-s", "--add-SDSS", dest="addSDSS", action="store_true", help="""If using 
                         a user-supplied FITS galaxy photometic catalog, add in additional SDSS 
