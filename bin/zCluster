@@ -469,7 +469,7 @@ if __name__ == '__main__':
         else:
             print "... using existing nullTest.fits catalog..."
             catalog=parseClusterCatalog(catalogFileName)
-            catalog=catalog[:500] # For testing   
+            #catalog=catalog[:500] # For testing   
     else:
         catalog=parseClusterCatalog(catalogFileName)
     
