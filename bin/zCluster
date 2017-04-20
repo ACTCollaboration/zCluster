@@ -315,8 +315,10 @@ if __name__ == '__main__':
                         default = None)
     parser.add_argument("-Z", "--z-prior-max", dest="zPriorMax", help="""Set maximum redshift of prior.""", 
                         default = None)
-    parser.add_argument("-b", "--brighter-mstar-cut", dest="magsBrighterMStarCut", help="""Set bright magnitude cut 
-                        (magnitudes brighter than M*, i.e., -b 2 is M*-2).""", default = 2.0)
+    #parser.add_argument("-b", "--brighter-mstar-cut", dest="magsBrighterMStarCut", help="""Set bright magnitude cut 
+                        #(magnitudes brighter than M*, i.e., -b 2 is M*-2).""", default = 2.0)
+    parser.add_argument("-b", "--brighter-absmag-cut", dest="absMagCut", help="""Set bright absolute magnitude cut.""", 
+                        default = -24.)
     parser.add_argument("-n", "--name", dest="name", help="Find photo-z of only the named cluster in the catalog.")
     parser.add_argument("-s", "--add-SDSS", dest="addSDSS", action="store_true", help="""If using 
                         a user-supplied FITS galaxy photometic catalog, add in additional SDSS 
@@ -333,7 +335,8 @@ if __name__ == '__main__':
     method=args.method
     MPIEnabled=args.MPIEnabled
     maxMagError=float(args.maxMagError)
-    magsBrighterMStarCut=float(args.magsBrighterMStarCut)
+    #magsBrighterMStarCut=float(args.magsBrighterMStarCut)
+    absMagCut=float(args.absMagCut)
     
     if outLabel == None:
         baseOutputLabel=os.path.split(catalogFileName)[-1]
@@ -434,7 +437,7 @@ if __name__ == '__main__':
     if cacheDir != None:
         retrieverOptions['altCacheDir']=cacheDir
             
-    photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine("pzEngineCache", magsBrighterMStarCut)
+    photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine("pzEngineCache", absMagCut)
         
     # Either make a null test catalog, or parse the one we asked for
     runningNullTest=False

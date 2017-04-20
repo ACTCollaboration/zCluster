@@ -39,7 +39,7 @@ class PhotoRedshiftEngine:
     
     """
     
-    def __init__(self, cacheDir, magsBrighterMStarCut, zMin = 0.01, zMax = 3.0, zStep = 0.01):
+    def __init__(self, cacheDir, absMagCut, zMin = 0.01, zMax = 3.0, zStep = 0.01):
         """Sets up the stuff we would otherwise calculate every time, i.e., the templates.
         
         """
@@ -111,15 +111,19 @@ class PhotoRedshiftEngine:
         # More sophisticated mag prior...
         # Using m* in i-band at z = 0.1 from Popesso et al. and BC03 tau = 0.1 Gyr, solar metallicity, zf = 3
         # Cut is m*-3, i.e., should leave in BCGs
-        MStar=-21.8
-        MStarBand='i'
-        bc03=astSED.BC03Model(zCluster.__path__[0]+os.path.sep+"data"+os.path.sep+"tau0p1Gyr_m62.20")
-        passband=self.passbandsList[self.bands.index(MStarBand)]
-        m=MStar+5.*np.log10(astCalc.dl(0.1)*1e5)
-        magEvo=bc03.getMagEvolution(passband, m, 0.1, 3.0, zStepSize=0.05, magType='AB')   
-        tck=interpolate.splrep(magEvo['z'], magEvo['mag'])
-        self.magPriorCut=interpolate.splev(self.zRange, tck)-5.*np.log10(self.dlRange*1e5)-magsBrighterMStarCut
-        self.magPriorBand=self.bands.index(MStarBand)
+        #MStar=-21.8
+        #MStarBand='i'
+        #bc03=astSED.BC03Model(zCluster.__path__[0]+os.path.sep+"data"+os.path.sep+"tau0p1Gyr_m62.20")
+        #passband=self.passbandsList[self.bands.index(MStarBand)]
+        #m=MStar+5.*np.log10(astCalc.dl(0.1)*1e5)
+        #magEvo=bc03.getMagEvolution(passband, m, 0.1, 3.0, zStepSize=0.05, magType='AB')   
+        #tck=interpolate.splrep(magEvo['z'], magEvo['mag'])
+        #self.magPriorCut=interpolate.splev(self.zRange, tck)-5.*np.log10(self.dlRange*1e5)-magsBrighterMStarCut
+        #self.magPriorBand=self.bands.index(MStarBand)
+        
+        # Less sophisticaed mag prior...
+        self.magPriorCut=absMagCut
+        self.magPriorBand=self.bands.index('i')
    
     
     def calcPhotoRedshifts(self, galaxyCatalog, calcMLRedshiftAndOdds = False):
@@ -172,7 +176,6 @@ class PhotoRedshiftEngine:
             chiSqProb=chiSqProb.reshape([self.numModels, self.zRange.shape[0]])
             pz=np.sum(chiSqProb, axis = 0)            
             # Mag prior
-            #magPriorCut=-24.
             absMag=magAB[self.magPriorBand]-5.0*np.log10(1e5*self.dlRange)
             pPrior=np.array(np.greater(absMag, self.magPriorCut), dtype = float)
             pz=pz*pPrior
