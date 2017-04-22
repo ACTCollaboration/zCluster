@@ -233,7 +233,11 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                     tab.add_column(atpy.Column(np.array(arr), key))
                 # NOTE: to cut down on disk space this takes, include only galaxies within some radius
                 # Chosen one is just over 1.5 Mpc at z = 0.1
-                tab.add_column(atpy.Column(astCoords.calcAngSepDeg(obj['RADeg'], obj['decDeg'], tab['RADeg'], tab['decDeg']), "rDeg"))
+                print "huh"
+                IPython.embed()
+                sys.exit()
+                tab.add_column(atpy.Column(astCoords.calcAngSepDeg(obj['RADeg'], obj['decDeg'], 
+                                                                   np.array(tab['RADeg']), np.array(tab['decDeg'])), "rDeg"))
                 tab=tab[np.where(tab['rDeg'] < 14./60.0)]
                 tab.table_name="zCluster"
                 tab.write(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_")))
@@ -459,7 +463,7 @@ if __name__ == '__main__':
                 if obj['RADeg'] < 0:
                     obj['RADeg']=360.0+obj['RADeg']
                 NEDInfo=catalogTools.getNEDInfo(obj, crossMatchRadiusDeg = 5.0/60.0, refetch = True)
-                rDeg=astCoords.calcAngSepDeg(obj['RADeg'], obj['decDeg'], rmTab['RA'], rmTab['DEC'])
+                rDeg=astCoords.calcAngSepDeg(obj['RADeg'], obj['decDeg'], np.array(rmTab['RA']), np.array(rmTab['DEC']))
                 if NEDInfo == None and (rDeg.min()*60.0) > 5.0:                    
                     catalog.append(obj)
                     count=count+1
