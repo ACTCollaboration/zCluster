@@ -426,7 +426,14 @@ if __name__ == '__main__':
             os.makedirs(outDir)
         if os.path.exists("pzEngineCache") == False:
             os.makedirs("pzEngineCache")
-        logFile=file(outDir+os.path.sep+"zCluster.log", "w")
+        if args.name != None:
+            logDir=logFileName=outDir+os.path.sep+args.name
+            if os.path.exists(logDir) == False:
+                os.makedirs(logDir)
+            logFileName=outDir+os.path.sep+args.name+os.path.sep+"zCluster.log"
+        else:
+            logFileName=outDir+os.path.sep+"zCluster.log"
+        logFile=file(logFileName, "w")
         logFile.write("started: %s\n" % (datetime.datetime.now().isoformat()))
         for key in args.__dict__.keys(): 
             if key not in ['zPriorMin', 'zPriorMax']:
