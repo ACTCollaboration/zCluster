@@ -185,10 +185,18 @@ def writeRedshiftsCatalog(catalog, outFileName):
 
 #-------------------------------------------------------------------------------------------------------------
 def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir, zPriorMin,
-                 zPriorMax, weightsType, maxRMpc, zMethod):
+                 zPriorMax, weightsType, maxRMpc, zMethod, bckCatalogFileName, bckAreaDeg2):
     """Runs zCluster algorithm on each object in catalog.
     
     """
+    
+    # Optional background catalog (usually would only be used with proprietary photometric survey, e.g., SOAR)
+    if bckCatalogFileName != None and bckAreaDeg2 != None:
+        bckTab=atpy.Table().read(bckCatalogFileName)
+        bckCatalog=catalogRetriever.parseFITSPhotoTable(bckTab, fieldIDKey = 'field', optionsDict = retrieverOptions)
+        photoRedshiftEngine.calcPhotoRedshifts(bckCatalog, calcMLRedshiftAndOdds = True)
+    else:
+        bckCatalog=[]
     
     count=0
     for obj in catalog:
@@ -206,9 +214,11 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
             galaxyCatalog=stuff
             if galaxyCatalog != None:
                 
-                photoRedshiftEngine.calcPhotoRedshifts(galaxyCatalog, calcMLRedshiftAndOdds = True)
+                photoRedshiftEngine.calcPhotoRedshifts(galaxyCatalog, calcMLRedshiftAndOdds = True)                    
                     
-                obj['zClusterResult']=clusterFinding.estimateClusterRedshift(obj['RADeg'], obj['decDeg'], galaxyCatalog, zPriorMin, zPriorMax, weightsType, maxRMpc, zMethod)
+                obj['zClusterResult']=clusterFinding.estimateClusterRedshift(obj['RADeg'], obj['decDeg'], galaxyCatalog, zPriorMin, 
+                                                                             zPriorMax, weightsType, maxRMpc, zMethod, 
+                                                                             bckCatalog = bckCatalog, bckAreaDeg2 = bckAreaDeg2)
 
                 # Write out galaxy catalog with photo-zs in both FITS and DS9 .reg format
                 # Also r-i colour, useful for sanity checking of BCGs
@@ -324,6 +334,12 @@ if __name__ == '__main__':
     parser.add_argument("-s", "--add-SDSS", dest="addSDSS", action="store_true", help="""If using 
                         a user-supplied FITS galaxy photometic catalog, add in additional SDSS 
                         photometry if available.""", default = False)
+    parser.add_argument("-B", "--background-catalog", dest="bckCatalogFileName", help="""A .fits table with columns 
+                        in the appropriate format ('ID', 'RADeg', 'decDeg', and magnitude column names in the form 
+                        'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.) to be used as the background sample for delta estimates.
+                        If this is given, the area covered by the background catalog must be given also (-A flag)""")
+    parser.add_argument("-A", "--background-area-deg2", dest="bckAreaDeg2", default = None, help="""The area, 
+                        in square degrees, covered by the background galaxy catalog given using the -B flag.""")
 
     args = parser.parse_args()
 
@@ -354,6 +370,15 @@ if __name__ == '__main__':
     
     if weightsType not in ['flat', 'radial', 'NFW']:
         raise Exception, "weights must be 'flat', 'radial', or 'NFW'"
+
+    # These are ONLY used if not None...
+    bckCatalogFileName=args.bckCatalogFileName
+    if args.bckAreaDeg2 == None and bckCatalogFileName != None:
+        raise Exception, "area covered by separate background galaxy catalogue must be given."
+    if args.bckAreaDeg2 != None:
+        bckAreaDeg2=float(args.bckAreaDeg2)
+    else:
+        bckAreaDeg2=None
     
     if MPIEnabled ==True:
         from mpi4py import MPI
@@ -502,7 +527,7 @@ if __name__ == '__main__':
         catalog=catalog[startIndex:endIndex]
 
     catalog=runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir, 
-                         zPriorMin, zPriorMax, weightsType, maxRMpc, method)
+                         zPriorMin, zPriorMax, weightsType, maxRMpc, method, bckCatalogFileName, bckAreaDeg2)
     
     # If running under MPI, gather everything back together
     # Rank 0 process will continue with plots

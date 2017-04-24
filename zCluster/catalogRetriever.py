@@ -1064,31 +1064,16 @@ def getEBMinusV(RADeg, decDeg, optionsDict = {}):
     return EBMinusV
 
 #-------------------------------------------------------------------------------------------------------------
-def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
-    """Parses a FITS catalog made by e.g., soi_makecatalogs.py.
+def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
+    """Parse .fits table into catalog list of dictionaries format. Extinction correction due to Galactic
+    dust will be applied, using Schlegel dust maps. If fieldIDKey == None (the default), this is done
+    at the mean RA, dec coords. Otherwise, sources are grouped by fieldID and the mean correction for
+    each field is applied.
+     
+    Returns catalog (list of dictionaries)
     
-    NOTE: No star-galaxy separation is applied in this currently.
-    
-    Here optionsDict needs to include 'fileName' key.
-    
-    If 'addSDSS': True in optionsDict, then we fetch an SDSS catalog at the location, cross match it against 
-    the FITS catalog, and add in info for bands we can't find (e.g., g-band). We don't add SDSS objects which
-    aren't detected in the FITS catalog.
-
     """
-    
-    try:
-        tab=atpy.Table(optionsDict['fileName'])
-    except:
-        raise Exception, "assumed database is a FITS table file, but failed to read"
-    
-    # If the position isn't actually in our galaxy catalog, we give up now
-    rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, tab['RADeg'], tab['decDeg'])
-    if rDeg.min() > halfBoxSizeDeg:
-        print "... no galaxies found in FITS catalog near RA, dec = (%.6f, %.6f) ..." % (RADeg, decDeg)
-        return None
-    tab=tab.where(rDeg < halfBoxSizeDeg)
-    
+
     # Options we may wish to play with
     magKey="MAG_AUTO"
     magErrKey="MAGERR_AUTO"
@@ -1098,9 +1083,18 @@ def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
     #magNumber=2
         
     # Dust correction setup
-    corrDict={'u': 5.155, 'g': 3.793, 'r': 2.751, 'i': 2.086, 'z': 1.479, 'Ks': 0.367}    
-    EBMinusV=getEBMinusV(np.mean(tab['RADeg']), np.mean(tab['decDeg']), optionsDict = optionsDict)
-    
+    corrDict={'u': 5.155, 'g': 3.793, 'r': 2.751, 'i': 2.086, 'z': 1.479, 'Ks': 0.367}  
+    EBMinusVList=[]
+    if fieldIDKey == None:
+        EBMinusV=getEBMinusV(np.mean(tab['RADeg']), np.mean(tab['decDeg']), optionsDict = optionsDict)
+        EBMinusVList.append({'RADeg': np.mean(tab['RADeg']), 'decDeg': np.mean(tab['decDeg']), 'EBMinusV': EBMinusV})
+    else:
+        fieldNames=np.unique(tab['field'])
+        for f in fieldNames:
+            mask=np.where(tab['field'] == f)
+            EBMinusV=getEBMinusV(np.mean(tab['RADeg'][mask]), np.mean(tab['decDeg'][mask]), optionsDict = optionsDict)
+            EBMinusVList.append({'RADeg': np.mean(tab['RADeg'][mask]), 'decDeg': np.mean(tab['decDeg'][mask]), 'EBMinusV': EBMinusV})
+
     # Work out available bands
     acceptableBands=['u', 'g', 'r', 'i', 'z', 'Ks']
     tabBands=[]
@@ -1116,6 +1110,12 @@ def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
         photDict['id']=row['ID']
         photDict['RADeg']=row['RADeg']
         photDict['decDeg']=row['decDeg']
+        rMin=1e6
+        for EBMinusVDict in EBMinusVList:
+            rDeg=astCoords.calcAngSepDeg(photDict['RADeg'], photDict['decDeg'], EBMinusVDict['RADeg'], EBMinusVDict['decDeg'])
+            if rDeg < rMin:
+                rMin=rDeg
+                EBMinusV=EBMinusVDict['EBMinusV']
         for b in tabBands:
             dustCorrMag=EBMinusV*corrDict[b]
             if magNumber == None:
@@ -1124,7 +1124,6 @@ def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
             else:
                 photDict[b]=row['%s_%s' % (b, magKey)][magNumber]-dustCorrMag
                 photDict[b+"Err"]=row['%s_%s' % (b, magErrKey)][magNumber]
-                
         catalog.append(photDict)
 
     # Get SDSS catalog, if we want to include missing bands
@@ -1172,5 +1171,35 @@ def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
     # different run number, so object doesn't get added to catalog.
     if catalog == []:
         catalog=None
-            
+    
+    return catalog
+
+#-------------------------------------------------------------------------------------------------------------
+def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
+    """Parses a FITS catalog made by e.g., soi_makecatalogs.py.
+    
+    NOTE: No star-galaxy separation is applied in this currently.
+    
+    Here optionsDict needs to include 'fileName' key.
+    
+    If 'addSDSS': True in optionsDict, then we fetch an SDSS catalog at the location, cross match it against 
+    the FITS catalog, and add in info for bands we can't find (e.g., g-band). We don't add SDSS objects which
+    aren't detected in the FITS catalog.
+
+    """
+    
+    try:
+        tab=atpy.Table(optionsDict['fileName'])
+    except:
+        raise Exception, "assumed database is a FITS table file, but failed to read"
+    
+    # If the position isn't actually in our galaxy catalog, we give up now
+    rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, tab['RADeg'], tab['decDeg'])
+    if rDeg.min() > halfBoxSizeDeg:
+        print "... no galaxies found in FITS catalog near RA, dec = (%.6f, %.6f) ..." % (RADeg, decDeg)
+        return None
+    tab=tab.where(rDeg < halfBoxSizeDeg)
+    
+    catalog=parseFITSPhotoTable(tab, optionsDict = optionsDict)
+
     return catalog

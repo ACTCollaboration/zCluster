@@ -34,7 +34,7 @@ plt.matplotlib.interactive(True)
 
 #-------------------------------------------------------------------------------------------------------------
 def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMpc = 0.0, maxDistanceMpc = 1.0, 
-                   sanityCheckRadiusArcmin = 1.0):
+                   applySanityCheckRadius = True, sanityCheckRadiusArcmin = 1.0):
     """Make a N(z) distribution in the direction of the postion (usually of a cluster) given by RADeg, decDeg.
     This is constructed from the p(z) distributions of all galaxies in the catalog (subject to odds cut?),
     with radial weights applied as per weightsType. So, for 'flat1Mpc', the radial weight is 1 if within a
@@ -60,7 +60,7 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
     
     # Sanity check: if we didn't find a decent number of galaxies close to the cluster centre, 
     # the cluster is probably not actually in the optical catalog footprint (e.g., just outside edge of S82)
-    if np.sum(np.less(np.degrees(tanArray), sanityCheckRadiusArcmin/60.0)) == 0:
+    if applySanityCheckRadius == True and np.sum(np.less(np.degrees(tanArray), sanityCheckRadiusArcmin/60.0)) == 0:
         print "... no galaxies within %.1f' of cluster position ..." % (sanityCheckRadiusArcmin)
         return None
 
@@ -147,15 +147,19 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
     area=np.pi*maxDistanceMpc**2 - np.pi*minDistanceMpc**2
     
     # If we want p(z), we can divide pzWeightedSum by Nz_r_odds
-    return {'NzWeightedSum': NzWeightedSum, 'Nz': Nz_r_odds, 'Nz_total': Nz_r_odds_total, 'zArray': zArray, 'areaMpc2': area}
+    return {'NzWeightedSum': NzWeightedSum, 'Nz': Nz_r_odds, 'Nz_total': Nz_r_odds_total, 'zArray': zArray, 
+            'DAArray': DAArray, 'areaMpc2': area}
     
 #-------------------------------------------------------------------------------------------------------------
 def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weightsType, maxRMpc, 
-                            zMethod, sanityCheckRadiusArcmin = 1.0):
+                            zMethod, sanityCheckRadiusArcmin = 1.0, bckCatalog = [], bckAreaDeg2 = None):
     """This does the actual work of estimating cluster photo-z from catalog.
     
     Assumes each object has keys 'pz' (p(z), probability distribution), 'pz_z' (corresponding redshifts at 
     each point in p(z)
+    
+    If bckCatalog and bckAreaDeg2 are given, then these are used for the background estimation. If not, then
+    a projected 3-4 Mpc annulus is used.
             
     """
     
@@ -189,16 +193,24 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
         print "Hmm - failed in z, odds calc: what happened?"
         IPython.embed()
         sys.exit()
-        
-    # Local background - 0.6 deg radius gives us out to 4 Mpc radius at z = 0.1
-    zIndex=np.where(zArray == z)[0][0]
+    
+    # Background - delta (density contrast) measurement
     clusterNzDictForSNR=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, 'flat', maxDistanceMpc = maxRMpc)
-    localBckNzDict=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, 'flat', minDistanceMpc = 3.0, maxDistanceMpc = 4.0)
-    bckAreaNorm=clusterNzDictForSNR['areaMpc2']/localBckNzDict['areaMpc2']
-    bckSubtractedCount=clusterNzDictForSNR['NzWeightedSum'][zIndex]-bckAreaNorm*localBckNzDict['NzWeightedSum'][zIndex]
-    delta=bckSubtractedCount/(bckAreaNorm*localBckNzDict['NzWeightedSum'][zIndex])
+    zIndex=np.where(zArray == z)[0][0]
+    if len(bckCatalog) > 0:
+        # Global
+        bckNzDict=makeWeightedNz(RADeg, decDeg, bckCatalog, zPriorMax, 'flat', minDistanceMpc = 3.0, maxDistanceMpc = 1e9, 
+                                 applySanityCheckRadius = False)
+        bckNzDict['areaMpc2']=((np.radians(np.sqrt(bckAreaDeg2))*bckNzDict['DAArray'])**2)[zIndex]
+    else:
+        # Local background - 0.6 deg radius gives us out to 4 Mpc radius at z = 0.1
+        bckNzDict=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, 'flat', minDistanceMpc = 3.0, maxDistanceMpc = 4.0)
+    # Both
+    bckAreaNorm=clusterNzDictForSNR['areaMpc2']/bckNzDict['areaMpc2']
+    bckSubtractedCount=clusterNzDictForSNR['NzWeightedSum'][zIndex]-bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex]
+    delta=bckSubtractedCount/(bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex])
     errDelta=np.sqrt(bckSubtractedCount/bckSubtractedCount**2 + 
-                     localBckNzDict['NzWeightedSum'][zIndex]/localBckNzDict['NzWeightedSum'][zIndex]**2)*delta
+                    bckNzDict['NzWeightedSum'][zIndex]/bckNzDict['NzWeightedSum'][zIndex]**2)*delta
     if np.isnan(errDelta) == True:
         errDelta=0
         
