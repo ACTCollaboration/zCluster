@@ -35,7 +35,7 @@ import os
 import sys
 import numpy as np
 from astLib import *
-import atpy
+import astropy.table as atpy
 import pyfits
 import urllib
 import urllib2
@@ -43,6 +43,8 @@ import pylab
 import subprocess
 import time
 import zCluster
+import requests 
+from astropy.io.votable import parse_single_table 
 import IPython
 
 #-------------------------------------------------------------------------------------------------------------
@@ -245,7 +247,40 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
     print "PS1 retriever"
     IPython.embed()
     sys.exit()
-    
+    #---
+    # https://michaelmommert.wordpress.com/2017/02/13/accessing-the-gaia-and-pan-starrs-catalogs-using-python/
+    #def panstarrs_query(ra_deg, dec_deg, rad_deg, mindet=1, 
+                    #maxsources=10000,
+                    #server=('https://archive.stsci.edu/'+
+                            #'panstarrs/search.php')): 
+    """
+    Query Pan-STARRS DR1 @ MAST
+    parameters: ra_deg, dec_deg, rad_deg: RA, Dec, field 
+                                        radius in degrees
+                mindet: minimum number of detection (optional)
+                maxsources: maximum number of sources
+                server: servername
+    returns: astropy.table object
+    """
+    #r = requests.get(server, 
+    #params= {'RA': ra_deg, 'DEC': dec_deg, 
+            #'SR': rad_deg, 'max_records': maxsources, 
+            #'outputformat': 'VOTable', 
+            #'ndetections': ('>%d' % mindet)}) 
+
+    ## write query data into local file 
+    #outf = open('panstarrs.xml', 'w') 
+    #outf.write(r.text) 
+    #outf.close() 
+
+    ## parse local file into astropy.table object 
+    #data = parse_single_table('panstarrs.xml')
+    #return data.to_table(use_names_over_ids=True) 
+
+    ## Example query
+    #print(panstarrs_query(12.345, 67.89, 0.1))
+
+    #---
     # PhotoPrimary avoids star-galaxy classification problems at higher z, which we need when making slit masks
     # BUT contamination from stars etc. increases scatter in (z_spec - z_phot) by a fair bit (outliers)
     #tableName="PhotoPrimary"
@@ -1189,7 +1224,7 @@ def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
     """
     
     try:
-        tab=atpy.Table(optionsDict['fileName'])
+        tab=atpy.Table().read(optionsDict['fileName'])
     except:
         raise Exception, "assumed database is a FITS table file, but failed to read"
     
@@ -1198,7 +1233,7 @@ def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
     if rDeg.min() > halfBoxSizeDeg:
         print "... no galaxies found in FITS catalog near RA, dec = (%.6f, %.6f) ..." % (RADeg, decDeg)
         return None
-    tab=tab.where(rDeg < halfBoxSizeDeg)
+    tab=tab[np.where(rDeg < halfBoxSizeDeg)]
     
     catalog=parseFITSPhotoTable(tab, optionsDict = optionsDict)
 
