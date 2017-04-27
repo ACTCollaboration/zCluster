@@ -58,7 +58,7 @@ if __name__ == '__main__':
                         file name in order to be latex friendly.""", default = None)
     parser.add_argument("-t", "--title", dest="plotTitle", help="Plot title.", default = None)
     parser.add_argument("-z", "--zmax", dest="zMax", help="""Maximum redshift for statistics 
-                        (default: 0.6).""", default = 0.6)
+                        (default: 2.0).""", default = 2.0)
     parser.add_argument("-d", "--deltamin", dest="deltaMin", help="""Minimum delta for statistics 
                         (default: 3.0).""", default = 3.0)
     parser.add_argument("-l", "--inlabel", dest="inLabel", help="""Subscript label for input redshifts
@@ -123,17 +123,17 @@ if __name__ == '__main__':
     diff=tab['zDiff']
     odds=tab['odds']
     
-    # Stats based on zPriorCut (needs to be given since we don't know it here)
-    if zMax != None:
-        print ">>> Stats for zIn < %.2f:" % (zMax)
-        mask=np.less(zIn, zMax)
-        maskedDiff=zIn[mask]-zOut[mask]
-        meanMaskedDiff=np.mean(maskedDiff)
-        stdMaskedDiff=np.std(maskedDiff)
-        print "... median (zIn - zOut) = %.3f" % (np.median(maskedDiff))
-        print "... mean (zIn - Zout) = %.3f" % (meanMaskedDiff)
-        print "... sigma (zIn - zOut) = %.3f" % (stdMaskedDiff)
-        print "... N = %d ..." % (len(maskedDiff))
+    ## Stats based on zPriorCut (needs to be given since we don't know it here)
+    #if zMax != None:
+        #print ">>> Stats for zIn < %.2f:" % (zMax)
+        #mask=np.less(zIn, zMax)
+        #maskedDiff=zIn[mask]-zOut[mask]
+        #meanMaskedDiff=np.mean(maskedDiff)
+        #stdMaskedDiff=np.std(maskedDiff)
+        #print "... median (zIn - zOut) = %.3f" % (np.median(maskedDiff))
+        #print "... mean (zIn - Zout) = %.3f" % (meanMaskedDiff)
+        #print "... sigma (zIn - zOut) = %.3f" % (stdMaskedDiff)
+        #print "... N = %d ..." % (len(maskedDiff))
 
     ## Stats based on odds cut
     #oddsMin=0.35
@@ -147,26 +147,48 @@ if __name__ == '__main__':
     #print "... mean (zIn - Zout) = %.3f" % (meanMaskedDiff)
     #print "... sigma (zIn - zOut) = %.3f" % (stdMaskedDiff)
         
-    # Stats based on delta cut
+    # Stats based on delta cut by z
+    zCutsList=[[0.0, 2.0],[0.1, 0.5],[0.5, 1.0], [0.5, 1.5], [1.0, 2.0]]
     if deltaMin != None:
         print ">>> Stats for delta > %.2f:" % (deltaMin)
-        mask=np.greater(delta, deltaMin)
-        notMask=np.less(delta, deltaMin)
-        maskedDiff=zIn[mask]-zOut[mask]
-        meanMaskedDiff=np.mean(maskedDiff)
-        stdMaskedDiff=np.std(maskedDiff)
-        maskedDiff_over1plusz=(zIn[mask]-zOut[mask])/(1+zIn[mask])
-        meanMaskedDiff_over1plusz=np.mean(maskedDiff_over1plusz)
-        stdMaskedDiff_over1plusz=np.std(maskedDiff_over1plusz)
-        print "... median (zIn - zOut) = %.3f" % (np.median(maskedDiff))
-        print "... mean (zIn - Zout) = %.3f" % (meanMaskedDiff)
-        print "... sigma (zIn - zOut) = %.3f" % (stdMaskedDiff)
-        print "... median (zIn - zOut) / (1 + zIn) = %.3f" % (np.median(maskedDiff_over1plusz))
-        print "... mean (zIn - Zout) / (1 + zIn)  = %.3f" % (meanMaskedDiff_over1plusz)
-        print "... sigma (zIn - zOut) / (1 + zIn)  = %.3f" % (stdMaskedDiff_over1plusz)
-        print "... N = %d ..." % (len(maskedDiff))
-        
-    # Plot
+        for zCuts in zCutsList:
+            zMin=zCuts[0]
+            zMax=zCuts[1]
+            deltaMask=np.greater(delta, deltaMin)
+            notMask=np.less(delta, deltaMin)
+            zMask=np.logical_and(np.greater(zIn, zMin), np.less(zIn, zMax))
+            mask=np.logical_and(zMask, deltaMask)
+            if mask.sum() > 0:
+                print "--> %.2f < z < %.2f (N = %d):" % (zMin, zMax, mask.sum())
+                maskedDiff=zIn[mask]-zOut[mask]
+                meanMaskedDiff=np.mean(maskedDiff)
+                stdMaskedDiff=np.std(maskedDiff)
+                maskedDiff_over1plusz=(zIn[mask]-zOut[mask])/(1+zIn[mask])
+                meanMaskedDiff_over1plusz=np.mean(maskedDiff_over1plusz)
+                stdMaskedDiff_over1plusz=np.std(maskedDiff_over1plusz)
+                print "... median (zIn - zOut) = %.3f" % (np.median(maskedDiff))
+                print "... mean (zIn - Zout) = %.3f +/- %.3f" % (meanMaskedDiff, stdMaskedDiff / np.sqrt(mask.sum()))
+                print "... sigma (zIn - zOut) = %.3f" % (stdMaskedDiff)
+                if zCuts == zCutsList[0]:
+                    print "... median (zIn - zOut) / (1 + zIn) = %.3f" % (np.median(maskedDiff_over1plusz))
+                    print "... mean (zIn - Zout) / (1 + zIn)  = %.3f" % (meanMaskedDiff_over1plusz)
+                    print "... sigma (zIn - zOut) / (1 + zIn)  = %.3f" % (stdMaskedDiff_over1plusz)
+
+    # Default mask / stats for plotting
+    zMin=zCutsList[0][0]
+    zMax=zCutsList[0][1]
+    deltaMask=np.greater(delta, deltaMin)
+    notMask=np.less(delta, deltaMin)
+    zMask=np.logical_and(np.greater(zIn, zMin), np.less(zIn, zMax))
+    mask=np.logical_and(zMask, deltaMask)
+    maskedDiff=zIn[mask]-zOut[mask]
+    meanMaskedDiff=np.mean(maskedDiff)
+    stdMaskedDiff=np.std(maskedDiff)
+    maskedDiff_over1plusz=(zIn[mask]-zOut[mask])/(1+zIn[mask])
+    meanMaskedDiff_over1plusz=np.mean(maskedDiff_over1plusz)
+    stdMaskedDiff_over1plusz=np.std(maskedDiff_over1plusz)
+    
+    # Plot                
     plt.figure(figsize=(18, 6.5))
     fontDict={'size': 18, 'family': 'serif'}
 
@@ -176,7 +198,7 @@ if __name__ == '__main__':
     plt.tick_params(axis='both', which='minor', labelsize=15)
     
     plt.plot(zIn[notMask], diff[notMask], 'wo', label = r'$\delta < %.0f$' % (deltaMin))
-    plt.plot(zIn[mask], diff[mask], 'ko', label = r'$\delta > %.0f$' % (deltaMin))
+    plt.plot(zIn[deltaMask], diff[deltaMask], 'ko', label = r'$\delta > %.0f$' % (deltaMin))
     yPlotRange=np.linspace(-1, 1, 10)
     xPlotRange=np.linspace(0, zIn.max()*1.1, 10)
     plt.plot(xPlotRange, [meanMaskedDiff]*len(xPlotRange), 'k--', lw = 2, 
