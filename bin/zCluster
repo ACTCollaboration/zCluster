@@ -39,14 +39,14 @@ import IPython
 plt.matplotlib.interactive(False)
 
 # For MNRAS
-plt.matplotlib.rcParams['pdf.fonttype'] = 42
-plt.matplotlib.rcParams['ps.fonttype'] = 42
+#plt.matplotlib.rcParams['pdf.fonttype'] = 42
+#plt.matplotlib.rcParams['ps.fonttype'] = 42
 
-# For some unknown reason, mathtext in matplotlib is behaving weirdly since Ubuntu 16.10 upgrade
-try:
-    plt.matplotlib.rc('text', usetex=True)
-except:
-    pass
+## For some unknown reason, mathtext in matplotlib is behaving weirdly since Ubuntu 16.10 upgrade
+#try:
+    #plt.matplotlib.rc('text', usetex=True)
+#except:
+    #pass
 
 #-------------------------------------------------------------------------------------------------------------
 def parseClusterCatalog(fileName):
@@ -95,7 +95,7 @@ def makePlots(catalog, zPriorMax, outDir):
                 pz=pz*prior
                 norm=np.trapz(pz, zArray)
                 pz=pz/norm   
-            
+
             #plt.plot(result['pz_z'], result['pz'])
             #plt.ylabel("p(z)")
             #plt.xlabel("z")
@@ -111,7 +111,6 @@ def makePlots(catalog, zPriorMax, outDir):
             result['zOdds']=result['zOdds']/norm
             
             plt.figure(figsize=(9, 5))
-            
 
             fontDict={'size': 18, 'family': 'serif'}
             ax=plt.axes([0.085, 0.11, 0.89, 0.81])
@@ -119,19 +118,26 @@ def makePlots(catalog, zPriorMax, outDir):
             plt.tick_params(axis='both', which='major', labelsize=15)
             plt.tick_params(axis='both', which='minor', labelsize=15)
                 
-            plt.plot(result['pz_z'], result['zOdds'], 'k', lw = 2, label = r'$n_{\Delta z}(z)$')
-            plt.plot(result['pz_z'], pz, 'k:', lw = 1, label = r'$n(z)$')
+            plt.plot(result['pz_z'], result['zOdds'], 'k', lw = 2, label = '$n_{\Delta z}(z)$')
+            plt.plot(result['pz_z'], pz, 'k:', lw = 1, label = '$n(z)$')
             #dzOdds=0.2
             #smoothPix=int(round(0.2/(result['pz_z'][1]-result['pz_z'][0])))
             #plt.plot(result['pz_z'], ndimage.uniform_filter1d(pz, smoothPix), 'r--', lw = 1)
 
             plotMax=max([pz.max(), result['zOdds'].max()])
-            plt.ylabel(r"$n_{\Delta z}(z)$ | $n(z)$ (normalised)", fontdict = fontDict)
-            plt.xlabel(r"$z$", fontdict = fontDict)
-            y=np.linspace(result['zOdds'].min(), plotMax*1.1, 4)
+            plt.ylabel("$n_{\Delta z}(z)$ | $n(z)$ (normalised)", fontdict = fontDict)
+            plt.xlabel("$z$", fontdict = fontDict)
+            y=np.linspace(result['zOdds'].min(), plotMax*1.5, 4)
             plt.plot([result['z']]*len(y), y, 'k--')
             plt.ylim(0, plotMax*1.1)
             plt.xlim(0, zPriorMax*1.5)
+            
+            # Faffing with labels so we can lay out plots on a grid
+            values, tickLabels=plt.yticks()
+            for v, t in zip(values, tickLabels):
+                t.set_text('%.1f' % (v))
+            plt.yticks(values, tickLabels)
+            
             leg=plt.legend(loc = 'upper right', numpoints = 1) 
             leg.draw_frame(False)
             plt.title("%s (z = %.2f)" % (obj['name'].replace("_", " "), result['z'])) 
@@ -572,8 +578,8 @@ if __name__ == '__main__':
         plt.tick_params(axis='both', which='minor', labelsize=15)
         plt.plot(cumulativeRange, percentileArr, 'k', lw = 2)
         plotMax=100
-        plt.ylabel(r"null test detections (% > $\delta$)", fontdict = fontDict)
-        plt.xlabel(r"$\delta$", fontdict = fontDict)
+        plt.ylabel("Null test detections (% > $\delta$)", fontdict = fontDict)
+        plt.xlabel("$\delta$", fontdict = fontDict)
         plt.ylim(0, percentileArr.max()*1.1)
         plt.xlim(0, cumulativeRange[np.where(percentileArr == 0)[0][0]]+2)
         plt.savefig(outDir+os.path.sep+"nullTest.pdf")

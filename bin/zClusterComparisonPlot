@@ -32,14 +32,14 @@ import IPython
 plt.matplotlib.interactive(False)
 
 # For MNRAS
-plt.matplotlib.rcParams['pdf.fonttype'] = 42
-plt.matplotlib.rcParams['ps.fonttype'] = 42
+#plt.matplotlib.rcParams['pdf.fonttype'] = 42
+#plt.matplotlib.rcParams['ps.fonttype'] = 42
 
 # For some unknown reason, mathtext in matplotlib is behaving weirdly since Ubuntu 16.10 upgrade
-try:
-    plt.matplotlib.rc('text', usetex=True)
-except:
-    pass
+#try:
+    #plt.matplotlib.rc('text', usetex=True)
+#except:
+    #pass
 
 #-------------------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
