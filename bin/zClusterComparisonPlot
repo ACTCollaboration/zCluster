@@ -62,7 +62,7 @@ if __name__ == '__main__':
     parser.add_argument("-d", "--deltamin", dest="deltaMin", help="""Minimum delta for statistics 
                         (default: 3.0).""", default = 3.0)
     parser.add_argument("-l", "--inlabel", dest="inLabel", help="""Subscript label for input redshifts
-                        (default: spec).""", default = "spec")
+                        (default: s).""", default = "s")
     parser.add_argument("-y", "--yrange", dest="yRangeStr", help="""Range of the plot y-axis (which
                         is the difference between the inCatalog redshift and the redshift in 
                         zClusterCatalog), given in the format yMin:yMax.""", default = "-0.5:0.5")
