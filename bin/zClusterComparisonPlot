@@ -41,6 +41,36 @@ plt.matplotlib.interactive(False)
 #except:
     #pass
 
+#------------------------------------------------------------------------------------------------------------
+def update_rcParams(dict={}):
+    """
+    Based on Cristobal's preferred settings.
+    
+    """
+    default = {}
+    for tick in ('xtick', 'ytick'):
+        default['{0}.major.size'.format(tick)] = 8
+        default['{0}.minor.size'.format(tick)] = 4
+        default['{0}.major.width'.format(tick)] = 2
+        default['{0}.minor.width'.format(tick)] = 2
+        default['{0}.labelsize'.format(tick)] = 20
+        default['{0}.direction'.format(tick)] = 'in'
+    default['xtick.top'] = True
+    default['ytick.right'] = True
+    default['axes.linewidth'] = 2
+    default['axes.labelsize'] = 22
+    default['font.size'] = 22
+    default['font.family']='sans-serif'
+    default['legend.fontsize'] = 18
+    default['lines.linewidth'] = 2
+
+    for key in default:
+        plt.rcParams[key] = default[key]
+    # if any parameters are specified, overwrite anything previously
+    # defined
+    for key in dict:
+        plt.rcParams[key] = dict[key]
+        
 #-------------------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
 
@@ -65,7 +95,7 @@ if __name__ == '__main__':
                         (default: s).""", default = "s")
     parser.add_argument("-y", "--yrange", dest="yRangeStr", help="""Range of the plot y-axis (which
                         is the difference between the inCatalog redshift and the redshift in 
-                        zClusterCatalog), given in the format yMin:yMax.""", default = "-0.5:0.5")
+                        zClusterCatalog), given in the format yMin:yMax.""", default = "-0.55:0.55")
     args = parser.parse_args()
 
     inCatalogFileName=args.inCatalog
@@ -190,24 +220,26 @@ if __name__ == '__main__':
     stdMaskedDiff_over1plusz=np.std(maskedDiff_over1plusz)
     
     # Plot                
+    update_rcParams()
+    
     plt.figure(figsize=(18, 6.5))
-    fontDict={'size': 18, 'family': 'serif'}
+    #fontDict={'size': 18, 'family': 'serif'}
 
     plt.subplot(121)
-    plt.subplots_adjust(left = 0.055, bottom = 0.1, right = 0.99, top = 0.97, wspace = 0.13, hspace = 0.24)
-    plt.tick_params(axis='both', which='major', labelsize=15)
-    plt.tick_params(axis='both', which='minor', labelsize=15)
+    plt.subplots_adjust(left = 0.065, bottom = 0.11, right = 0.99, top = 0.97, wspace = 0.18, hspace = 0.24)
+    #plt.tick_params(axis='both', which='major', labelsize=15)
+    #plt.tick_params(axis='both', which='minor', labelsize=15)
     
-    plt.plot(zIn[notMask], diff_over1plusz[notMask], 'wo', label = '$\delta < %.0f$' % (deltaMin))
-    plt.plot(zIn[deltaMask], diff_over1plusz[deltaMask], 'ko', label = '$\delta > %.0f$' % (deltaMin))
+    plt.plot(zIn[notMask], diff_over1plusz[notMask], 'wD', mec = 'k', ms = 8, label = '$\delta < %.0f$' % (deltaMin))
+    plt.plot(zIn[deltaMask], diff_over1plusz[deltaMask], 'D', ms = 8, label = '$\delta > %.0f$' % (deltaMin))
     yPlotRange=np.linspace(-1, 1, 10)
     xPlotRange=np.linspace(0, zIn.max()*1.1, 10)
-    plt.plot(xPlotRange, [meanMaskedDiff]*len(xPlotRange), 'k--', lw = 2, 
-             label = 'mean [($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}$)] = %.3f' % (inLabel, inLabel, meanMaskedDiff_over1plusz))
-    plt.plot(xPlotRange, [meanMaskedDiff-stdMaskedDiff]*len(xPlotRange), 'k:', lw = 2, 
+    plt.plot(xPlotRange, [meanMaskedDiff]*len(xPlotRange), 'k--', 
+             label = '$\langle \, (z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}) \, \\rangle$ = %.3f' % (inLabel, inLabel, meanMaskedDiff_over1plusz))
+    plt.plot(xPlotRange, [meanMaskedDiff-stdMaskedDiff]*len(xPlotRange), 'k:', 
              label = '$\sigma$ [($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}$)] = %.3f' % (inLabel, inLabel, stdMaskedDiff_over1plusz))
     plt.plot(xPlotRange, [meanMaskedDiff+stdMaskedDiff]*len(xPlotRange), 'k:')
-    plt.plot(np.linspace(0, zIn.max()*1.1, 3), [0]*3, 'k-', lw = 1)
+    plt.plot(np.linspace(0, zIn.max()*1.1, 3), [0]*3, 'k-')
     plt.xlim(0, zIn.max()*1.1)
     if yRangeStr != None:
         yMin, yMax=yRangeStr.split(":")
@@ -216,24 +248,24 @@ if __name__ == '__main__':
         plt.ylim(yMin, yMax)
     #if plotTitle != None:
         #plt.title(plotTitle)
-    leg=plt.legend(numpoints = 1, loc = 'lower left', prop = fontDict)
+    leg=plt.legend(numpoints = 1, loc = 'upper left')#, prop = fontDict)
     leg.draw_frame(False)
-    plt.xlabel("$z_{\mathrm{%s}}$" % (inLabel), fontdict = fontDict)
-    plt.ylabel("$(z_{\mathrm{%s}}-z_{\mathrm{c}})$/$(1+z_{\mathrm{%s}})$" % (inLabel, inLabel), fontdict = fontDict)
+    plt.xlabel("$z_{\mathrm{%s}}$" % (inLabel))#, fontdict = fontDict)
+    plt.ylabel("$(z_{\mathrm{%s}}-z_{\mathrm{c}})$/$(1+z_{\mathrm{%s}})$" % (inLabel, inLabel))#, fontdict = fontDict)
 
     plt.subplot(122)
-    plt.tick_params(axis='both', which='major', labelsize=15)
-    plt.tick_params(axis='both', which='minor', labelsize=15)
-    plt.plot(delta[notMask], diff_over1plusz[notMask], 'wo', label = '$\delta$ < $%.0f$' % (deltaMin))
-    plt.plot(delta[mask], diff_over1plusz[mask], 'ko', label = '$\delta$ > $%.0f$' % (deltaMin))
+    #plt.tick_params(axis='both', which='major', labelsize=15)
+    #plt.tick_params(axis='both', which='minor', labelsize=15)
+    plt.plot(delta[notMask], diff_over1plusz[notMask], 'wD', mec = 'k', ms = 8, label = '$\delta$ < $%.0f$' % (deltaMin))
+    plt.plot(delta[mask], diff_over1plusz[mask], 'D', ms = 8, label = '$\delta$ > $%.0f$' % (deltaMin))
     yPlotRange=np.linspace(-1, 1, 10)
     xPlotRange=np.linspace(0, delta.max()*1.1, 10)
-    plt.plot(xPlotRange, [meanMaskedDiff]*len(xPlotRange), 'k--', lw = 2, 
-             label = r'mean($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, meanMaskedDiff_over1plusz))
-    plt.plot(xPlotRange, [meanMaskedDiff-stdMaskedDiff]*len(xPlotRange), 'k:', lw = 2, 
-             label = r'$\sigma$($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, stdMaskedDiff_over1plusz))
+    plt.plot(xPlotRange, [meanMaskedDiff]*len(xPlotRange), 'k--', 
+             label = 'mean($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, meanMaskedDiff_over1plusz))
+    plt.plot(xPlotRange, [meanMaskedDiff-stdMaskedDiff]*len(xPlotRange), 'k:', 
+             label = '$\sigma$($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, stdMaskedDiff_over1plusz))
     plt.plot(xPlotRange, [meanMaskedDiff+stdMaskedDiff]*len(xPlotRange), 'k:')
-    plt.plot(np.linspace(0, delta.max()*1.1, 3), [0]*3, 'k-', lw = 1)
+    plt.plot(np.linspace(0, delta.max()*1.1, 3), [0]*3, 'k-')
     plt.xlim(0, delta.max()*1.1)
     if yRangeStr != None and yRangeStr != 'auto':
         yMin, yMax=yRangeStr.split(":")
@@ -241,11 +273,11 @@ if __name__ == '__main__':
         yMax=float(yMax)
         plt.ylim(yMin, yMax)
     if plotTitle != None:
-        plt.figtext(0.965, 0.88, plotTitle, ha = 'right', size = 24)
+        plt.figtext(0.965, 0.88, plotTitle, ha = 'right')#, size = 24)
     #leg=plt.legend(numpoints = 1, loc = 'upper left', prop = fontDict)
     #leg.draw_frame(False)
-    plt.xlabel("$\delta$", fontdict = fontDict)
-    plt.ylabel("$(z_{\mathrm{%s}}-z_{\mathrm{c}})$/$(1+z_{\mathrm{%s}})$" % (inLabel, inLabel), fontdict = fontDict)
+    plt.xlabel("$\delta$")#, fontdict = fontDict)
+    plt.ylabel("$(z_{\mathrm{%s}}-z_{\mathrm{c}})$/$(1+z_{\mathrm{%s}})$" % (inLabel, inLabel))#, fontdict = fontDict)
     
     plt.savefig(plotFileName)
     plt.close()
