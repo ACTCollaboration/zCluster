@@ -48,6 +48,36 @@ plt.matplotlib.interactive(False)
 #except:
     #pass
 
+#------------------------------------------------------------------------------------------------------------
+def update_rcParams(dict={}):
+    """
+    Based on Cristobal's preferred settings.
+    
+    """
+    default = {}
+    for tick in ('xtick', 'ytick'):
+        default['{0}.major.size'.format(tick)] = 8
+        default['{0}.minor.size'.format(tick)] = 4
+        default['{0}.major.width'.format(tick)] = 2
+        default['{0}.minor.width'.format(tick)] = 2
+        default['{0}.labelsize'.format(tick)] = 20
+        default['{0}.direction'.format(tick)] = 'in'
+    default['xtick.top'] = True
+    default['ytick.right'] = True
+    default['axes.linewidth'] = 2
+    default['axes.labelsize'] = 22
+    default['font.size'] = 22
+    default['font.family']='sans-serif'
+    default['legend.fontsize'] = 18
+    default['lines.linewidth'] = 2
+
+    for key in default:
+        plt.rcParams[key] = default[key]
+    # if any parameters are specified, overwrite anything previously
+    # defined
+    for key in dict:
+        plt.rcParams[key] = dict[key]
+        
 #-------------------------------------------------------------------------------------------------------------
 def parseClusterCatalog(fileName):
     """Parses .fits or .csv table with name, RADeg, decDeg columns into dictionary list
@@ -76,6 +106,8 @@ def makePlots(catalog, zPriorMax, outDir):
     """Makes plots of p(z), z for each object.
     
     """
+    
+    update_rcParams()
     
     plotsDir=outDir+os.path.sep+"Plots"
     if os.path.exists(plotsDir) == False:
@@ -112,21 +144,17 @@ def makePlots(catalog, zPriorMax, outDir):
             
             plt.figure(figsize=(9, 5))
 
-            fontDict={'size': 18, 'family': 'serif'}
-            ax=plt.axes([0.085, 0.11, 0.89, 0.81])
-            
-            plt.tick_params(axis='both', which='major', labelsize=15)
-            plt.tick_params(axis='both', which='minor', labelsize=15)
+            ax=plt.axes([0.105, 0.125, 0.86, 0.79])
                 
-            plt.plot(result['pz_z'], result['zOdds'], 'k', lw = 2, label = '$n_{\Delta z}(z)$')
-            plt.plot(result['pz_z'], pz, 'k:', lw = 1, label = '$n(z)$')
+            plt.plot(result['pz_z'], result['zOdds'], 'k', label = '$n_{\Delta z}(z)$')
+            plt.plot(result['pz_z'], pz, 'k:', label = '$n(z)$')
             #dzOdds=0.2
             #smoothPix=int(round(0.2/(result['pz_z'][1]-result['pz_z'][0])))
             #plt.plot(result['pz_z'], ndimage.uniform_filter1d(pz, smoothPix), 'r--', lw = 1)
 
             plotMax=max([pz.max(), result['zOdds'].max()])
-            plt.ylabel("$n_{\Delta z}(z)$ | $n(z)$ (normalised)", fontdict = fontDict)
-            plt.xlabel("$z$", fontdict = fontDict)
+            plt.ylabel("$n_{\Delta z}(z)$ | $n(z)$ (normalised)")
+            plt.xlabel("$z$")
             y=np.linspace(result['zOdds'].min(), plotMax*1.5, 4)
             plt.plot([result['z']]*len(y), y, 'k--')
             plt.ylim(0, plotMax*1.1)
