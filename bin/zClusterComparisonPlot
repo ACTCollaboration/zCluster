@@ -102,7 +102,7 @@ if __name__ == '__main__':
     outCatalogFileName=args.zClusterCatalog
 
     if args.plotTitle != None:
-        plotTitle=str(options.plotTitle)
+        plotTitle=str(args.plotTitle)
     else:
         plotTitle=None
     if args.zMax != None:
@@ -225,7 +225,7 @@ if __name__ == '__main__':
     plt.figure(figsize=(18, 6.5))
 
     plt.subplot(121)
-    plt.subplots_adjust(left = 0.065, bottom = 0.11, right = 0.99, top = 0.97, wspace = 0.18, hspace = 0.24)
+    plt.subplots_adjust(left = 0.065, bottom = 0.11, right = 0.99, top = 0.97, wspace = 0.01, hspace = 0.24)
     
     plt.plot(zIn[notMask], diff_over1plusz[notMask], 'wD', mec = 'k', ms = 8, label = '$\delta < %.0f$' % (deltaMin))
     plt.plot(zIn[deltaMask], diff_over1plusz[deltaMask], 'D', ms = 8, label = '$\delta > %.0f$' % (deltaMin))
@@ -243,8 +243,11 @@ if __name__ == '__main__':
         yMin=float(yMin)
         yMax=float(yMax)
         plt.ylim(yMin, yMax)
-    leg=plt.legend(numpoints = 1, loc = 'upper left')
-    leg.draw_frame(False)
+    leg=plt.legend(numpoints = 1, loc = 'lower right')
+    if plotTitle != None:
+        plt.figtext(0.1, 0.85, plotTitle, fontdict = {'size': 28, 'weight': 'bold'}, ha = 'left')#, size = 24)
+    #leg.draw_frame(False)
+    yticks, ylabels=plt.yticks()
     plt.xlabel("$z_{\mathrm{%s}}$" % (inLabel))
     plt.ylabel("$(z_{\mathrm{%s}}-z_{\mathrm{c}})$/$(1+z_{\mathrm{%s}})$" % (inLabel, inLabel))
 
@@ -260,16 +263,15 @@ if __name__ == '__main__':
     plt.plot(xPlotRange, [meanMaskedDiff+stdMaskedDiff]*len(xPlotRange), 'k:')
     plt.plot(np.linspace(0, delta.max()*1.1, 3), [0]*3, 'k-')
     plt.xlim(0, delta.max()*1.1)
+    plt.yticks(yticks, len(yticks)*[''])
     if yRangeStr != None and yRangeStr != 'auto':
         yMin, yMax=yRangeStr.split(":")
         yMin=float(yMin)
         yMax=float(yMax)
         plt.ylim(yMin, yMax)
-    if plotTitle != None:
-        plt.figtext(0.965, 0.88, plotTitle, ha = 'right')#, size = 24)
     plt.xlabel("$\delta$")
-    plt.ylabel("$(z_{\mathrm{%s}}-z_{\mathrm{c}})$/$(1+z_{\mathrm{%s}})$" % (inLabel, inLabel))
-    
+    #plt.ylabel("$(z_{\mathrm{%s}}-z_{\mathrm{c}})$/$(1+z_{\mathrm{%s}})$" % (inLabel, inLabel))
+
     plt.savefig(plotFileName)
     plt.close()
     

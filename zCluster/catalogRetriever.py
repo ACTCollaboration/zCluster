@@ -111,7 +111,7 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
             """ % (tableName, RAMin, RAMax, decMin, decMax)
         #print sql
         #AND Err_g < 0.3 AND Err_r < 0.3 AND Err_i < 0.3 
-
+        
         # Old, conservative query that ends up missing a hell of a lot of galaxies that we can see in S82 i-band
         #sql="""SELECT ra,dec,dered_u,dered_g,dered_r,dered_i,dered_z,Err_u,Err_g,Err_r,Err_i,Err_z,flags_r,run 
             #FROM Galaxy 
@@ -133,7 +133,12 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
             #-- accept objects with interpolation problems for PSF mags.
             #AND Err_g < 0.2 AND Err_r < 0.2 AND Err_i < 0.2 
             #""" % (RAMin, RAMax, decMin, decMax)
-            
+        
+        # Bail if no chance this is anywhere near S82
+        if decMin > 2.5 or decMax < -2.5:
+            print "... not close to S82 region ..."
+            return None
+        
         # Filter SQL so that it'll work
         fsql = ''
         for line in sql.split('\n'):
