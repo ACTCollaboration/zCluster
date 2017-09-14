@@ -292,21 +292,29 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
             photDict['id']=idCount    # just so we have something - we could PS1 ID but skipping for now
             photDict['RADeg']=row['raMean']
             photDict['decDeg']=row['decMean']
-            photDict['g']=row['gMeanKronMag']
-            photDict['r']=row['rMeanKronMag']
-            photDict['i']=row['iMeanKronMag']
-            photDict['z']=row['zMeanKronMag']
-            photDict['gErr']=row['gMeanKronMagErr']
-            photDict['rErr']=row['rMeanKronMagErr']
-            photDict['iErr']=row['iMeanKronMagErr']
-            photDict['zErr']=row['zMeanKronMagErr']
+            #photDict['g']=row['gMeanKronMag']
+            #photDict['r']=row['rMeanKronMag']
+            #photDict['i']=row['iMeanKronMag']
+            #photDict['z']=row['zMeanKronMag']
+            #photDict['gErr']=row['gMeanKronMagErr']
+            #photDict['rErr']=row['rMeanKronMagErr']
+            #photDict['iErr']=row['iMeanKronMagErr']
+            #photDict['zErr']=row['zMeanKronMagErr']
+            photDict['g']=row['gMeanApMag']
+            photDict['r']=row['rMeanApMag']
+            photDict['i']=row['iMeanApMag']
+            photDict['z']=row['zMeanApMag']
+            photDict['gErr']=row['gMeanApMagErr']
+            photDict['rErr']=row['rMeanApMagErr']
+            photDict['iErr']=row['iMeanApMagErr']
+            photDict['zErr']=row['zMeanApMagErr']
             
             # Correct for dust extinction
             photDict['g']=photDict['g']-EBMinusV*3.793 
             photDict['r']=photDict['r']-EBMinusV*2.751 
             photDict['i']=photDict['i']-EBMinusV*2.086 
             photDict['z']=photDict['z']-EBMinusV*1.479 
-                
+
             # Apply mag error cuts if given
             # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
             # We're just making the mag unconstrained here (missing data), rather than applying a limit
@@ -315,6 +323,13 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
                 keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['g', 'r', 'i', 'z'])
             else:
                 keep=True
+            
+            # Additional PS1 quality cut
+            if keep == True and row['gQfPerfect'] > 0.9 and row['rQfPerfect'] > 0.9 and row['iQfPerfect'] > 0.9 and row['gQfPerfect'] > 0.9:
+                keep=True
+            else:
+                keep=False
+            
             if keep == True:
                 catalog.append(photDict)
         
