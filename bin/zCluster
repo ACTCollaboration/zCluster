@@ -427,6 +427,7 @@ if __name__ == '__main__':
     # Default prior cuts are defined for each database here... 
     # Can be overridden with args.zPriorMin, args.zPriorMax... see below
     retrieverOptions={}
+    passbandSet='SDSS+Ks'
     if database == 'S82':
         retriever=catalogRetriever.S82Retriever
         zPriorMin=0.20
@@ -447,6 +448,7 @@ if __name__ == '__main__':
         retriever=catalogRetriever.PS1Retriever
         zPriorMin=0.05
         zPriorMax=0.8
+        passbandSet='PS1'
         retrieverOptions={'maxMagError': maxMagError}
     elif database == 'CFHTLenS':
         retriever=catalogRetriever.CFHTLenSRetriever
@@ -504,7 +506,7 @@ if __name__ == '__main__':
     if cacheDir != None:
         retrieverOptions['altCacheDir']=cacheDir
             
-    photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine("pzEngineCache", absMagCut)
+    photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine("pzEngineCache", absMagCut, passbandSet = passbandSet)
         
     # Either make a null test catalog, or parse the one we asked for
     runningNullTest=False

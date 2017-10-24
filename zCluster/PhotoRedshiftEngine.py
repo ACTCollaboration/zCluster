@@ -39,7 +39,7 @@ class PhotoRedshiftEngine:
     
     """
     
-    def __init__(self, cacheDir, absMagCut, zMin = 0.01, zMax = 3.0, zStep = 0.01):
+    def __init__(self, cacheDir, absMagCut, passbandSet = 'SDSS+Ks', zMin = 0.01, zMax = 3.0, zStep = 0.01):
         """Sets up the stuff we would otherwise calculate every time, i.e., the templates.
         
         """
@@ -54,14 +54,20 @@ class PhotoRedshiftEngine:
 
         # Set up passbands
         passbandsDir=zCluster.__path__[0]+os.path.sep+"passbands"+os.path.sep
-        self.bands=['u', 'g', 'r', 'i', 'z', 'Ks']
-        self.passbandsList=[]
-        for band in self.bands:
-            if band == 'Ks':
-                self.passbandsList.append(astSED.Passband(passbandsDir+"K_2MASS.res"))
-            else:
-                self.passbandsList.append(astSED.Passband(passbandsDir+band+"_SDSS.res"))
-        
+        if passbandSet == 'SDSS+Ks':
+            self.bands=['u', 'g', 'r', 'i', 'z', 'Ks']
+            self.passbandsList=[]
+            for band in self.bands:
+                if band == 'Ks':
+                    self.passbandsList.append(astSED.Passband(passbandsDir+"K_2MASS.res"))
+                else:
+                    self.passbandsList.append(astSED.Passband(passbandsDir+band+"_SDSS.res"))
+        elif passbandSet == 'PS1':
+            self.bands=['g', 'r', 'i', 'z', 'Y']
+            self.passbandsList=[]
+            for band in self.bands:
+                self.passbandsList.append(astSED.Passband(passbandsDir+band+"PS1.res"))
+            
         # This probably doesn't gain us much
         self.effectiveWavelength=[]
         for p in self.passbandsList:

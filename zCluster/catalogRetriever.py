@@ -246,9 +246,7 @@ def checkMagErrors(photDict, maxMagError, minBands = 3, bands = ['u', 'g', 'r', 
 #-------------------------------------------------------------------------------------------------------------
 def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
     """Retrieves PS1 photometry at the given position.
-    
-    NOTE: not using y-band at the moment.
-    
+        
     """
 
     if 'altCacheDir' in optionsDict.keys():
@@ -285,35 +283,41 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
         idCount=0
         # As per this page, use (rmeanpsfmag - rmeankronmag) >= 0.5 to remove stars
         # https://confluence.stsci.edu/display/PANSTARRS/PS1+Sample+queries#PS1Samplequeries-GalaxyCandidatesforK2C14SNSearch
-        tab=tab[np.where(tab['rMeanPSFMag']-tab['rMeanKronMag'] >= 0.5)]
+        #tab=tab[np.where(tab['rMeanPSFMag']-tab['rMeanKronMag'] >= 0.5)]
         for row in tab:
             idCount=idCount+1
             photDict={}
             photDict['id']=idCount    # just so we have something - we could PS1 ID but skipping for now
             photDict['RADeg']=row['raMean']
             photDict['decDeg']=row['decMean']
-            #photDict['g']=row['gMeanKronMag']
-            #photDict['r']=row['rMeanKronMag']
-            #photDict['i']=row['iMeanKronMag']
-            #photDict['z']=row['zMeanKronMag']
-            #photDict['gErr']=row['gMeanKronMagErr']
-            #photDict['rErr']=row['rMeanKronMagErr']
-            #photDict['iErr']=row['iMeanKronMagErr']
-            #photDict['zErr']=row['zMeanKronMagErr']
-            photDict['g']=row['gMeanApMag']
-            photDict['r']=row['rMeanApMag']
-            photDict['i']=row['iMeanApMag']
-            photDict['z']=row['zMeanApMag']
-            photDict['gErr']=row['gMeanApMagErr']
-            photDict['rErr']=row['rMeanApMagErr']
-            photDict['iErr']=row['iMeanApMagErr']
-            photDict['zErr']=row['zMeanApMagErr']
+            photDict['g']=row['gMeanKronMag']
+            photDict['r']=row['rMeanKronMag']
+            photDict['i']=row['iMeanKronMag']
+            photDict['z']=row['zMeanKronMag']
+            photDict['Y']=row['yMeanKronMag']
+            photDict['gErr']=row['gMeanKronMagErr']
+            photDict['rErr']=row['rMeanKronMagErr']
+            photDict['iErr']=row['iMeanKronMagErr']
+            photDict['zErr']=row['zMeanKronMagErr']
+            photDict['YErr']=row['yMeanKronMagErr']
+            #photDict['g']=row['gMeanApMag']
+            #photDict['r']=row['rMeanApMag']
+            #photDict['i']=row['iMeanApMag']
+            #photDict['z']=row['zMeanApMag']
+            #photDict['Y']=row['yMeanApMag']
+            #photDict['gErr']=row['gMeanApMagErr']
+            #photDict['rErr']=row['rMeanApMagErr']
+            #photDict['iErr']=row['iMeanApMagErr']
+            #photDict['zErr']=row['zMeanApMagErr']
+            #photDict['YErr']=row['yMeanApMagErr']
             
             # Correct for dust extinction
-            photDict['g']=photDict['g']-EBMinusV*3.793 
-            photDict['r']=photDict['r']-EBMinusV*2.751 
-            photDict['i']=photDict['i']-EBMinusV*2.086 
-            photDict['z']=photDict['z']-EBMinusV*1.479 
+            # Taken from: http://www.mso.anu.edu.au/~brad/filters.html
+            photDict['g']=photDict['g']-EBMinusV*3.322
+            photDict['r']=photDict['r']-EBMinusV*2.544 
+            photDict['i']=photDict['i']-EBMinusV*2.265 
+            photDict['z']=photDict['z']-EBMinusV*1.846 
+            photDict['Y']=photDict['Y']-EBMinusV*1.570 
 
             # Apply mag error cuts if given
             # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
@@ -325,10 +329,11 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
                 keep=True
             
             # Additional PS1 quality cut
-            if keep == True and row['gQfPerfect'] > 0.9 and row['rQfPerfect'] > 0.9 and row['iQfPerfect'] > 0.9 and row['gQfPerfect'] > 0.9:
-                keep=True
-            else:
-                keep=False
+            # NOTE: this does not help (makes scatter worse actually)
+            #if keep == True and row['gQfPerfect'] > 0.9 and row['rQfPerfect'] > 0.9 and row['iQfPerfect'] > 0.9 and row['gQfPerfect'] > 0.9:
+                #keep=True
+            #else:
+                #keep=False
             
             if keep == True:
                 catalog.append(photDict)
