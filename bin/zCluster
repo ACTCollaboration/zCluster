@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-    Copyright 2016 Matt Hilton (matt.hilton@mykolab.com)
+    Copyright 2017 Matt Hilton (matt.hilton@mykolab.com)
     
     This file is part of zCluster.
 
@@ -38,16 +38,6 @@ import datetime
 import IPython
 plt.matplotlib.interactive(False)
 
-# For MNRAS
-#plt.matplotlib.rcParams['pdf.fonttype'] = 42
-#plt.matplotlib.rcParams['ps.fonttype'] = 42
-
-## For some unknown reason, mathtext in matplotlib is behaving weirdly since Ubuntu 16.10 upgrade
-#try:
-    #plt.matplotlib.rc('text', usetex=True)
-#except:
-    #pass
-
 #------------------------------------------------------------------------------------------------------------
 def update_rcParams(dict={}):
     """
@@ -80,12 +70,12 @@ def update_rcParams(dict={}):
         
 #-------------------------------------------------------------------------------------------------------------
 def parseClusterCatalog(fileName):
-    """Parses .fits or .csv table with name, RADeg, decDeg columns into dictionary list
+    """Parses .fits or .csv table with name, RADeg, decDeg columns into dictionary list.
     
     """
     
     if fileName.split(".")[-1] == "csv":
-        tab=atpy.Table().read(fileName, type = 'ascii')
+        tab=atpy.Table().read(fileName, format = 'ascii')
     else:
         tab=atpy.Table().read(fileName)
     catalog=[]
@@ -127,16 +117,6 @@ def makePlots(catalog, zPriorMax, outDir):
                 pz=pz*prior
                 norm=np.trapz(pz, zArray)
                 pz=pz/norm   
-
-            #plt.plot(result['pz_z'], result['pz'])
-            #plt.ylabel("p(z)")
-            #plt.xlabel("z")
-            #y=np.linspace(result['pz'].min(), result['pz'].max()*1.1, 4)
-            #plt.plot([result['z']]*len(y), y, 'k--')
-            #plt.ylim(0, result['pz'].max()*1.1)
-            #plt.title("%s - z = %.2f (odds = %.2f)" % (obj['name'], result['z'], result['odds'])) 
-            #plt.savefig(plotsDir+os.path.sep+obj['name'].replace(" ", "_")+".png")      
-            #plt.close()
             
             # Plot of normalised odds and p(z)        
             norm=np.trapz(result['zOdds'], result['pz_z'])
@@ -148,9 +128,6 @@ def makePlots(catalog, zPriorMax, outDir):
                 
             plt.plot(result['pz_z'], result['zOdds'], 'k', label = '$n_{\Delta z}(z)$')
             plt.plot(result['pz_z'], pz, 'k:', label = '$n(z)$')
-            #dzOdds=0.2
-            #smoothPix=int(round(0.2/(result['pz_z'][1]-result['pz_z'][0])))
-            #plt.plot(result['pz_z'], ndimage.uniform_filter1d(pz, smoothPix), 'r--', lw = 1)
 
             plotMax=max([pz.max(), result['zOdds'].max()])
             plt.ylabel("$n_{\Delta z}(z)$ | $n(z)$ (normalised)")
@@ -331,9 +308,10 @@ if __name__ == '__main__':
                         'decDeg'. Set to 'nullTest', to create a catalog with 1000 random positions
                         that are more than 5 arcmin away from redMaPPer and NED clusters.""")
     parser.add_argument("database", help="""The photometric database to use. Options are 'SDSSDR12', 'S82' 
-                        (for SDSS DR7 Stripe 82 co-add); 'CFHTLenS'; 'PS1'; 'DECaLS' (DR3); or the path to a
-                        .fits table with columns in the appropriate format ('ID', 'RADeg', 'decDeg', and
-                        magnitude column names in the form 'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.).""")
+                        (for SDSS DR7 Stripe 82 co-add); 'CFHTLenS'; 'PS1' [experimental]; 'DECaLS' (DR3) 
+                        [experimental]; or the path to a .fits table with columns in the appropriate format 
+                        ('ID', 'RADeg', 'decDeg', and magnitude column names in the form 
+                        'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.).""")
     parser.add_argument("-o", "--output-label", dest="outLabel", help="""Label to use for outputs  
                         (default: catalogFileName_database, stripped of file extension). 
                         A redshift catalog called zCluster_outLabel.fits will be created. Cached
@@ -349,7 +327,7 @@ if __name__ == '__main__':
                         redshift. Options are 'max' or 'odds' (default: odds).""", 
                         default = 'odds')
     parser.add_argument("-c", "--cachedir", dest="cacheDir", default = None, help="""Cache directory location
-                        (default: $HOME/zCluster/cache). Downloaded photometric catalogs will be stored 
+                        (default: $HOME/.zCluster/cache). Downloaded photometric catalogs will be stored 
                         here.""")
     parser.add_argument("-M", "--mpi", dest="MPIEnabled", action="store_true", help="""Enable MPI. If you
                         want to use this, run zCluster using something like: mpirun --np 4 zCluster ...""", 
@@ -360,8 +338,6 @@ if __name__ == '__main__':
                         default = None)
     parser.add_argument("-Z", "--z-prior-max", dest="zPriorMax", help="""Set maximum redshift of prior.""", 
                         default = None)
-    #parser.add_argument("-b", "--brighter-mstar-cut", dest="magsBrighterMStarCut", help="""Set bright magnitude cut 
-                        #(magnitudes brighter than M*, i.e., -b 2 is M*-2).""", default = 2.0)
     parser.add_argument("-b", "--brighter-absmag-cut", dest="absMagCut", help="""Set bright absolute magnitude cut.""", 
                         default = -24.)
     parser.add_argument("-n", "--name", dest="name", help="Find photo-z of only the named cluster in the catalog.")
@@ -485,8 +461,6 @@ if __name__ == '__main__':
     if rank == 0:
         if os.path.exists(outDir) == False:
             os.makedirs(outDir)
-        if os.path.exists("pzEngineCache") == False:
-            os.makedirs("pzEngineCache")
         if args.name != None:
             logDir=logFileName=outDir+os.path.sep+args.name
             if os.path.exists(logDir) == False:
@@ -506,7 +480,7 @@ if __name__ == '__main__':
     if cacheDir != None:
         retrieverOptions['altCacheDir']=cacheDir
             
-    photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine("pzEngineCache", absMagCut, passbandSet = passbandSet)
+    photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, passbandSet = passbandSet)
         
     # Either make a null test catalog, or parse the one we asked for
     runningNullTest=False

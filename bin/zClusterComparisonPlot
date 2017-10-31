@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-    Copyright 2016 Matt Hilton (matt.hilton@mykolab.com)
+    Copyright 2017 Matt Hilton (matt.hilton@mykolab.com)
     
     This file is part of zCluster.
 
@@ -30,16 +30,6 @@ import pylab as plt
 import numpy as np
 import IPython
 plt.matplotlib.interactive(False)
-
-# For MNRAS
-#plt.matplotlib.rcParams['pdf.fonttype'] = 42
-#plt.matplotlib.rcParams['ps.fonttype'] = 42
-
-# For some unknown reason, mathtext in matplotlib is behaving weirdly since Ubuntu 16.10 upgrade
-#try:
-    #plt.matplotlib.rc('text', usetex=True)
-#except:
-    #pass
 
 #------------------------------------------------------------------------------------------------------------
 def update_rcParams(dict={}):
@@ -117,7 +107,7 @@ if __name__ == '__main__':
         yRangeStr=args.yRangeStr
         
     if inCatalogFileName.split(".")[-1] == "csv":
-        inTab=atpy.Table().read(inCatalogFileName, type = 'ascii')
+        inTab=atpy.Table().read(inCatalogFileName, format = 'ascii')
     else:
         inTab=atpy.Table().read(inCatalogFileName)
         
@@ -152,32 +142,7 @@ if __name__ == '__main__':
     delta=tab['delta']
     diff=tab['zDiff']
     diff_over1plusz=diff/(1+tab['zIn'])
-    odds=tab['odds']
-    
-    ## Stats based on zPriorCut (needs to be given since we don't know it here)
-    #if zMax != None:
-        #print ">>> Stats for zIn < %.2f:" % (zMax)
-        #mask=np.less(zIn, zMax)
-        #maskedDiff=zIn[mask]-zOut[mask]
-        #meanMaskedDiff=np.mean(maskedDiff)
-        #stdMaskedDiff=np.std(maskedDiff)
-        #print "... median (zIn - zOut) = %.3f" % (np.median(maskedDiff))
-        #print "... mean (zIn - Zout) = %.3f" % (meanMaskedDiff)
-        #print "... sigma (zIn - zOut) = %.3f" % (stdMaskedDiff)
-        #print "... N = %d ..." % (len(maskedDiff))
-
-    ## Stats based on odds cut
-    #oddsMin=0.35
-    #print ">>> Stats for odds > %.2f:" % (oddsMin)
-    #mask=np.greater(odds, oddsMin)
-    #notMask=np.less(odds, oddsMin)
-    #maskedDiff=zIn[mask]-zOut[mask]
-    #meanMaskedDiff=np.mean(maskedDiff)
-    #stdMaskedDiff=np.std(maskedDiff)
-    #print "... median (zIn - zOut) = %.3f" % (np.median(maskedDiff))
-    #print "... mean (zIn - Zout) = %.3f" % (meanMaskedDiff)
-    #print "... sigma (zIn - zOut) = %.3f" % (stdMaskedDiff)
-        
+            
     # Stats based on delta cut by z
     zCutsList=[[0.0, 2.0],[0.1, 0.5],[0.5, 1.0], [0.5, 1.5], [1.0, 2.0]]
     if deltaMin != None:

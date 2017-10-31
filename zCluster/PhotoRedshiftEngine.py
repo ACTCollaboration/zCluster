@@ -3,7 +3,7 @@
     
     ---
     
-    Copyright 2016 Matt Hilton (matt.hilton@mykolab.com)
+    Copyright 2017 Matt Hilton (matt.hilton@mykolab.com)
     
     This file is part of zCluster.
 
@@ -39,16 +39,11 @@ class PhotoRedshiftEngine:
     
     """
     
-    def __init__(self, cacheDir, absMagCut, passbandSet = 'SDSS+Ks', zMin = 0.01, zMax = 3.0, zStep = 0.01):
+    def __init__(self, absMagCut, passbandSet = 'SDSS+Ks', zMin = 0.01, zMax = 3.0, zStep = 0.01):
         """Sets up the stuff we would otherwise calculate every time, i.e., the templates.
         
         """
-                        
-        # Store some stellar mass stuff under cacheDir (see later)
-        if os.path.exists(cacheDir) == False:
-            os.makedirs(cacheDir)
-        self.cacheDir=cacheDir
-        
+                                
         # Redshift grid on which to calculate p(z)
         self.zRange=np.linspace(zMin, zMax, ((zMax+zStep)-zMin)/zStep)
 
@@ -114,7 +109,7 @@ class PhotoRedshiftEngine:
             dlRange.append(astCalc.dl(z))
         self.dlRange=np.array(dlRange)
         
-        # More sophisticated mag prior...
+        # More sophisticated mag prior... doesn't seem to help
         # Using m* in i-band at z = 0.1 from Popesso et al. and BC03 tau = 0.1 Gyr, solar metallicity, zf = 3
         # Cut is m*-3, i.e., should leave in BCGs
         #MStar=-21.8
@@ -127,7 +122,7 @@ class PhotoRedshiftEngine:
         #self.magPriorCut=interpolate.splev(self.zRange, tck)-5.*np.log10(self.dlRange*1e5)-magsBrighterMStarCut
         #self.magPriorBand=self.bands.index(MStarBand)
         
-        # Less sophisticaed mag prior...
+        # Less sophisticated mag prior...
         self.magPriorCut=absMagCut
         self.magPriorBand=self.bands.index('r')
    
@@ -141,7 +136,7 @@ class PhotoRedshiftEngine:
         """
                
         # Note that we now aren't checking for junk/bad bands in the catalogue
-        # That should have been dealt with before this stage
+        # That should have been dealt with before getting to this stage
         # And we've also used some more tricks to speed up by factor of 4 or so
         # Things we tried to speed up the below
         # Own trapz doesn't help here (this is probably to do with array size)

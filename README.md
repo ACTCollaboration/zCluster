@@ -1,14 +1,18 @@
 # zCluster
 
 A code for measuring galaxy cluster photometric redshifts. For details of the algorithm, its
-performance, and the output of the code, refer to the ACTPol D56 clusters paper.
+performance, and the output of the code, refer to [Hilton et al. 2017](http://adsabs.harvard.edu/abs/2017arXiv170905600H).
 
 zCluster has built-in support for querying large photometric surveys - currently:
     
-* SDSS (DR7 -- DR12)
-* SDSS Stripe 82
+* SDSS (DR7 - DR12)
+* SDSS Stripe 82 (from SDSS DR7)
 * CFHTLenS
-* DECaLS (DR3 - experimental!)
+* PS1 (DR1; experimental!)
+* DECaLS (DR3; experimental!)
+
+The code has only been tested on SDSS, S82, and CFHTLenS 
+([see the paper](http://adsabs.harvard.edu/abs/2017arXiv170905600H)); PS1 and DECaLS are work in progress.
 
 zCluster can also run on user supplied .fits table photometric catalogs, provided that they have columns
 named `ID`, `RADeg`, `decDeg`, and magnitude column names in the form `u_MAG_AUTO`, `u_MAGERR_AUTO` etc..
@@ -18,20 +22,16 @@ named `ID`, `RADeg`, `decDeg`, and magnitude column names in the form `u_MAG_AUT
 zCluster itself is written in pure python (2.7.x). It requires the following additional python modules 
 (current versions used by the author are given in brackets, earlier and later versions also probably work):
 
-* pyfits (3.3)
-* numpy (1.11.1)
-* scipy (0.17.1)
-* matplotlib (1.5.2)
-* astLib (git version probably: get it with `git clone http://git.code.sf.net/p/astlib/git astlib-git`)
-* atpy (0.9.7)
+* pyfits (3.4)
+* numpy (1.13.1)
+* scipy (0.17.0)
+* matplotlib (2.0.2)
+* astLib (0.9.2+ or git version: get it with `git clone http://git.code.sf.net/p/astlib/git astlib-git`)
+* astropy (1.1.1)
 * IPython (2.4.1)
 
-In addition, for surveys other than SDSS, the Schlegel et al. `dust_getval` code and maps are needed, in order
-to calculate and apply Galactic extinction corrections. The `dust_getval` executable needs to be in your 
-$PATH, and the appropriate environment variables set.
-
 IPython isn't really required, but is used for debugging. Note that astropy could be used to replace some
-of the dependencies in the future.
+of the other dependencies in future (e.g., pyfits).
 
 There is also an optional dependency, if you want to run the code in parallel:
     

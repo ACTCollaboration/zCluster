@@ -12,7 +12,7 @@
     
     ---
 
-    Copyright 2016 Matt Hilton (matt.hilton@mykolab.com)
+    Copyright 2017 Matt Hilton (matt.hilton@mykolab.com)
     
     This file is part of zCluster.
 
@@ -81,16 +81,7 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
             
     outFileName=cacheDir+os.path.sep+"S82_%.4f_%.4f_%.4f_%s.csv" % (RADeg, decDeg, halfBoxSizeDeg, tableName)
     print "... getting SDSS Stripe82 photometry (file: %s) ..." % (outFileName)
-    
-    # First, check if we previously downloaded a catalog and it went wrong - if it did, delete the file so
-    # we can try fetching it again
-    #if os.path.exists(outFileName) == True:
-        #inFile=file(outFileName, "r")
-        #lines=inFile.readlines()
-        #inFile.close()
-        #if lines[0].find("No objects have been found") != -1 or len(lines) > 1 and lines[1][:5] == "ERROR":
-            #os.remove(outFileName)
-        
+            
     if os.path.exists(outFileName) == False:
     
         print "... fetching from the internet ..."
@@ -112,7 +103,7 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
         #print sql
         #AND Err_g < 0.3 AND Err_r < 0.3 AND Err_i < 0.3 
         
-        # Old, conservative query that ends up missing a hell of a lot of galaxies that we can see in S82 i-band
+        # Old, conservative query that ends up missing a lot of galaxies that we can see in S82 i-band
         #sql="""SELECT ra,dec,dered_u,dered_g,dered_r,dered_i,dered_z,Err_u,Err_g,Err_r,Err_i,Err_z,flags_r,run 
             #FROM Galaxy 
             #WHERE 
@@ -287,7 +278,7 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
         for row in tab:
             idCount=idCount+1
             photDict={}
-            photDict['id']=idCount    # just so we have something - we could PS1 ID but skipping for now
+            photDict['id']=idCount    # just so we have something - we could use PS1 ID but skipping for now
             photDict['RADeg']=row['raMean']
             photDict['decDeg']=row['decMean']
             photDict['g']=row['gMeanKronMag']
@@ -384,15 +375,6 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
     outFileName=outFileName.replace(".csv", "_%s.csv" % (tableName))
                                     
     print "... getting SDSS DR%d photometry (file: %s) ..." % (DR, outFileName)
-
-    # First, check if we previously downloaded a catalog and it went wrong - if it did, delete the file so
-    # we can try fetching it again
-    #if os.path.exists(outFileName) == True:
-        #inFile=file(outFileName, "r")
-        #lines=inFile.readlines()
-        #inFile.close()
-        #if lines[0].find("No objects have been found") != -1 or len(lines) > 1 and lines[1][:5] == "ERROR":
-            #os.remove(outFileName)
         
     if os.path.exists(outFileName) == False or 'refetch' in optionsDict.keys() and optionsDict['refetch'] == True:
         
@@ -418,7 +400,6 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
             newDecMax=decMin
             decMin=decMax
             decMax=newDecMax
-        # Was FROM Galaxy,and taken out mag err constrain on 23 Oct 2015
         # PhotoPrimary is like PhotoObj but without multiple matches
         sql="""SELECT ra,dec,dered_u,dered_g,dered_r,dered_i,dered_z,Err_u,Err_g,Err_r,Err_i,Err_z,flags_r,run 
             FROM %s
@@ -706,15 +687,6 @@ def CFHTLenSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
     outFileName=cacheDir+os.path.sep+"CFHTLenS_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
 
     print "... getting CFHTLenS photometry (file: %s) ..." % (outFileName) 
-
-    # First, check if we previously downloaded a catalog and it went wrong - if it did, delete the file so
-    # we can try fetching it again
-    #if os.path.exists(outFileName) == True:
-        #inFile=file(outFileName, "r")
-        #lines=inFile.readlines()
-        #inFile.close()
-        #if len(lines) < 10:
-            #os.remove(outFileName)
         
     if os.path.exists(outFileName) == False:
         
@@ -748,7 +720,7 @@ def CFHTLenSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
     else:
         catalog=[]
         idCount=0
-        #EBMinusV=getEBMinusV(RADeg, decDeg) # Extinction already applied in CFHTLenS mag columns
+        # NOTE: Extinction corrections already applied to CFHTLenS catalogs
         for line in lines[1:]: # first line always heading
             if len(line) > 3:
                 photDict={}
@@ -773,14 +745,7 @@ def CFHTLenSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
                 photDict['rErr']=float(bits[9])
                 photDict['iErr']=float(bits[11])
                 photDict['zErr']=float(bits[15])
-                                
-                # Correct for dust extinction - not necessary for CFHTLenS, already applied
-                #photDict['u']=photDict['u']-EBMinusV*5.155 
-                #photDict['g']=photDict['g']-EBMinusV*3.793 
-                #photDict['r']=photDict['r']-EBMinusV*2.751 
-                #photDict['i']=photDict['i']-EBMinusV*2.086 
-                #photDict['z']=photDict['z']-EBMinusV*1.479 
-                
+                                                
                 # Apply mag error cuts if given
                 # We're just making the mag unconstrained here (missing data), rather than applying a limit
                 # If we don't have a minimum of three useful bands, reject
@@ -798,161 +763,6 @@ def CFHTLenSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
                 if keep == True:
                     catalog.append(photDict)
                     
-    return catalog
-
-#-------------------------------------------------------------------------------------------------------------
-def CFHTRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, survey = 'deep', optionsDict = {}):
-    """Retrieves CFHT photometry  fields (all public now) using Steven Gwyn's CADC pages. 
-    
-    halfBoxSizeDeg is actually a radius in this case.
-    
-    """
-     
-    makeCacheDir()
-    
-    # Below describes the catalogs - they are done in matched apertures but are i-band selected
-    #http://www1.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/community/CFHTLS-SG/docs/cfhtlsproc.html#photcat
-    
-    #url='http://www1.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/community/CFHTLS-SG/cgi/catquery.pl?method=direct&survey=deep&filter=i&format=ascii&select=+RA,+DEC,+U_MAG_AUTO,+U_MAGERR_AUTO,+G_MAG_AUTO,+G_MAGERR_AUTO,+R_MAG_AUTO,+R_MAGERR_AUTO,+I_MAG_AUTO,+I_MAGERR_AUTO,+Z_MAG_AUTO,+Z_MAGERR_AUTO&where=incirc($RA,$DEC,$SEARCHRAD)%0D%0AAND+i_MAG_AUTO+%3C%3D+i_maglimit%0D%0AAND+i_dubious+%3D0&bright=no&masked=no&ofield=all&col=U_MAG_AUTO&col=U_MAGERR_AUTO&col=G_MAG_AUTO&col=G_MAGERR_AUTO&col=R_MAG_AUTO&col=R_MAGERR_AUTO&col=I_MAG_AUTO&col=I_MAGERR_AUTO&col=Z_MAG_AUTO&col=Z_MAGERR_AUTO'
-    # below is attempt at cleaner photometry
-    #url='http://www1.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/community/CFHTLS-SG/cgi/catquery.pl?method=direct&survey=$SURVEY&filter=i&format=ascii&select=+RA,+DEC,+U_MAG_AUTO,+U_MAGERR_AUTO,+G_MAG_AUTO,+G_MAGERR_AUTO,+R_MAG_AUTO,+R_MAGERR_AUTO,+I_MAG_AUTO,+I_MAGERR_AUTO,+Z_MAG_AUTO,+Z_MAGERR_AUTO&where=incirc($RA,$DEC,$SEARCHRAD)%0D%0AAND+i_MAG_AUTO+%3C%3D+i_maglimit%0D%0AAND+i_dubious+%3D0%0D%0AAND+r_dubious+%3D0&%0D%0AAND+g_dubious+%3D0%0D%0AAND+u_dubious+%3D0%0D%0AAND+z_dubious+%3D0bright=no&masked=no&ofield=all&col=U_MAG_AUTO&col=U_MAGERR_AUTO&col=G_MAG_AUTO&col=G_MAGERR_AUTO&col=R_MAG_AUTO&col=R_MAGERR_AUTO&col=I_MAG_AUTO&col=I_MAGERR_AUTO&col=Z_MAG_AUTO&col=Z_MAGERR_AUTO'
-    
-    # March 2016: new query location
-    #http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/cadcbin/megapipe/queryt.pl?slang=en&REQUEST=doQuery&LANG=ADQL&meth=sync&format=ascii&query=SELECT%0D%0ATOP+10%0D%0A+++cfhtlsID%0D%0AFROM%0D%0A+++cfht.deepi%0D%0AWHERE%0D%0A+++i_MAG_AUTO+%3C%3D+i_maglimit%0D%0A+++AND+i_dubious+%3D0%0D%0A
-
-    print "update query"
-    IPython.embed()
-    sys.exit()
-    
-    # below should be cleaner still (5 sigma in g, r, i), plus actually have star-galaxy separation in
-    url='http://www1.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/community/CFHTLS-SG/cgi/catquery.pl?method=direct&survey=$SURVEY&filter=i&format=ascii&select=+RA,+DEC,+U_MAG_AUTO,+U_MAGERR_AUTO,+G_MAG_AUTO,+G_MAGERR_AUTO,+R_MAG_AUTO,+R_MAGERR_AUTO,+I_MAG_AUTO,+I_MAGERR_AUTO,+Z_MAG_AUTO,+Z_MAGERR_AUTO,+I_CLASS_STAR&where=incirc($RA,$DEC,$SEARCHRAD)%0D%0AAND+i_MAG_AUTO+%3C%3D+i_maglimit%0D%0AAND+i_MAGERR_AUTO+%3C+0.2%0D%0AAND+r_MAGERR_AUTO+%3C+0.2%0D%0AAND+g_MAGERR_AUTO+%3C+0.2%0D%0AAND+I_CLASS_STAR+%3C+059%0D%0AAND+i_dubious+%3D0%0D%0AAND+r_dubious+%3D0&%0D%0AAND+g_dubious+%3D0%0D%0AAND+u_dubious+%3D0%0D%0AAND+z_dubious+%3D0bright=no&masked=no&ofield=all&col=U_MAG_AUTO&col=U_MAGERR_AUTO&col=G_MAG_AUTO&col=G_MAGERR_AUTO&col=R_MAG_AUTO&col=R_MAGERR_AUTO&col=I_MAG_AUTO&col=I_MAGERR_AUTO&col=Z_MAG_AUTO&col=Z_MAGERR_AUTO'
-    
-    # Aper mags don't help at all
-    #url='http://www1.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/community/CFHTLS-SG/cgi/catquery.pl?method=direct&survey=$SURVEY&filter=i&format=ascii&select=+RA,+DEC,+U_MAG_APER_2,+U_MAGERR_APER_2,+G_MAG_APER_2,+G_MAGERR_APER_2,+R_MAG_APER_2,+R_MAGERR_APER_2,+I_MAG_APER_2,+I_MAGERR_APER_2,+Z_MAG_APER_2,+Z_MAGERR_APER_2&where=incirc($RA,$DEC,$SEARCHRAD)%0D%0AAND+i_MAG_AUTO+%3C%3D+i_maglimit%0D%0AAND+i_MAGERR_AUTO+%3C+0.2%0D%0AAND+r_MAGERR_AUTO+%3C+0.2%0D%0AAND+g_MAGERR_AUTO+%3C+0.2%0D%0AAND+R_CLASS_STAR+%3C+0.9%0D%0AAND+i_dubious+%3D0%0D%0AAND+r_dubious+%3D0&%0D%0AAND+g_dubious+%3D0%0D%0AAND+u_dubious+%3D0%0D%0AAND+z_dubious+%3D0bright=no&masked=no&ofield=all&col=U_MAG_AUTO&col=U_MAGERR_AUTO&col=G_MAG_AUTO&col=G_MAGERR_AUTO&col=R_MAG_AUTO&col=R_MAGERR_AUTO&col=I_MAG_AUTO&col=I_MAGERR_AUTO&col=Z_MAG_AUTO&col=Z_MAGERR_AUTO'
-    
-    # CFHTLens - note: mag 99s where missing, this does star/galaxy sep based on lensfit fitclass
-    #http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/community/CFHTLens/cgi/queryt.pl?REQUEST=doQuery&LANG=ADQL&method=sync&format=ascii&query=SELECT%0D%0Aid%2C+ALPHA_J2000%2C+DELTA_J2000%2C+MAG_u%2C+MAGERR_u%2C+MAG_g%2C+MAGERR_g%2C+MAG_r%2C+MAGERR_r%2C+MAG_i%2C+MAGERR_i%2C+MAG_y%2C+MAGERR_y%2C+MAG_z%2C+MAGERR_z%0D%0AFROM%0D%0Acfht.clens%0D%0AWHERE%0D%0Acontains%28pos%2Ccircle%28%27ICRS+GEOCENTER%27%2C36.1333%2C-7.5048%2C0.1500%29%29%3D1+and+fitclass%3D0%0D%0A
-    
-    url=url.replace("$SURVEY", survey)
-    url=url.replace("$RA", "%.6f" % (RADeg))
-    url=url.replace("$DEC", "%.6f" % (decDeg))
-    url=url.replace("$SEARCHRAD", "%.6f" % (halfBoxSizeDeg))
-    
-    if survey == 'deep':
-        label='CFHTDeep'
-    elif survey == 'wide':
-        label='CFHTWide'
-    outFileName=CACHE_DIR+os.path.sep+"%s_%.4f_%.4f_%.4f.csv" % (label, RADeg, decDeg, halfBoxSizeDeg)
-
-    print "... getting CFHTLS %s photometry (file: %s) ..." % (survey, outFileName) 
-
-    # First, check if we previously downloaded a catalog and it went wrong - if it did, delete the file so
-    # we can try fetching it again
-    #if os.path.exists(outFileName) == True:
-        #inFile=file(outFileName, "r")
-        #lines=inFile.readlines()
-        #inFile.close()
-        #if len(lines) < 10:
-            #os.remove(outFileName)
-        
-    if os.path.exists(outFileName) == False:
-            
-        response=urllib2.urlopen(url)
-        lines=response.read()
-        lines=lines.split("\n")
-
-        outFile=file(outFileName, "w")
-        for line in lines:
-            outFile.write(line+"\n")
-        outFile.close()
-    
-    else:
-        
-        inFile=file(outFileName, "r")
-        lines=inFile.readlines()
-        inFile.close()
-
-    # Parse .csv into catalog
-    if len(lines) < 10:
-        catalog=None
-    else:
-        catalog=[]
-        idCount=0
-        EBMinusV=getEBMinusV(RADeg, decDeg, optionsDict = optionsDict) # assume same across field (much faster)
-        for line in lines[1:]: # first line always heading
-            if len(line) > 3:
-                photDict={}
-                idCount=idCount+1
-                bits=line.replace("\n", "").split()
-                photDict['id']=idCount    # just so we have something
-                try:
-                    photDict['RADeg']=float(bits[0])
-                except:
-                    print "what?"
-                    IPython.embed()
-                    sys.exit()
-                photDict['decDeg']=float(bits[1])
-                photDict['u']=float(bits[2])
-                photDict['g']=float(bits[4])
-                photDict['r']=float(bits[6])
-                photDict['i']=float(bits[8])
-                photDict['z']=float(bits[10])
-                photDict['uErr']=float(bits[3])
-                photDict['gErr']=float(bits[5])
-                photDict['rErr']=float(bits[7])
-                photDict['iErr']=float(bits[9])
-                photDict['zErr']=float(bits[11])
-                photDict['classStar']=float(bits[12]) # 
-                
-                # Correct for dust extinction
-                photDict['u']=photDict['u']-EBMinusV*5.155 
-                photDict['g']=photDict['g']-EBMinusV*3.793 
-                photDict['r']=photDict['r']-EBMinusV*2.751 
-                photDict['i']=photDict['i']-EBMinusV*2.086 
-                photDict['z']=photDict['z']-EBMinusV*1.479 
-                
-                catalog.append(photDict)
-                
-    # If we want to test seeing what our catalogs look like
-    #ri=[]
-    #gr=[]
-    #for obj in catalog:
-        #ri.append(obj['r']-obj['i'])
-        #gr.append(obj['g']-obj['r'])
-    #pylab.plot(gr, ri, '.')
-    #pylab.xlim(-0.5, 1.5)
-    #pylab.ylim(-0.5, 3)
-    #ipshell()
-    #sys.exit()
-    
-    # If we also wanted to retrieve image
-    # Retrieve 5' i-band image of 2215 from CFHTLS - this gives a page with link to image to download
-    #http://www4.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/community/CFHTLS-SG/cgi/cutcfhtls.pl?ra=333.99758911&dec=-17.6376571655%20&object=D3&size=5&units=arcminutes&F=I&wide=true&deep=true
-    #ipshell()
-    #sys.exit()
-    
-    return catalog
-    
-#-------------------------------------------------------------------------------------------------------------
-def CFHTDeepRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
-    """Retrieves CFHT deep photometry  fields (all public now) using Steven Gwyn's CADC pages. 
-    
-    halfBoxSizeDeg is actually a radius in this case.
-    
-    """ 
-    
-    catalog=CFHTRetriever(RADeg, decDeg, halfBoxSizeDeg, survey = 'deep')
-    return catalog
-
-#-------------------------------------------------------------------------------------------------------------
-def CFHTWideRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
-    """Retrieves CFHT wide photometry  fields (all public now) using Steven Gwyn's CADC pages. 
-    
-    halfBoxSizeDeg is actually a radius in this case.
-    
-    """
-    
-    catalog=CFHTRetriever(RADeg, decDeg, halfBoxSizeDeg, survey = 'wide')
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
@@ -985,7 +795,7 @@ def getEBMinusV(RADeg, decDeg, optionsDict = {}):
 #-------------------------------------------------------------------------------------------------------------
 def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
     """Parse .fits table into catalog list of dictionaries format. Extinction correction due to Galactic
-    dust will be applied, using Schlegel dust maps. If fieldIDKey == None (the default), this is done
+    dust will be applied, using IRSA web service. If fieldIDKey == None (the default), this is done
     at the mean RA, dec coords. Otherwise, sources are grouped by fieldID and the mean correction for
     each field is applied.
      
@@ -1073,21 +883,7 @@ def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
                     #objDict['SDSS_%sErr' % (k)]=SDSSObjDict["%sErr" % (k)]
                 SDSSMatched[count]=1
             count=count+1
-        # Sanity checking
-        #mag_cat=[]
-        #mag_sdss=[]
-        #for i in SDSSMatched.nonzero()[0]:
-            #mag_cat.append(catalog[i]['z'])
-            #mag_sdss.append(catalog[i]['SDSS_z'])
-        #mag_cat=np.array(mag_cat)
-        #mag_sdss=np.array(mag_sdss)
-        #mask=np.less(mag_sdss, 18)
-        #print "SDSS vs FITS table galaxy mag sanity check"
-        #IPython.embed()
-        #sys.exit()
         
-    # This guards against us letting through an empty catalog -  e.g. if not in Stripe 82, we get a 
-    # different run number, so object doesn't get added to catalog.
     if catalog == []:
         catalog=None
     

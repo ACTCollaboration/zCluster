@@ -3,7 +3,7 @@
 
     ---
     
-    Copyright 2016 Matt Hilton (matt.hilton@mykolab.com)
+    Copyright 2017 Matt Hilton (matt.hilton@mykolab.com)
     
     This file is part of zCluster.
 
@@ -36,12 +36,13 @@ plt.matplotlib.interactive(True)
 def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMpc = 0.0, maxDistanceMpc = 1.0, 
                    applySanityCheckRadius = True, sanityCheckRadiusArcmin = 1.0):
     """Make a N(z) distribution in the direction of the postion (usually of a cluster) given by RADeg, decDeg.
-    This is constructed from the p(z) distributions of all galaxies in the catalog (subject to odds cut?),
-    with radial weights applied as per weightsType. So, for 'flat1Mpc', the radial weight is 1 if within a
-    projected distance of 1 Mpc of RADeg, decDeg, and 0 otherwise.
+    This is constructed from the p(z) distributions of all galaxies in the catalog, with radial weights applied
+    as per weightsType. So, for 'flat1Mpc', the radial weight is 1 if within a projected distance of 1 Mpc of 
+    RADeg, decDeg, and 0 otherwise.
     
-    Since this is aimed at detecting clusters, zPriorMax is used to reign in any spuriously high redshifts
-    given our prior knowledge of the depth of a given photometric survey
+    zPriorMax can be used to reign in any spuriously high redshifts given our prior knowledge of the depth of a
+    given photometric survey. However, this is now largely redundant as the mag-based prior does most of the
+    work (see PhotoRedshiftEngine.py).
     
     NOTE: minDistanceMpc only applies to 'flat' weightsType (for local background estimate)
     
@@ -77,7 +78,7 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
     # NOTE: radial weights should have max value 1, min value 0
     # Koester, Postman et al. style radial weights (projected 2d NFW profile)
     if weightsType == 'NFW':
-        rs=0.15 # rs=R200/c c=concentration, presumably - Koester uses 150 kpc
+        rs=0.15 # rs=R200/c c=concentration - Koester uses 150 kpc
         r=np.linspace(0.0, 10.0, 2000)
         x=r/rs
         fx=np.zeros(x.shape)
@@ -91,7 +92,7 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
         fx[mask]=0
         sigmax=np.zeros(r.shape)
         mask=np.greater(r, rs)
-        sigmax[mask]=(2*rs*fx[mask])/(x[mask]**2-1)   # ignoring rho_s, which is arbitrary
+        sigmax[mask]=(2*rs*fx[mask])/(x[mask]**2-1)
         mask=np.less(r, rs)
         sigmax[mask]=sigmax.max()
         sigmax=sigmax/sigmax.max()
@@ -138,9 +139,9 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
     #gOddsWeights[:]=1 # uncomment to disable gOdds weights
     
     # NOTE: zPrior applied in calculating cluster redshift later, not in counting galaxies here
-    Nz_r=rWeights.sum(axis = 0)                         # Number of galaxies within 1 Mpc at each z (IF all weights were 1)
+    Nz_r=rWeights.sum(axis = 0)                                             # Number of galaxies within 1 Mpc at each z (IF all weights were 1)
     Nz_r_odds_total=np.greater(rWeights*gOddsWeights, 0).sum(axis = 0)      # Actual number of galaxies within 1Mpc at each z regardless of weight (if using NFW, radial - for flat, Nz_total == Nz_r)
-    Nz_r_odds=np.sum(rWeights*gOddsWeights, axis = 0)   # Number of galaxies within 1 Mpc at each z AND odds > 0.9
+    Nz_r_odds=np.sum(rWeights*gOddsWeights, axis = 0)   # Number of galaxies within 1 Mpc at each z AND odds > cut
     NzWeightedSum=np.sum(pzArray*rWeights*gOddsWeights, axis = 0)
     
     # We may as well keep track of area as well
@@ -181,7 +182,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
         print "... no galaxies in n(z) - skipping..."
         return None
     
-    # This is how we have been calculating redshifts (see estimateClusterRedshift_old below)
+    # This is how we have been calculating redshifts
     # We only need normFactor to make sure odds is correct
     pzWeightedMean=clusterNzDict['NzWeightedSum']/clusterNzDict['Nz']
     pzWeightedMean[np.isnan(pzWeightedMean)]=0.0
@@ -210,22 +211,13 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     bckSubtractedCount=clusterNzDictForSNR['NzWeightedSum'][zIndex]-bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex]
     delta=bckSubtractedCount/(bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex])
     errDelta=np.sqrt(bckSubtractedCount/bckSubtractedCount**2 + 
-                    bckNzDict['NzWeightedSum'][zIndex]/bckNzDict['NzWeightedSum'][zIndex]**2)*delta
+                     bckNzDict['NzWeightedSum'][zIndex]/bckNzDict['NzWeightedSum'][zIndex]**2)*delta
     if np.isnan(errDelta) == True:
         errDelta=0
-        
-    # Or... take z as that which maximises delta(z)?
-    # Or... calc delta(z) first, then restrict range over which calc z in usual way?
-    #clusterNzDictForSNR=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, 'flat', maxDistanceMpc = maxRMpc)
-    #localBckNzDict=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, 'flat', minDistanceMpc = 3.0, maxDistanceMpc = 4.0)
-    #bckAreaNorm=clusterNzDictForSNR['areaMpc2']/localBckNzDict['areaMpc2']
-    #bckSubtractedCount=clusterNzDictForSNR['NzWeightedSum']-bckAreaNorm*localBckNzDict['NzWeightedSum']
-    #delta=bckSubtractedCount/(bckAreaNorm*localBckNzDict['NzWeightedSum'])
-    
-    print "... zCluster = %.2f, odds = %.2f, ngal = %d, delta = %.1f, errDelta = %.1f (RADeg = %.6f, decDeg = %.6f) ..." % (z, odds, bckSubtractedCount, delta, errDelta, RADeg, decDeg)
+            
+    print "... zCluster = %.2f, delta = %.1f, errDelta = %.1f (RADeg = %.6f, decDeg = %.6f) ..." % (z, delta, errDelta, RADeg, decDeg)
 
-    return {'z': z, 'odds': odds, 'pz': pzWeightedMean, 'zOdds': zOdds, 'pz_z': zArray, 
-            'ngal': bckSubtractedCount, 'delta': delta, 'errDelta': errDelta}
+    return {'z': z, 'pz': pzWeightedMean, 'zOdds': zOdds, 'pz_z': zArray, 'delta': delta, 'errDelta': errDelta}
 
 #-------------------------------------------------------------------------------------------------------------
 def extractArraysFromGalaxyCatalog(catalog, RADeg, decDeg):

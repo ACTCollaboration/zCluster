@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
-
 """ 
     This module contains tools for handling catalogs, which for us are lists of dictionaries.
 
     ---
     
-    Copyright 2016 Matt Hilton (matt.hilton@mykolab.com)
+    Copyright 2017 Matt Hilton (matt.hilton@mykolab.com)
     
     This file is part of zCluster.
 
@@ -102,7 +100,7 @@ def selectFromCatalog(catalog, constraintsList):
 #------------------------------------------------------------------------------------------------------------
 def writeCatalog(catalog, outFileName, keysToWrite, keyFormats, constraintsList, headings = True, 
                  extraHeaderText = None):
-    """Dumps the merged catalog to a .csv, for now this is only names and object positions.
+    """Dumps the catalog to a .csv.
     
     constraintsList works as in the selectFromCatalog function.
         
@@ -162,7 +160,7 @@ def writeCatalog(catalog, outFileName, keysToWrite, keyFormats, constraintsList,
 #-------------------------------------------------------------------------------------------------------------
 def getNEDInfo(obj, nedDir = "NEDResults", radiusDeg = 5.0/60.0, crossMatchRadiusDeg = 2.5/60, refetch = True):
     """Queries NED for matches near each obj (must have keys name, RADeg, decDeg) and returns the nearest 
-    cluster match and its distance in arcmin. We search a box of radius deg around the object.
+    cluster match and its distance in arcmin. We search a box of radiusDeg around the object.
         
     """
         

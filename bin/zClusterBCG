@@ -4,7 +4,7 @@
 
     Interactive display of image/CMD and selection of the BCG. SDSS only at this point.
 
-    Copyright 2016 Matt Hilton (matt.hilton@mykolab.com)
+    Copyright 2017 Matt Hilton (matt.hilton@mykolab.com)
     
     This file is part of zCluster.
 
@@ -51,12 +51,7 @@ if os.path.exists(cacheDir) == False:
 #-------------------------------------------------------------------------------------------------------------
 def fetchSDSSImage(obj, refetch = False):
     """Fetches the SDSS .jpg for the given image size using the casjobs webservice.
-    
-    makeSDSSPlots loads these jpegs in, and use matplotlib to make them into plots with
-    coord axes etc.
-    
-    The way we're handling image directories is a bit clunky at the moment...
-    
+            
     """
 
     sdssCacheDir=cacheDir+os.path.sep+"SDSS"

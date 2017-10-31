@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-    Copyright 2016 Matt Hilton (matt.hilton@mykolab.com)
+    Copyright 2017 Matt Hilton (matt.hilton@mykolab.com)
     
     This file is part of zCluster.
 
