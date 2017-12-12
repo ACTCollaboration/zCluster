@@ -250,6 +250,10 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
 
     outFileName=cacheDir+os.path.sep+"PS1_%.4f_%.4f_%.4f.xml" % (RADeg, decDeg, halfBoxSizeDeg)      
     print "... getting PS1 photometry (file: %s) ..." % (outFileName)
+
+    if decDeg < -30:
+        print "... outside PS1 area - skipping ..."
+        return None
     
     if os.path.exists(outFileName) == False or 'refetch' in optionsDict.keys() and optionsDict['refetch'] == True:
         print "... fetching from the internet ..."
