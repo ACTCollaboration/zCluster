@@ -62,6 +62,13 @@ class PhotoRedshiftEngine:
             self.passbandsList=[]
             for band in self.bands:
                 self.passbandsList.append(astSED.Passband(passbandsDir+band+"PS1.res"))
+        elif passbandSet == 'DES':
+            self.bands=['g', 'r', 'i', 'z']
+            self.passbandsList=[]
+            for band in self.bands:
+                self.passbandsList.append(astSED.Passband(passbandsDir+band+"DES.res"))
+        else:
+            raise Exception, "Unknown passbandSet '%s'" % (passbandSet)
             
         # This probably doesn't gain us much
         self.effectiveWavelength=[]

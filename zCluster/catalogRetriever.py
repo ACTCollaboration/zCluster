@@ -235,6 +235,77 @@ def checkMagErrors(photDict, maxMagError, minBands = 3, bands = ['u', 'g', 'r', 
     return keep
 
 #-------------------------------------------------------------------------------------------------------------
+def DESY3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
+    """Retrieves DES Y3 photometry at the given position. This assumes you have easyaccess installed
+    (https://pypi.python.org/pypi/easyaccess/1.0.7) and access rights for the DES Oracle database.
+    
+    """
+
+    if 'altCacheDir' in optionsDict.keys():
+        cacheDir=optionsDict['altCacheDir']
+    else:
+        cacheDir=CACHE_DIR
+    
+    if os.path.exists(cacheDir) == False:
+        os.makedirs(cacheDir)
+    
+    try:
+        connection=optionsDict['connection']
+    except:
+        raise Exception, "No DES database connection"
+    
+    if decDeg > 5:
+        print "... outside DES area - skipping ..."
+        return None
+    
+    outFileName=cacheDir+os.path.sep+"DESY3_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)      
+
+    if os.path.exists(outFileName) == False or 'refetch' in optionsDict.keys() and optionsDict['refetch'] == True:
+        RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
+        query="SELECT coadd_object_id, ra, dec, ngmix_cm_mag_g - (3.186 * EBV_SFD98) AS cm_mag_g, ngmix_cm_mag_r - (2.140 * EBV_SFD98) AS cm_mag_r, ngmix_cm_mag_i - (1.569 * EBV_SFD98) AS cm_mag_i, ngmix_cm_mag_z - (1.196 * EBV_SFD98) AS cm_mag_z, ngmix_cm_mag_err_g AS cm_mag_err_g, ngmix_cm_mag_err_r AS cm_mag_err_r, ngmix_cm_mag_err_i AS cm_mag_err_i, ngmix_cm_mag_err_z AS cm_mag_err_z FROM y3_gold_1_0 SAMPLE WHERE ra BETWEEN %.6f and %.6f AND dec BETWEEN %.6f and %.6f AND flag_gold = 0 AND flag_footprint = 1 AND flag_foreground = 0 AND extended_class_mash BETWEEN 3 AND 4" % (RAMin, RAMax, decMin, decMax)                
+        print "... getting DES photometry (file: %s) ..." % (outFileName)
+        connection.query_and_save(query, outFileName)
+
+    # No output is written if the query returns nothing...
+    if os.path.exists(outFileName) == True:
+        
+        tab=atpy.Table().read(outFileName, format = 'csv')
+        catalog=[]
+
+        idCount=0
+        for row in tab:
+            idCount=idCount+1
+            photDict={}
+            photDict['id']=idCount    # just so we have something - we could use COADD_OBJECT_ID but skipping for now
+            photDict['RADeg']=row['RA']
+            photDict['decDeg']=row['DEC']
+            photDict['g']=row['CM_MAG_G']
+            photDict['r']=row['CM_MAG_R']
+            photDict['i']=row['CM_MAG_I']
+            photDict['z']=row['CM_MAG_Z']
+            #photDict['Y']=row['yMeanKronMag']
+            photDict['gErr']=row['CM_MAG_ERR_G']
+            photDict['rErr']=row['CM_MAG_ERR_R']
+            photDict['iErr']=row['CM_MAG_ERR_I']
+            photDict['zErr']=row['CM_MAG_ERR_Z']
+            #photDict['YErr']=row['yMeanKronMagErr']
+
+            # Apply mag error cuts if given
+            # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
+            # We're just making the mag unconstrained here (missing data), rather than applying a limit
+            # If we don't have a minimum of three useful bands, reject
+            if 'maxMagError' in optionsDict.keys():
+                keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['g', 'r', 'i', 'z'])
+            else:
+                keep=True
+                        
+            if keep == True:
+                catalog.append(photDict)
+        
+    return catalog
+
+    
+#-------------------------------------------------------------------------------------------------------------
 def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
     """Retrieves PS1 photometry at the given position.
         
