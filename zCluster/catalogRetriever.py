@@ -267,10 +267,10 @@ def DESY3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
         connection.query_and_save(query, outFileName)
 
     # No output is written if the query returns nothing...
+    catalog=[]
     if os.path.exists(outFileName) == True:
         
         tab=atpy.Table().read(outFileName, format = 'csv')
-        catalog=[]
 
         idCount=0
         for row in tab:
