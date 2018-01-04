@@ -235,7 +235,7 @@ def checkMagErrors(photDict, maxMagError, minBands = 3, bands = ['u', 'g', 'r', 
     return keep
 
 #-------------------------------------------------------------------------------------------------------------
-def DESY3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
+def DESY3Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
     """Retrieves DES Y3 photometry at the given position. This assumes you have easyaccess installed
     (https://pypi.python.org/pypi/easyaccess/1.0.7) and access rights for the DES Oracle database.
     
