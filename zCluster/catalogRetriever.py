@@ -262,13 +262,19 @@ def DESY3Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
 
     if os.path.exists(outFileName) == False or 'refetch' in optionsDict.keys() and optionsDict['refetch'] == True:
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
-        query="SELECT coadd_object_id, ra, dec, ngmix_cm_mag_g - (3.186 * EBV_SFD98) AS cm_mag_g, ngmix_cm_mag_r - (2.140 * EBV_SFD98) AS cm_mag_r, ngmix_cm_mag_i - (1.569 * EBV_SFD98) AS cm_mag_i, ngmix_cm_mag_z - (1.196 * EBV_SFD98) AS cm_mag_z, ngmix_cm_mag_err_g AS cm_mag_err_g, ngmix_cm_mag_err_r AS cm_mag_err_r, ngmix_cm_mag_err_i AS cm_mag_err_i, ngmix_cm_mag_err_z AS cm_mag_err_z FROM y3_gold_1_0 SAMPLE WHERE ra BETWEEN %.6f and %.6f AND dec BETWEEN %.6f and %.6f AND flag_gold = 0 AND flag_footprint = 1 AND flag_foreground = 0 AND extended_class_mash BETWEEN 3 AND 4" % (RAMin, RAMax, decMin, decMax)                
-        print "... getting DES photometry (file: %s) ..." % (outFileName)
+        # Y3 Gold v1.0
+        #query="SELECT coadd_object_id, ra, dec, ngmix_cm_mag_g - (3.186 * EBV_SFD98) AS cm_mag_g, ngmix_cm_mag_r - (2.140 * EBV_SFD98) AS cm_mag_r, ngmix_cm_mag_i - (1.569 * EBV_SFD98) AS cm_mag_i, ngmix_cm_mag_z - (1.196 * EBV_SFD98) AS cm_mag_z, ngmix_cm_mag_err_g AS cm_mag_err_g, ngmix_cm_mag_err_r AS cm_mag_err_r, ngmix_cm_mag_err_i AS cm_mag_err_i, ngmix_cm_mag_err_z AS cm_mag_err_z FROM y3_gold_1_0 SAMPLE WHERE ra BETWEEN %.6f and %.6f AND dec BETWEEN %.6f and %.6f AND flag_gold = 0 AND flag_footprint = 1 AND flag_foreground = 0 AND extended_class_mash BETWEEN 3 AND 4" % (RAMin, RAMax, decMin, decMax) 
+        # Y3 Gold v2.0
+        query="SELECT COADD_OBJECT_ID, RA, DEC, DNF_ZMC_SOF, BPZ_ZMC_SOF, SOF_CM_MAG_CORRECTED_G, SOF_CM_MAG_CORRECTED_R, SOF_CM_MAG_CORRECTED_I, SOF_CM_MAG_CORRECTED_Z, SOF_CM_MAG_ERR_G, SOF_CM_MAG_ERR_R, SOF_CM_MAG_ERR_I, SOF_CM_MAG_ERR_Z FROM Y3_GOLD_2_0 WHERE FLAGS_FOOTPRINT = 1 and FLAGS_FOREGROUND = 0 and bitand(FLAGS_GOLD, 62) = 0 and EXTENDED_CLASS_MASH_SOF = 3 and SOF_CM_MAG_I between 16 and 24 AND RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
         connection.query_and_save(query, outFileName)
 
-    # No output is written if the query returns nothing...
+    # No output is written if the query returns nothing... so we'll write a blank file to save repeating the query next time
     catalog=[]
-    if os.path.exists(outFileName) == True:
+    if os.path.exists(outFileName) == False:
+        outFile=file(outFileName, "w")
+        outFile.write("# No objects returned by query\n")
+        outFile.close()
+    else:
         
         tab=atpy.Table().read(outFileName, format = 'csv')
 
@@ -279,17 +285,25 @@ def DESY3Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
             photDict['id']=idCount    # just so we have something - we could use COADD_OBJECT_ID but skipping for now
             photDict['RADeg']=row['RA']
             photDict['decDeg']=row['DEC']
-            photDict['g']=row['CM_MAG_G']
-            photDict['r']=row['CM_MAG_R']
-            photDict['i']=row['CM_MAG_I']
-            photDict['z']=row['CM_MAG_Z']
-            #photDict['Y']=row['yMeanKronMag']
-            photDict['gErr']=row['CM_MAG_ERR_G']
-            photDict['rErr']=row['CM_MAG_ERR_R']
-            photDict['iErr']=row['CM_MAG_ERR_I']
-            photDict['zErr']=row['CM_MAG_ERR_Z']
-            #photDict['YErr']=row['yMeanKronMagErr']
-
+            # Gold v1.0
+            #photDict['g']=row['CM_MAG_G']
+            #photDict['r']=row['CM_MAG_R']
+            #photDict['i']=row['CM_MAG_I']
+            #photDict['z']=row['CM_MAG_Z']
+            #photDict['gErr']=row['CM_MAG_ERR_G']
+            #photDict['rErr']=row['CM_MAG_ERR_R']
+            #photDict['iErr']=row['CM_MAG_ERR_I']
+            #photDict['zErr']=row['CM_MAG_ERR_Z']
+            # Gold v2.0
+            photDict['g']=row['SOF_CM_MAG_CORRECTED_G']
+            photDict['r']=row['SOF_CM_MAG_CORRECTED_R']
+            photDict['i']=row['SOF_CM_MAG_CORRECTED_I']
+            photDict['z']=row['SOF_CM_MAG_CORRECTED_Z']
+            photDict['gErr']=row['SOF_CM_MAG_ERR_G']
+            photDict['rErr']=row['SOF_CM_MAG_ERR_R']
+            photDict['iErr']=row['SOF_CM_MAG_ERR_I']
+            photDict['zErr']=row['SOF_CM_MAG_ERR_Z']
+            
             # Apply mag error cuts if given
             # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
             # We're just making the mag unconstrained here (missing data), rather than applying a limit
