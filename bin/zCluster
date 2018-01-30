@@ -434,6 +434,14 @@ if __name__ == '__main__':
         zPriorMax=1.5
         passbandSet='DES'
         retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
+    elif database == 'DESDR1':
+        import easyaccess as ea
+        connection=ea.connect()
+        retriever=catalogRetriever.DESDR1Retriever
+        zPriorMin=0.05
+        zPriorMax=1.5
+        passbandSet='DES'
+        retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
     elif database == 'CFHTLenS':
         retriever=catalogRetriever.CFHTLenSRetriever
         zPriorMin=0.05

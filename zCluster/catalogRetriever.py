@@ -237,7 +237,30 @@ def checkMagErrors(photDict, maxMagError, minBands = 3, bands = ['u', 'g', 'r', 
 #-------------------------------------------------------------------------------------------------------------
 def DESY3Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
     """Retrieves DES Y3 photometry at the given position. This assumes you have easyaccess installed
-    (https://pypi.python.org/pypi/easyaccess/1.0.7) and access rights for the DES Oracle database.
+    (https://pypi.python.org/pypi/easyaccess/1.0.7) and access rights for the non-public tables
+    in the DES Oracle database.
+    
+    """
+    
+    return DESRetriever(RADeg, decDeg, DR = 'Y3', halfBoxSizeDeg = halfBoxSizeDeg, optionsDict = optionsDict)
+
+#-------------------------------------------------------------------------------------------------------------
+def DESDR1Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
+    """Retrieves DES DR1 photometry at the given position. This assumes you have easyaccess installed
+    (https://pypi.python.org/pypi/easyaccess/1.0.7) and have registered for a login to access the DES
+    Oracle database
+    
+    """
+    
+    return DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = halfBoxSizeDeg, optionsDict = optionsDict)
+
+#-------------------------------------------------------------------------------------------------------------
+def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
+    """Retrieves DES photometry. Assumes you have easyaccess installed
+    (https://pypi.python.org/pypi/easyaccess/1.0.7) and the necessary login to access either public or
+    proprietary tables in the DES Oracle database.
+    
+    Use DR = 'DR1' to access the public photometry, DR = 'Y3' to access the current 'Gold' photometry
     
     """
 
@@ -258,14 +281,29 @@ def DESY3Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
         print "... outside DES area - skipping ..."
         return None
     
-    outFileName=cacheDir+os.path.sep+"DESY3_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)      
+    outFileName=cacheDir+os.path.sep+"DES%s_%.4f_%.4f_%.4f.csv" % (DR, RADeg, decDeg, halfBoxSizeDeg)      
+
+    # This bit has to be outside, in case we load data from cache
+    if DR == 'Y3':
+        magKey="SOF_CM_MAG_CORRECTED_$BAND"
+        magErrKey="SOF_CM_MAG_ERR_$BAND"
+    elif DR == 'DR1':
+        magKey="MAG_AUTO_$BAND_DERED"
+        magErrKey="MAGERR_AUTO_$BAND"
+    else:
+        raise Exception, "didn't recognise requested DES DR"
 
     if os.path.exists(outFileName) == False or 'refetch' in optionsDict.keys() and optionsDict['refetch'] == True:
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
         # Y3 Gold v1.0
         #query="SELECT coadd_object_id, ra, dec, ngmix_cm_mag_g - (3.186 * EBV_SFD98) AS cm_mag_g, ngmix_cm_mag_r - (2.140 * EBV_SFD98) AS cm_mag_r, ngmix_cm_mag_i - (1.569 * EBV_SFD98) AS cm_mag_i, ngmix_cm_mag_z - (1.196 * EBV_SFD98) AS cm_mag_z, ngmix_cm_mag_err_g AS cm_mag_err_g, ngmix_cm_mag_err_r AS cm_mag_err_r, ngmix_cm_mag_err_i AS cm_mag_err_i, ngmix_cm_mag_err_z AS cm_mag_err_z FROM y3_gold_1_0 SAMPLE WHERE ra BETWEEN %.6f and %.6f AND dec BETWEEN %.6f and %.6f AND flag_gold = 0 AND flag_footprint = 1 AND flag_foreground = 0 AND extended_class_mash BETWEEN 3 AND 4" % (RAMin, RAMax, decMin, decMax) 
         # Y3 Gold v2.0
-        query="SELECT COADD_OBJECT_ID, RA, DEC, DNF_ZMC_SOF, BPZ_ZMC_SOF, SOF_CM_MAG_CORRECTED_G, SOF_CM_MAG_CORRECTED_R, SOF_CM_MAG_CORRECTED_I, SOF_CM_MAG_CORRECTED_Z, SOF_CM_MAG_ERR_G, SOF_CM_MAG_ERR_R, SOF_CM_MAG_ERR_I, SOF_CM_MAG_ERR_Z FROM Y3_GOLD_2_0 WHERE FLAGS_FOOTPRINT = 1 and FLAGS_FOREGROUND = 0 and bitand(FLAGS_GOLD, 62) = 0 and EXTENDED_CLASS_MASH_SOF = 3 and SOF_CM_MAG_I between 16 and 24 AND RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
+        if DR == 'Y3':
+            query="SELECT COADD_OBJECT_ID, RA, DEC, DNF_ZMC_SOF, BPZ_ZMC_SOF, SOF_CM_MAG_CORRECTED_G, SOF_CM_MAG_CORRECTED_R, SOF_CM_MAG_CORRECTED_I, SOF_CM_MAG_CORRECTED_Z, SOF_CM_MAG_ERR_G, SOF_CM_MAG_ERR_R, SOF_CM_MAG_ERR_I, SOF_CM_MAG_ERR_Z FROM Y3_GOLD_2_0 WHERE FLAGS_FOOTPRINT = 1 and FLAGS_FOREGROUND = 0 and bitand(FLAGS_GOLD, 62) = 0 and EXTENDED_CLASS_MASH_SOF = 3 and SOF_CM_MAG_I between 16 and 24 AND RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
+        elif DR == 'DR1':
+            query="SELECT RA, DEC, MAG_AUTO_G_DERED, MAG_AUTO_R_DERED, MAG_AUTO_I_DERED, MAG_AUTO_Z_DERED, MAGERR_AUTO_G, MAGERR_AUTO_R, MAGERR_AUTO_I, MAGERR_AUTO_Z FROM DR1_MAIN WHERE WAVG_SPREAD_MODEL_I + 3.0*WAVG_SPREADERR_MODEL_I > 0.005 and WAVG_SPREAD_MODEL_I + 1.0*WAVG_SPREADERR_MODEL_I > 0.003 and WAVG_SPREAD_MODEL_I - 1.0*WAVG_SPREADERR_MODEL_I > 0.001 and WAVG_SPREAD_MODEL_I > -1 and IMAFLAGS_ISO_I = 0 and MAG_AUTO_I < 24 and RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
+        else:
+            raise Exception, "didn't recognise requested DES DR"
         
         # This should restart the connection if it drops
         if connection.ping() == False:
@@ -294,25 +332,14 @@ def DESY3Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
             photDict['id']=idCount    # just so we have something - we could use COADD_OBJECT_ID but skipping for now
             photDict['RADeg']=row['RA']
             photDict['decDeg']=row['DEC']
-            # Gold v1.0
-            #photDict['g']=row['CM_MAG_G']
-            #photDict['r']=row['CM_MAG_R']
-            #photDict['i']=row['CM_MAG_I']
-            #photDict['z']=row['CM_MAG_Z']
-            #photDict['gErr']=row['CM_MAG_ERR_G']
-            #photDict['rErr']=row['CM_MAG_ERR_R']
-            #photDict['iErr']=row['CM_MAG_ERR_I']
-            #photDict['zErr']=row['CM_MAG_ERR_Z']
-            # Gold v2.0
-            photDict['g']=row['SOF_CM_MAG_CORRECTED_G']
-            photDict['r']=row['SOF_CM_MAG_CORRECTED_R']
-            photDict['i']=row['SOF_CM_MAG_CORRECTED_I']
-            photDict['z']=row['SOF_CM_MAG_CORRECTED_Z']
-            photDict['gErr']=row['SOF_CM_MAG_ERR_G']
-            photDict['rErr']=row['SOF_CM_MAG_ERR_R']
-            photDict['iErr']=row['SOF_CM_MAG_ERR_I']
-            photDict['zErr']=row['SOF_CM_MAG_ERR_Z']
-            
+            photDict['g']=row[magKey.replace("$BAND", "G")]
+            photDict['r']=row[magKey.replace("$BAND", "R")]
+            photDict['i']=row[magKey.replace("$BAND", "I")]
+            photDict['z']=row[magKey.replace("$BAND", "Z")]
+            photDict['gErr']=row[magErrKey.replace("$BAND", "G")]
+            photDict['rErr']=row[magErrKey.replace("$BAND", "R")]
+            photDict['iErr']=row[magErrKey.replace("$BAND", "I")]
+            photDict['zErr']=row[magErrKey.replace("$BAND", "Z")]
             # Apply mag error cuts if given
             # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
             # We're just making the mag unconstrained here (missing data), rather than applying a limit
@@ -326,7 +353,6 @@ def DESY3Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
                 catalog.append(photDict)
         
     return catalog
-
     
 #-------------------------------------------------------------------------------------------------------------
 def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
