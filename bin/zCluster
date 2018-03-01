@@ -234,8 +234,10 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                 # Write out galaxy catalog with photo-zs in both FITS and DS9 .reg format
                 # Also r-i colour, useful for sanity checking of BCGs
                 for gobj in galaxyCatalog:
-                    gobj['r-i']=gobj['r']-gobj['i']
-                    gobj['r-z']=gobj['r']-gobj['z']
+                    if 'r' in gobj.keys() and 'i' in gobj.keys():
+                        gobj['r-i']=gobj['r']-gobj['i']
+                    if 'r' in gobj.keys() and 'z' in gobj.keys():
+                        gobj['r-z']=gobj['r']-gobj['z']
 
                 wantedKeys=['id', 'RADeg', 'decDeg', 'u', 'uErr', 'g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'z', 'zErr', 'Ks', 'KsErr', 'zPhot', 'odds', 'r-i', 'r-z']
                 if os.path.exists(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_"))) == True:
@@ -350,6 +352,10 @@ if __name__ == '__main__':
                         If this is given, the area covered by the background catalog must be given also (-A flag)""")
     parser.add_argument("-A", "--background-area-deg2", dest="bckAreaDeg2", default = None, help="""The area, 
                         in square degrees, covered by the background galaxy catalog given using the -B flag.""")
+    parser.add_argument("-C", "--credentials-filename", dest="credentialsFileName", default = None, 
+                        help = """The location of a file containing username (first line), password (second line), 
+                        for login to e.g., ESO Portal (this option is only currently used for the KIDSDR3
+                        database option)""")
 
     args = parser.parse_args()
 
@@ -442,6 +448,26 @@ if __name__ == '__main__':
         zPriorMax=1.5
         passbandSet='DES'
         retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
+    elif database == 'KIDSDR3':
+        # ESO requires log-in to access public data - do once
+        if args.credentialsFileName == None:
+            raise Exception, "need to use -C option to point to file containing ESO Portal login credentials"
+        inFile=file(args.credentialsFileName, "r")
+        lines=inFile.readlines()
+        inFile.close()
+        import mechanize
+        br=mechanize.Browser()
+        queryURL="https://www.eso.org/qi/catalogQuery/index/112"
+        br.open(queryURL)
+        br.select_form(nr=0)
+        br.form['username']='%s' % (lines[0].replace("\n", ""))
+        br.form['password']='%s' % (lines[1].replace("\n", ""))
+        br.submit()
+        retriever=catalogRetriever.KIDSDR3Retriever
+        zPriorMin=0.05
+        zPriorMax=1.5
+        passbandSet='SDSS+Ks'
+        retrieverOptions={'maxMagError': maxMagError, 'connection': br}
     elif database == 'CFHTLenS':
         retriever=catalogRetriever.CFHTLenSRetriever
         zPriorMin=0.05

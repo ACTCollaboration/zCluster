@@ -355,6 +355,106 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
     return catalog
     
 #-------------------------------------------------------------------------------------------------------------
+def KIDSDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
+    """Retrieves KIDS DR3 photometry, from the ESO Catalogue Facility. This requires an ESO Portal login,
+    which should be stored under $HOME/.zCluster/ESOLogin. That file should just contain the username on the
+    first line, and the password on the second. If security is a concern, this could be stored in an encrypted
+    directory (e.g., KDE's Vaults facility). See the bin/zCluster script for how the login is handled.
+    
+    """
+
+    if 'altCacheDir' in optionsDict.keys():
+        cacheDir=optionsDict['altCacheDir']
+    else:
+        cacheDir=CACHE_DIR
+    
+    if os.path.exists(cacheDir) == False:
+        os.makedirs(cacheDir)
+    
+    try:
+        br=optionsDict['connection']
+    except:
+        raise Exception, "No ESO database connection"
+    
+    # This defines the rough final KIDS area (split into two fields) - DR3 is a fraction of this
+    inKIDSRegion=False
+    if RADeg > 120 and RADeg < 240 and decDeg > -5 and decDeg < 5:
+        inKIDSRegion=True
+    if RADeg > 330 and decDeg > -37 and decDeg < -25:
+        inKIDSRegion=True
+    if RADeg < 60 and decDeg > -37 and decDeg < -25:
+        inKIDSRegion=True
+    if inKIDSRegion == False:
+        print "... outside KIDS area - skipping ..."
+        return None
+
+    outFileName=cacheDir+os.path.sep+"KIDSDR3_%.4f_%.4f_%.4f.fits" % (RADeg, decDeg, halfBoxSizeDeg)      
+    if os.path.exists(outFileName) == False or 'refetch' in optionsDict.keys() and optionsDict['refetch'] == True:
+        RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
+        print "... downloading catalog %s ..." % (outFileName)
+        queryURL="https://www.eso.org/qi/catalogQuery/index/112"
+        br.open(queryURL)
+        br.select_form(nr=1)
+        br.form['target']='%.6f %.6f' % (RADeg, decDeg)
+        br.form['radius']='%.3f' % (halfBoxSizeDeg)    # default unit is degrees
+        br.form.find_control('selectedFields_112').readonly=False
+        br.form['selectedFields_112']=',row_112_1,row_112_2,row_112_5,row_112_6,row_112_7,row_112_126,row_112_127,row_112_128,row_112_129,row_112_134,row_112_135,row_112_136,row_112_137,row_112_161,row_112_162,row_112_163,row_112_164,row_112_165,row_112_166,row_112_167,row_112_168,row_112_173,row_112_174,row_112_175,row_112_176,row_112_177,row_112_178'    
+        a=br.submit(id = 'exportGeoButtonSpatial')
+        b=a.get_data()
+        outFile=file(outFileName, "wb")
+        outFile.write(b)
+        outFile.close()
+
+    # Load/parse table
+    print "... reading catalog %s ..." % (outFileName)
+    try:
+        tab=atpy.Table().read(outFileName)
+    except ValueError:
+        print "... no objects in catalog - skipping ..."
+        return None
+    
+    magKey="MAG_GAAP_$BAND"
+    magErrKey="MAGERR_GAAP_$BAND"
+    
+    # First, get rid of nans or nonsensical values
+    bands=['U', 'G', 'R', 'I']
+    for b in bands:
+        #tab=tab[np.where(np.isnan(tab[magKey.replace("$BAND", b)]) == False)]
+        #tab=tab[np.where(np.isnan(tab[magErrKey.replace("$BAND", b)]) == False)]
+        tab=tab[np.where(tab[magKey.replace("$BAND", b)] > 0)]
+        tab=tab[np.where(tab[magErrKey.replace("$BAND", b)] > 0)]
+        
+    idCount=0
+    catalog=[]
+    for row in tab:
+        idCount=idCount+1
+        photDict={}
+        photDict['id']=idCount    # just so we have something - we could use ID but skipping for now
+        photDict['RADeg']=row['RAJ2000']
+        photDict['decDeg']=row['DECJ2000']
+        photDict['u']=row[magKey.replace("$BAND", "U")]-row['EXT_SFD_U']
+        photDict['g']=row[magKey.replace("$BAND", "G")]-row['EXT_SFD_G']
+        photDict['r']=row[magKey.replace("$BAND", "R")]-row['EXT_SFD_R']
+        photDict['i']=row[magKey.replace("$BAND", "I")]-row['EXT_SFD_I']
+        photDict['uErr']=row[magErrKey.replace("$BAND", "U")]
+        photDict['gErr']=row[magErrKey.replace("$BAND", "G")]
+        photDict['rErr']=row[magErrKey.replace("$BAND", "R")]
+        photDict['iErr']=row[magErrKey.replace("$BAND", "I")]
+        # Apply mag error cuts if given
+        # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
+        # We're just making the mag unconstrained here (missing data), rather than applying a limit
+        # If we don't have a minimum of three useful bands, reject
+        if 'maxMagError' in optionsDict.keys():
+            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['u', 'g', 'r', 'i'])
+        else:
+            keep=True
+                    
+        if keep == True:
+            catalog.append(photDict)
+        
+    return catalog
+
+#-------------------------------------------------------------------------------------------------------------
 def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
     """Retrieves PS1 photometry at the given position.
         
