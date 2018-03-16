@@ -745,7 +745,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
     # Organised such that after this, have subdir with degrees RA (e.g. 000/ is 0 < RADeg < 1 degree)
     basePath="http://portal.nersc.gov/project/cosmo/data/legacysurvey/dr3/tractor/"
 
-    outFileName=cacheDir+os.path.sep+"AllDR3TractorCats_%.6f_%.6f_%.2f.fits" % (RADeg, decDeg,
+    outFileName=cacheDir+os.path.sep+"AllDR3TractorCats_%.4f_%.4f_%.2f.fits" % (RADeg, decDeg,
                                                                             halfBoxSizeDeg)
 
     print "... getting DECaLS photometry (file: %s) ..." % (outFileName)

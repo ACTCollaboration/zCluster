@@ -27,6 +27,7 @@ import argparse
 import glob
 import zCluster
 from zCluster import *
+import sqlite3
 import pylab as plt
 import cPickle
 import numpy as np
@@ -92,63 +93,58 @@ def parseClusterCatalog(fileName):
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
-def makePlots(catalog, zPriorMax, outDir):
-    """Makes plots of p(z), z for each object.
+def writePlot(objName, result, zPriorMax, plotsDir):
+    """Write a .pdf plot of n(z), z using the given zCluster result dictionary.
     
     """
-    
-    update_rcParams()
-    
-    plotsDir=outDir+os.path.sep+"Plots"
+
     if os.path.exists(plotsDir) == False:
         os.makedirs(plotsDir)
-            
-    for obj in catalog:
-        result=obj['zClusterResult']
-        if result != None:            
-            
-            # NOTE: in calculateRedshiftAndOdds, prior hasn't been applied to pz, but has been to zOdds
-            pz=result['pz']
-            zArray=result['pz_z']
-            prior=np.ones(pz.shape)
-            if zPriorMax != None:
-                prior[np.greater(zArray, zPriorMax)]=0.0
-                prior[np.less(zArray, 0.05)]=0.0
-                pz=pz*prior
-                norm=np.trapz(pz, zArray)
-                pz=pz/norm   
-            
-            # Plot of normalised odds and p(z)        
-            norm=np.trapz(result['zOdds'], result['pz_z'])
-            result['zOdds']=result['zOdds']/norm
-            
-            plt.figure(figsize=(9, 5))
+        
+    if result != None:            
+        
+        # NOTE: in calculateRedshiftAndOdds, prior hasn't been applied to pz, but has been to zOdds
+        pz=result['pz']
+        zArray=result['pz_z']
+        prior=np.ones(pz.shape)
+        if zPriorMax != None:
+            prior[np.greater(zArray, zPriorMax)]=0.0
+            prior[np.less(zArray, 0.05)]=0.0
+            pz=pz*prior
+            norm=np.trapz(pz, zArray)
+            pz=pz/norm   
+        
+        # Plot of normalised odds and p(z)        
+        norm=np.trapz(result['zOdds'], result['pz_z'])
+        result['zOdds']=result['zOdds']/norm
+        
+        plt.figure(figsize=(9, 5))
 
-            ax=plt.axes([0.105, 0.125, 0.86, 0.79])
-                
-            plt.plot(result['pz_z'], result['zOdds'], 'k', label = '$n_{\Delta z}(z)$')
-            plt.plot(result['pz_z'], pz, 'k:', label = '$n(z)$')
+        ax=plt.axes([0.125, 0.125, 0.845, 0.79])
+            
+        plt.plot(result['pz_z'], result['zOdds'], 'k', label = '$n_{\Delta z}(z)$')
+        plt.plot(result['pz_z'], pz, 'k:', label = '$n(z)$')
 
-            plotMax=max([pz.max(), result['zOdds'].max()])
-            plt.ylabel("$n_{\Delta z}(z)$ | $n(z)$ (normalised)")
-            plt.xlabel("$z$")
-            y=np.linspace(result['zOdds'].min(), plotMax*1.5, 4)
-            plt.plot([result['z']]*len(y), y, 'k--')
-            plt.ylim(0, plotMax*1.1)
-            plt.xlim(0, zPriorMax*1.5)
-            
-            # Faffing with labels so we can lay out plots on a grid
-            values, tickLabels=plt.yticks()
-            for v, t in zip(values, tickLabels):
-                t.set_text('%.1f' % (v))
-            plt.yticks(values, tickLabels)
-            
-            leg=plt.legend(loc = 'upper right', numpoints = 1) 
-            leg.draw_frame(False)
-            plt.title("%s (z = %.2f)" % (obj['name'].replace("_", " "), result['z'])) 
-            plt.savefig(plotsDir+os.path.sep+"pz_"+obj['name'].replace(" ", "_")+".pdf")
-            plt.close()
-            
+        plotMax=max([pz.max(), result['zOdds'].max()])
+        plt.ylabel("$n_{\Delta z}(z)$ | $n(z)$ (normalised)")
+        plt.xlabel("$z$")
+        y=np.linspace(result['zOdds'].min(), plotMax*1.5, 4)
+        plt.plot([result['z']]*len(y), y, 'k--')
+        plt.ylim(0, plotMax*1.1)
+        plt.xlim(0, zPriorMax*1.5)
+        
+        # Faffing with labels so we can lay out plots on a grid
+        values, tickLabels=plt.yticks()
+        for v, t in zip(values, tickLabels):
+            t.set_text('%.1f' % (v))
+        plt.yticks(values, tickLabels)
+        
+        leg=plt.legend(loc = 'upper right', numpoints = 1) 
+        leg.draw_frame(False)
+        plt.title("%s (z = %.2f)" % (objName.replace("_", " "), result['z'])) 
+        plt.savefig(plotsDir+os.path.sep+"pz_"+objName.replace(" ", "_")+".pdf")
+        plt.close()
+
 #-------------------------------------------------------------------------------------------------------------
 def writeRedshiftsCatalog(catalog, outFileName):
     """Writes a .fits table with cluster photo-zs in it
@@ -196,10 +192,21 @@ def writeRedshiftsCatalog(catalog, outFileName):
 
 #-------------------------------------------------------------------------------------------------------------
 def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir, zPriorMin,
-                 zPriorMax, weightsType, maxRMpc, zMethod, bckCatalogFileName, bckAreaDeg2):
+                 zPriorMax, weightsType, maxRMpc, zMethod, bckCatalogFileName, bckAreaDeg2,
+                 writeGalaxyCatalogs = False, writePlots = False, rank = 0):
     """Runs zCluster algorithm on each object in catalog.
     
     """
+    
+    # Now using sqlite database for storage, rather than loads of .pickle files (filesystem friendly)
+    # We're only storing final results in here - if the user wants to see n(z) later, they can use -n option 
+    # to rerun specific clusters
+    conn=sqlite3.connect(outDir+os.path.sep+"redshifts_rank%d.db" % (rank))
+    c=conn.cursor()
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='redshifts'")
+    matches=c.fetchall()
+    if len(matches) == 0:
+        c.execute("CREATE TABLE redshifts (name text, RADeg real, decDeg real, z real, delta real)")
     
     # Optional background catalog (usually would only be used with proprietary photometric survey, e.g., SOAR)
     if bckCatalogFileName != None and bckAreaDeg2 != None:
@@ -213,12 +220,10 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
     for obj in catalog:
         count=count+1
         print ">>> %s (%d/%d):" % (obj['name'], count, len(catalog))
-        objOutDir=outDir+os.path.sep+obj['name']
-        if os.path.exists(objOutDir) == False:
-            os.makedirs(objOutDir)
-            
-        pickleFileName=objOutDir+os.path.sep+"obj.pickle"
-        if os.path.exists(pickleFileName) == False:
+        
+        c.execute("SELECT name FROM redshifts where name=?", (obj['name'],))
+        matches=c.fetchall()
+        if len(matches) == 0:
             stuff="retry"
             while stuff == "retry":
                 stuff=retriever(obj['RADeg'], obj['decDeg'], optionsDict = retrieverOptions)
@@ -232,54 +237,65 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                                                                              bckCatalog = bckCatalog, bckAreaDeg2 = bckAreaDeg2)
 
                 # Write out galaxy catalog with photo-zs in both FITS and DS9 .reg format
-                # Also r-i colour, useful for sanity checking of BCGs
-                for gobj in galaxyCatalog:
-                    if 'r' in gobj.keys() and 'i' in gobj.keys():
-                        gobj['r-i']=gobj['r']-gobj['i']
-                    if 'r' in gobj.keys() and 'z' in gobj.keys():
-                        gobj['r-z']=gobj['r']-gobj['z']
-
-                wantedKeys=['id', 'RADeg', 'decDeg', 'u', 'uErr', 'g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'z', 'zErr', 'Ks', 'KsErr', 'zPhot', 'odds', 'r-i', 'r-z']
-                if os.path.exists(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_"))) == True:
-                    os.remove(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_")))
-                tab=atpy.Table()
-                for key in wantedKeys:
-                    arr=[]
+                if writeGalaxyCatalogs == True:
+                    
+                    objOutDir=outDir+os.path.sep+obj['name']
+                    if os.path.exists(objOutDir) == False:
+                        os.makedirs(objOutDir)
+            
+                    # Also r-i colour, useful for sanity checking of BCGs
                     for gobj in galaxyCatalog:
-                        try:
-                            arr.append(gobj[key])
-                        except:
-                            arr.append(99)
-                            #print "missing key, eh?"
-                            #IPython.embed()
-                            #sys.exit()
-                    tab.add_column(atpy.Column(np.array(arr), key))
-                # NOTE: to cut down on disk space this takes, include only galaxies within some radius
-                # Chosen one is just over 1.5 Mpc at z = 0.1
-                tab.add_column(atpy.Column(astCoords.calcAngSepDeg(obj['RADeg'], obj['decDeg'], 
-                                                                   np.array(tab['RADeg']), np.array(tab['decDeg'])), "rDeg"))
-                tab=tab[np.where(tab['rDeg'] < 14./60.0)]
-                tab.table_name="zCluster"
-                tab.write(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_")))
-                catalogTools.catalog2DS9(galaxyCatalog, objOutDir+os.path.sep+"galaxyCatalog_%s.reg" % (obj['name'].replace(" ", "_")), 
-                                        idKeyToUse = 'id', addInfo = [{'key': 'i', 'fmt': '%.3f'}, {'key': 'zPhot', 'fmt': '%.2f'}]) 
+                        if 'r' in gobj.keys() and 'i' in gobj.keys():
+                            gobj['r-i']=gobj['r']-gobj['i']
+                        if 'r' in gobj.keys() and 'z' in gobj.keys():
+                            gobj['r-z']=gobj['r']-gobj['z']
+
+                    wantedKeys=['id', 'RADeg', 'decDeg', 'u', 'uErr', 'g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'z', 'zErr', 'Ks', 'KsErr', 'zPhot', 'odds', 'r-i', 'r-z']
+                    if os.path.exists(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_"))) == True:
+                        os.remove(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_")))
+                    tab=atpy.Table()
+                    for key in wantedKeys:
+                        arr=[]
+                        for gobj in galaxyCatalog:
+                            try:
+                                arr.append(gobj[key])
+                            except:
+                                arr.append(99)
+                                #print "missing key, eh?"
+                                #IPython.embed()
+                                #sys.exit()
+                        tab.add_column(atpy.Column(np.array(arr), key))
+                    # NOTE: to cut down on disk space this takes, include only galaxies within some radius
+                    # Chosen one is just over 1.5 Mpc at z = 0.1
+                    tab.add_column(atpy.Column(astCoords.calcAngSepDeg(obj['RADeg'], obj['decDeg'], 
+                                                                    np.array(tab['RADeg']), np.array(tab['decDeg'])), "rDeg"))
+                    tab=tab[np.where(tab['rDeg'] < 14./60.0)]
+                    tab.table_name="zCluster"
+                    tab.write(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_")))
+                    catalogTools.catalog2DS9(galaxyCatalog, objOutDir+os.path.sep+"galaxyCatalog_%s.reg" % (obj['name'].replace(" ", "_")), 
+                                            idKeyToUse = 'id', addInfo = [{'key': 'i', 'fmt': '%.3f'}, {'key': 'zPhot', 'fmt': '%.2f'}]) 
+
+                if writePlots == True:
+                    writePlot(obj['name'], obj['zClusterResult'], zPriorMax, outDir+os.path.sep+"Plots")
                 
             else:
                 obj['zClusterResult']=None
 
-            pickleFile=file(pickleFileName, "w")
-            pickler=cPickle.Pickler(pickleFile)
-            pickler.dump(obj)
-            pickleFile.close()
+            # Insert a row of data
+            if obj['zClusterResult'] != None:
+                c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?)", 
+                      (obj['name'], obj['RADeg'], obj['decDeg'], obj['zClusterResult']['z'], obj['zClusterResult']['delta'],))
+            else:
+                c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?)", 
+                      (obj['name'], obj['RADeg'], obj['decDeg'], -99, 0,))
+            conn.commit() # May want to think about how often we do this...
             
         else:
-            print "... loading previously pickled result ..."
-            pickleFile=file(pickleFileName, "r")
-            pickler=cPickle.Unpickler(pickleFile)
-            loadedObj=pickler.load()
-            pickleFile.close()
-            for key in loadedObj.keys():
-                obj[key]=loadedObj[key]
+            print "... already measured photo-z ..."
+            c.execute("SELECT z, delta FROM redshifts WHERE name = ?", (obj['name']))
+            match=c.fetchone()
+            obj['z']=match[0]
+            obj['delta']=match[1]
  
     return catalog
 
@@ -343,6 +359,11 @@ if __name__ == '__main__':
     parser.add_argument("-b", "--brighter-absmag-cut", dest="absMagCut", help="""Set bright absolute magnitude cut.""", 
                         default = -24.)
     parser.add_argument("-n", "--name", dest="name", help="Find photo-z of only the named cluster in the catalog.")
+    parser.add_argument("-W", "--write-galaxy-catalogs", dest="writeGalaxyCatalogs", action="store_true", 
+                        help="""Write out a .fits format galaxy catalog and DS9 .reg file for each cluster.""", 
+                        default = False)
+    parser.add_argument("-P", "--write-plots", dest="writePlots", action="store_true", 
+                        help = """Write out a .pdf plot of n(z) for each cluster.""", default = False)
     parser.add_argument("-s", "--add-SDSS", dest="addSDSS", action="store_true", help="""If using 
                         a user-supplied FITS galaxy photometic catalog, add in additional SDSS 
                         photometry if available.""", default = False)
@@ -370,7 +391,11 @@ if __name__ == '__main__':
     maxMagError=float(args.maxMagError)
     #magsBrighterMStarCut=float(args.magsBrighterMStarCut)
     absMagCut=float(args.absMagCut)
+    writeGalaxyCatalogs=args.writeGalaxyCatalogs
+    writePlots=args.writePlots
     
+    update_rcParams()
+
     if outLabel == None:
         baseOutputLabel=os.path.split(catalogFileName)[-1]
         baseOutputLabel=baseOutputLabel.replace(".fits", "").replace(".csv", "")
@@ -578,8 +603,9 @@ if __name__ == '__main__':
             endIndex=objsPerNode*(rank+1)
         catalog=catalog[startIndex:endIndex]
 
-    catalog=runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir, 
-                         zPriorMin, zPriorMax, weightsType, maxRMpc, method, bckCatalogFileName, bckAreaDeg2)
+    catalog=runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir,
+                         zPriorMin, zPriorMax, weightsType, maxRMpc, method, bckCatalogFileName, bckAreaDeg2,
+                         writeGalaxyCatalogs = writeGalaxyCatalogs, writePlots = writePlots, rank = rank)
     
     # If running under MPI, gather everything back together
     # Rank 0 process will continue with plots
@@ -637,7 +663,4 @@ if __name__ == '__main__':
     # Want this either way
     writeRedshiftsCatalog(catalog, outFileName)
     
-    if runningNullTest == False:
-        print ">>> Making plots ..."
-        makePlots(catalog, zPriorMax, outDir)
         
