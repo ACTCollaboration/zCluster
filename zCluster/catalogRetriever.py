@@ -355,7 +355,7 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
     return catalog
     
 #-------------------------------------------------------------------------------------------------------------
-def KIDSDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
+def KIDSDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
     """Retrieves KIDS DR3 photometry, from the ESO Catalogue Facility. This requires an ESO Portal login,
     which should be stored under $HOME/.zCluster/ESOLogin. That file should just contain the username on the
     first line, and the password on the second. If security is a concern, this could be stored in an encrypted

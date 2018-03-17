@@ -155,29 +155,12 @@ def writeRedshiftsCatalog(catalog, outFileName):
         os.remove(outFileName)
     
     tab=atpy.Table()
-    keys=['name', 'RADeg', 'decDeg']
-    resultKeys=[]
-    for obj in catalog:
-        if 'zClusterResult' in obj.keys() and obj['zClusterResult'] != None:
-            resultKeys=obj['zClusterResult'].keys()
-            break
-    if resultKeys != []:
-        del resultKeys[resultKeys.index('pz')]
-        del resultKeys[resultKeys.index('pz_z')]
-        del resultKeys[resultKeys.index('zOdds')]
+    keys=['name', 'RADeg', 'decDeg', 'z', 'delta']
     
     for key in keys:
         arr=[]
         for obj in catalog:
             arr.append(obj[key])
-        tab.add_column(atpy.Column(arr, key))
-    for key in resultKeys:
-        arr=[]
-        for obj in catalog:
-            if 'zClusterResult' in obj.keys() and obj['zClusterResult'] != None and key in obj['zClusterResult'].keys():
-                arr.append(obj['zClusterResult'][key])
-            else:
-                arr.append(-99)
         tab.add_column(atpy.Column(arr, key))
     
     # Since generally we cross match against sourcery tables, we may as well zap the non-results as we don't need
@@ -285,9 +268,13 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
             if obj['zClusterResult'] != None:
                 c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?)", 
                       (obj['name'], obj['RADeg'], obj['decDeg'], obj['zClusterResult']['z'], obj['zClusterResult']['delta'],))
+                obj['z']=obj['zClusterResult']['z']
+                obj['delta']=obj['zClusterResult']['delta']
             else:
                 c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?)", 
                       (obj['name'], obj['RADeg'], obj['decDeg'], -99, 0,))
+                obj['z']=-99
+                obj['delta']=0
             conn.commit() # May want to think about how often we do this...
             
         else:
