@@ -292,7 +292,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
             
         else:
             print "... already measured photo-z ..."
-            c.execute("SELECT z, delta FROM redshifts WHERE name = ?", (obj['name']))
+            c.execute("SELECT z, delta FROM redshifts WHERE name = ?", (obj['name'],))
             match=c.fetchone()
             obj['z']=match[0]
             obj['delta']=match[1]
