@@ -184,12 +184,20 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
     # Now using sqlite database for storage, rather than loads of .pickle files (filesystem friendly)
     # We're only storing final results in here - if the user wants to see n(z) later, they can use -n option 
     # to rerun specific clusters
+    # Each rank has it's own database to write into, and they all share a global database for reading
     conn=sqlite3.connect(outDir+os.path.sep+"redshifts_rank%d.db" % (rank))
     c=conn.cursor()
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='redshifts'")
     matches=c.fetchall()
     if len(matches) == 0:
         c.execute("CREATE TABLE redshifts (name text, RADeg real, decDeg real, z real, delta real)")
+    
+    # The global database for checking if we've already measured a redshift - read only
+    if os.path.exists(outDir+os.path.sep+"redshifts_global.db") == True:
+        connGlobal=sqlite3.connect(outDir+os.path.sep+"redshifts_global.db")
+        cGlobal=connGlobal.cursor()
+    else:
+        cGlobal=None
     
     # Optional background catalog (usually would only be used with proprietary photometric survey, e.g., SOAR)
     if bckCatalogFileName != None and bckAreaDeg2 != None:
@@ -204,9 +212,15 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
         count=count+1
         print ">>> %s (%d/%d):" % (obj['name'], count, len(catalog))
         
+        # We actually query both the process database AND the global database
         c.execute("SELECT name FROM redshifts where name=?", (obj['name'],))
         matches=c.fetchall()
-        if len(matches) == 0:
+        if cGlobal != None:
+            cGlobal.execute("SELECT name FROM redshifts where name=?", (obj['name'],))
+            globalMatches=cGlobal.fetchall()
+        else:
+            globalMatches=[]
+        if len(matches) == 0 and len(globalMatches) == 0:
             stuff="retry"
             while stuff == "retry":
                 stuff=retriever(obj['RADeg'], obj['decDeg'], optionsDict = retrieverOptions)
@@ -279,8 +293,13 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
             
         else:
             print "... already measured photo-z ..."
-            c.execute("SELECT z, delta FROM redshifts WHERE name = ?", (obj['name'],))
-            match=c.fetchone()
+            # Prefer the global result, if it exists
+            if len(matches) > 0:
+                thisCursor=c
+            if len(globalMatches) > 0:
+                thisCursor=cGlobal
+            thisCursor.execute("SELECT z, delta FROM redshifts WHERE name = ?", (obj['name'],))
+            match=thisCursor.fetchone()
             obj['z']=match[0]
             obj['delta']=match[1]
  
@@ -606,6 +625,22 @@ if __name__ == '__main__':
         else:
             comm.send(catalog, dest = 0, tag = 11)
             sys.exit()
+    
+    # Makes a global .db file (might be useful) after run complete
+    if os.path.exists(outDir+os.path.sep+"redshifts_global.db") == True:
+        os.remove(outDir+os.path.sep+"redshifts_global.db")
+    print ">>> Updating global redshifts .db file ..."
+    conn=sqlite3.connect(outDir+os.path.sep+"redshifts_global.db")
+    c=conn.cursor()
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='redshifts'")
+    matches=c.fetchall()
+    if len(matches) == 0:
+        c.execute("CREATE TABLE redshifts (name text, RADeg real, decDeg real, z real, delta real)")
+    for obj in catalog:
+        c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?)", 
+                    (obj['name'], obj['RADeg'], obj['decDeg'], obj['z'], obj['delta'],))
+    conn.commit()
+    conn.close()
         
     if runningNullTest == True:
         deltaArr=[]

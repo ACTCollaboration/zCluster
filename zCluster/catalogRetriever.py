@@ -610,20 +610,20 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
         # NOTE: disabled the 'clean' photometry flags on 21/09/2015
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
         # Sanity check: if RAMin, RAMax have order reversed, SDSS gives us nothing
-        if RAMin > RAMax:
-            print "RAMin, RAMax reversed"
-            IPython.embed()
-            sys.exit()
-            newRAMax=RAMin
-            RAMin=RAMax
-            RAMax=newRAMax
-        if decMin > decMax:
-            print "decMin, decMax reversed"
-            IPython.embed()
-            sys.exit()
-            newDecMax=decMin
-            decMin=decMax
-            decMax=newDecMax
+        #if RAMin > RAMax:
+            #print "RAMin, RAMax reversed"
+            #IPython.embed()
+            #sys.exit()
+            #newRAMax=RAMin
+            #RAMin=RAMax
+            #RAMax=newRAMax
+        #if decMin > decMax:
+            #print "decMin, decMax reversed"
+            #IPython.embed()
+            #sys.exit()
+            #newDecMax=decMin
+            #decMin=decMax
+            #decMax=newDecMax
         # PhotoPrimary is like PhotoObj but without multiple matches
         sql="""SELECT ra,dec,dered_u,dered_g,dered_r,dered_i,dered_z,Err_u,Err_g,Err_r,Err_i,Err_z,flags_r,run 
             FROM %s
@@ -688,20 +688,24 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
                 try:
                     photDict['RADeg']=float(bits[0])
                 except:
-                    if lines[1][:46] == '"ERROR: Maximum 60 queries allowed per minute.':
-                        print "... exceeded server queries per minute limit - waiting ..."
-                        time.sleep(70)
-                        os.remove(outFileName)
-                        return "retry"
-                    else:
-                        if line.find("<html>") != -1:
-                            time.sleep(70)
-                            os.remove(outFileName)
-                            return "retry"
-                        else:
-                            print "what?"
-                            IPython.embed()
-                            sys.exit()
+                    print "... problem with file %s - removing and retrying in 70 sec ..." % (outFileName)
+                    os.remove(outFileName)
+                    time.sleep(70)
+                    return "retry"                    
+                    #if lines[1][:46] == '"ERROR: Maximum 60 queries allowed per minute.':
+                        #print "... exceeded server queries per minute limit - waiting ..."
+                        #time.sleep(70)
+                        #os.remove(outFileName)
+                        #return "retry"
+                    #else:
+                        #if line.find("<html>") != -1:
+                            #time.sleep(70)
+                            #os.remove(outFileName)
+                            #return "retry"
+                        #else:
+                            #print "what?"
+                            #IPython.embed()
+                            #sys.exit()
                 photDict['decDeg']=float(bits[1])
                 photDict['u']=float(bits[2])
                 photDict['g']=float(bits[3])
@@ -954,9 +958,9 @@ def CFHTLenSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
                 try:
                     photDict['RADeg']=float(bits[1])
                 except:
-                    print "what?"
-                    IPython.embed()
-                    sys.exit()
+                    print "... problem with file %s - removing and retrying in 70 sec ..." % (outFileName)
+                    os.remove(outFileName)
+                    time.sleep(70)
                 # Note: skip mag y, old version of i-band filter
                 photDict['decDeg']=float(bits[2])
                 photDict['u']=float(bits[4])
