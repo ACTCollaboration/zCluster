@@ -505,10 +505,14 @@ if __name__ == '__main__':
         zPriorMax=1.5
         retrieverOptions={'maxMagError': maxMagError}
     elif database == 'DECaLS':
+        bricksTab=atpy.Table().read(zCluster.__path__[0]+os.path.sep+"data"+os.path.sep+"survey-bricks.fits.gz")
+        DR6Tab=atpy.Table().read(zCluster.__path__[0]+os.path.sep+"data"+os.path.sep+"survey-bricks-dr6.fits.gz")
+        DR6Tab.rename_column("brickname", "BRICKNAME")
         retriever=catalogRetriever.DECaLSRetriever
         zPriorMin=0.05
         zPriorMax=1.5
-        retrieverOptions={'maxMagError': maxMagError}
+        passbandSet='DECaLS'
+        retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab, 'DR6Tab': DR6Tab}
     elif database == 'CFHTDeep':
         retriever=catalogRetriever.CFHTDeepRetriever
     elif database == 'CFHTWide':

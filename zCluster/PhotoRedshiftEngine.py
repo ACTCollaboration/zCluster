@@ -28,6 +28,7 @@ import zCluster
 from astLib import *
 from scipy import stats
 from scipy import interpolate
+import string
 import glob
 import cPickle
 import time
@@ -49,9 +50,9 @@ class PhotoRedshiftEngine:
 
         # Set up passbands
         passbandsDir=zCluster.__path__[0]+os.path.sep+"passbands"+os.path.sep
+        self.passbandsList=[]
         if passbandSet == 'SDSS+Ks':
             self.bands=['u', 'g', 'r', 'i', 'z', 'Ks']
-            self.passbandsList=[]
             for band in self.bands:
                 if band == 'Ks':
                     self.passbandsList.append(astSED.Passband(passbandsDir+"K_2MASS.res"))
@@ -59,14 +60,20 @@ class PhotoRedshiftEngine:
                     self.passbandsList.append(astSED.Passband(passbandsDir+band+"_SDSS.res"))
         elif passbandSet == 'PS1':
             self.bands=['g', 'r', 'i', 'z', 'Y']
-            self.passbandsList=[]
             for band in self.bands:
                 self.passbandsList.append(astSED.Passband(passbandsDir+band+"PS1.res"))
         elif passbandSet == 'DES':
             self.bands=['g', 'r', 'i', 'z']
-            self.passbandsList=[]
             for band in self.bands:
                 self.passbandsList.append(astSED.Passband(passbandsDir+band+"DES.res"))
+        elif passbandSet == 'DECaLS':
+            # NOTE: WISE passbands from here: http://wise2.ipac.caltech.edu/docs/release/allsky/expsup/sec4_4h.html
+            self.bands=['g', 'r', 'i', 'z', "w1", "w2"]
+            for band in self.bands:
+                if band[0] != "w":
+                    self.passbandsList.append(astSED.Passband(passbandsDir+band+"DES.res"))
+                else:
+                    self.passbandsList.append(astSED.Passband(passbandsDir+"RSR-%s.EE.txt" % (string.upper(band)), inputUnits = "microns"))
         else:
             raise Exception, "Unknown passbandSet '%s'" % (passbandSet)
             

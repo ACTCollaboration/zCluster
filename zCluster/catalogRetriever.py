@@ -396,7 +396,8 @@ def KIDSDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}
         br.open(queryURL)
         br.select_form(nr=1)
         br.form['target']='%.6f %.6f' % (RADeg, decDeg)
-        br.form['radius']='%.3f' % (halfBoxSizeDeg)    # default unit is degrees
+        br.form['radius']='%.3f' % (halfBoxSizeDeg)     # default unit is degrees
+        br.form['param_112_7']='=0'                     # SG2DPHOT: 0 = galaxy
         br.form.find_control('selectedFields_112').readonly=False
         br.form['selectedFields_112']=',row_112_1,row_112_2,row_112_5,row_112_6,row_112_7,row_112_126,row_112_127,row_112_128,row_112_129,row_112_134,row_112_135,row_112_136,row_112_137,row_112_161,row_112_162,row_112_163,row_112_164,row_112_165,row_112_166,row_112_167,row_112_168,row_112_173,row_112_174,row_112_175,row_112_176,row_112_177,row_112_178'    
         a=br.submit(id = 'exportGeoButtonSpatial')
@@ -732,7 +733,10 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
 
 #-------------------------------------------------------------------------------------------------------------
 def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
-    """Retrieves DECaLS DR3 tractor catalogs (if they exist) at the given position
+    """Retrieves DECaLS DR5 tractor catalogs (if they exist) at the given position
+    
+    NOTE: we're using some DR6 files here... but DR5 catalogs... it seems like DR6 is missing the actual 
+    DECaLS data?
     
     """
 
@@ -747,56 +751,44 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
         os.makedirs(cacheDir)
 
     # Organised such that after this, have subdir with degrees RA (e.g. 000/ is 0 < RADeg < 1 degree)
-    basePath="http://portal.nersc.gov/project/cosmo/data/legacysurvey/dr3/tractor/"
+    basePath="http://portal.nersc.gov/project/cosmo/data/legacysurvey/dr5/tractor/"
 
-    outFileName=cacheDir+os.path.sep+"AllDR3TractorCats_%.4f_%.4f_%.2f.fits" % (RADeg, decDeg,
+    outFileName=cacheDir+os.path.sep+"DECaLSDR5_%.4f_%.4f_%.2f.fits" % (RADeg, decDeg,
                                                                             halfBoxSizeDeg)
-
+    
     print "... getting DECaLS photometry (file: %s) ..." % (outFileName)
 
+    bricksTab=optionsDict['bricksTab']
+    DR6Tab=optionsDict['DR6Tab']
+    
     if os.path.exists(outFileName) == False:
         
-        bricksTab=atpy.Table(zCluster.__path__[0]+os.path.sep+"data"+os.path.sep+"decals-bricks.fits")
-
         # Find matching tractor catalogs and download (temporary) .fits table files
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
-        mask=np.logical_and(np.greater(bricksTab['ra1'], RAMin), np.less(bricksTab['ra2'], RAMax))
-        mask=np.logical_and(mask, np.greater(bricksTab['dec1'], decMin))
-        mask=np.logical_and(mask, np.less(bricksTab['dec2'], decMax))
-        matchTab=bricksTab.where(mask)
+        mask=np.logical_and(np.greater(bricksTab['RA1'], RAMin), np.less(bricksTab['RA2'], RAMax))
+        mask=np.logical_and(mask, np.greater(bricksTab['DEC1'], decMin))
+        mask=np.logical_and(mask, np.less(bricksTab['DEC2'], decMax))
+        matchTab=bricksTab[np.where(mask)]
         count=0
         tractorTabs=[]
         cacheFileNames=[]
+        matchTab=atpy.join(matchTab, DR6Tab, keys = 'BRICKNAME')
         for mrow in matchTab:
             count=count+1
-            if mrow['has_catalog'] == 1:
-                print "... retrieving tractor catalog from web ..."
-                url=basePath+"%03d" % np.floor(RADeg)
-                url=url+os.path.sep+"tractor-"+mrow['brickname']+".fits"
-                fileName=cacheDir+os.path.sep+"tractor-tmp_%d.fits" % (count)
-                cacheFileNames.append(fileName)
-                urllib.urlretrieve(url, filename = fileName)
-                try:
-                    tractorTab=atpy.Table(fileName)
-                    tractorTabs.append(tractorTab)
-                except:
-                    print "... probably a 404 error for %s ..." % (fileName)
+            print "... retrieving tractor catalog from web ..."
+            url=basePath+"%03d" % np.floor(mrow['RA'])
+            url=url+os.path.sep+"tractor-"+mrow['BRICKNAME']+".fits"
+            fileName=cacheDir+os.path.sep+"tractor-tmp_%d.fits" % (count)
+            cacheFileNames.append(fileName)
+            urllib.urlretrieve(url, filename = fileName)
+            try:
+                tractorTab=atpy.Table.read(fileName)
+                tractorTabs.append(tractorTab)
+            except:
+                print "... probably a 404 error for %s ..." % (fileName)
         # Stitch catalogs together and write to cache, delete temporary files
         if len(tractorTabs) > 0:
-            uberTab=atpy.Table()
-            for key in tractorTabs[0].keys():
-                # Skip DECam aperture fluxes for now (8 x 6 arrays)
-                #if key.find("decam_apflux") == -1:
-                arr=[]
-                for tracTab in tractorTabs:
-                    for row in tracTab:
-                        # skip over, e.g., decam_apflux
-                        if type(row[key]) == np.ndarray and row[key].ndim == 2:
-                            break
-                        arr.append(row[key])
-                if len(arr) > 0:
-                    uberTab.add_column(key, arr)
-            uberTab.table_name="DECaLS"
+            uberTab=atpy.vstack(tractorTabs)
             uberTab.write(outFileName)
             for fileName in cacheFileNames:
                 os.remove(fileName)
@@ -804,41 +796,50 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
     # Load catalog
     if os.path.exists(outFileName) == True:
         
-        tab=atpy.Table(outFileName)
- 
+        tab=atpy.Table().read(outFileName)
+        
         # Remove stars
-        tab=tab.where(tab['type'] != 'PSF')
+        tab=tab[np.where(tab['type'] != 'PSF')]
+        
+        # WISE fluxes are available...
+        bands=['u', 'g', 'r', 'i', 'z', "w1", "w2"]# , 'Y']
 
-        # We could use DECaLS extinction coeffs, but for now do the same as we are elsewhere   
-        # Skipping Y for now
-        corrDict={'u': 5.155, 'g': 3.793, 'r': 2.751, 'i': 2.086, 'z': 1.479, 'Ks': 0.367}    
-        EBMinusV=getEBMinusV(RADeg, decDeg, optionsDict = optionsDict) # assume same across field (much faster)
-
+        # Convert nanomaggies to mags and do extinction correction
+        bricksInTab=np.unique(tab['brickname'])
+        for brickName in bricksInTab:
+            brickExtTab=DR6Tab[np.where(DR6Tab['BRICKNAME'] == brickName)]
+            brickIndices=np.where(tab['brickname'] == brickName)
+            brickMask=np.zeros(len(tab), dtype = bool)
+            brickMask[brickIndices]=True
+            for b in bands:
+                magLabel='%s_mag' % (b)
+                magErrLabel='%s_magErr' % (b)
+                extKey='ext_%s' % (b)
+                colsToAdd=[magLabel, magErrLabel]
+                for col in colsToAdd:
+                    if col not in tab.keys():
+                        tab.add_column(atpy.Column(np.ones(len(tab))*99., col))
+                nanoMaggies=np.array(tab['flux_%s' % (b)])
+                validMask=np.greater(nanoMaggies, 0.)
+                mask=np.logical_and(brickMask, validMask)
+                tab[magLabel][mask]=-2.5*np.log10(nanoMaggies[mask])+22.5
+                validFluxErr=np.sqrt(1./tab['flux_ivar_%s' % (b)][mask])
+                tab[magErrLabel][mask]=1./(nanoMaggies[mask]/validFluxErr)
+                if extKey in brickExtTab.keys():
+                    dustCorrMag=brickExtTab[extKey][0]
+                    tab[magLabel][mask]=tab[magLabel][mask]-dustCorrMag
+        
         catalog=[]
         for row in tab: 
             photDict={}
             photDict['id']=row['objid']
             photDict['RADeg']=row['ra']
             photDict['decDeg']=row['dec']
-            # Flux in DECaLS is in nanomaggies: an object with AB mag = 22.5 has flux 1 nanomaggie
-            # So, mag AB = -2.5 log (nanomaggies) + 22.5
-            # Skipping Y for now
-            bands=['u', 'g', 'r', 'i', 'z']# , 'Y']
             for b in bands:
-                dustCorrMag=EBMinusV*corrDict[b]
-                nanoMaggies=row['decam_flux'][bands.index(b)]
-                if nanoMaggies <= 0:
-                    mag=99.
-                    magErr=99.
-                else:
-                    mag=-2.5*np.log10(nanoMaggies)+22.5
-                    fluxErr=np.sqrt(1./row['decam_flux_ivar'][bands.index(b)])
-                    magErr=1./(nanoMaggies/fluxErr)
-                photDict[b]=mag-dustCorrMag
-                photDict[b+"Err"]=magErr
-
+                photDict[b]=row['%s_mag' % (b)]
+                photDict[b+"Err"]=row['%s_magErr' % (b)]
             if 'maxMagError' in optionsDict.keys():
-                keep=checkMagErrors(photDict, optionsDict['maxMagError'])
+                keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
             else:
                 keep=True
             if keep == True:

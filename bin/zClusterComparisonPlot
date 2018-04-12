@@ -136,6 +136,7 @@ if __name__ == '__main__':
     tab=outTab[np.where(outTab['zIn'] > 0.0)]
     tab.add_column(atpy.Column(tab['zIn']-tab['z'], 'zDiff'))
     tab=tab[np.where(tab['z'] > 0)] # because filled in -99 for fails/missing clusters (e.g., not in S82)
+    tab=tab[np.where(tab['delta'] != np.inf)]
     
     zIn=tab['zIn']
     zOut=tab['z']
