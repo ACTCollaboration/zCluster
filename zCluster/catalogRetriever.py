@@ -774,11 +774,10 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
         cacheFileNames=[]
         matchTab=atpy.join(matchTab, DR6Tab, keys = 'BRICKNAME')
         for mrow in matchTab:
-            count=count+1
             print "... retrieving tractor catalog from web ..."
             url=basePath+"%03d" % np.floor(mrow['RA'])
             url=url+os.path.sep+"tractor-"+mrow['BRICKNAME']+".fits"
-            fileName=cacheDir+os.path.sep+"tractor-tmp_%d.fits" % (count)
+            fileName=cacheDir+os.path.sep+"tractor-tmp_%s.fits" % (mrow['BRICKNAME'])
             cacheFileNames.append(fileName)
             urllib.urlretrieve(url, filename = fileName)
             try:
