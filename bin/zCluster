@@ -499,6 +499,26 @@ if __name__ == '__main__':
         zPriorMax=1.5
         passbandSet='SDSS+Ks'
         retrieverOptions={'maxMagError': maxMagError, 'connection': br}
+    elif database == 'ATLASDR3':
+        # ESO requires log-in to access public data - do once
+        if args.credentialsFileName == None:
+            raise Exception, "need to use -C option to point to file containing ESO Portal login credentials"
+        inFile=file(args.credentialsFileName, "r")
+        lines=inFile.readlines()
+        inFile.close()
+        import mechanize
+        br=mechanize.Browser()
+        queryURL="https://www.eso.org/qi/catalogQuery/index/147"
+        br.open(queryURL)
+        br.select_form(nr=0)
+        br.form['username']='%s' % (lines[0].replace("\n", ""))
+        br.form['password']='%s' % (lines[1].replace("\n", ""))
+        br.submit()
+        retriever=catalogRetriever.ATLASDR3Retriever
+        zPriorMin=0.05
+        zPriorMax=0.8
+        passbandSet='SDSS+Ks'
+        retrieverOptions={'maxMagError': maxMagError, 'connection': br}
     elif database == 'CFHTLenS':
         retriever=catalogRetriever.CFHTLenSRetriever
         zPriorMin=0.05
