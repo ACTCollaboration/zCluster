@@ -332,9 +332,10 @@ if __name__ == '__main__':
                         'decDeg'. Set to 'nullTest', to create a catalog with 1000 random positions
                         that are more than 5 arcmin away from redMaPPer and NED clusters.""")
     parser.add_argument("database", help="""The photometric database to use. Options are 'SDSSDR12', 'S82' 
-                        (for SDSS DR7 Stripe 82 co-add); 'CFHTLenS'; 'PS1' [experimental]; 'DECaLS' (DR3) 
-                        [experimental]; or the path to a .fits table with columns in the appropriate format 
-                        ('ID', 'RADeg', 'decDeg', and magnitude column names in the form 
+                        (for SDSS DR7 Stripe 82 co-add); 'CFHTLenS'; 'DESDR1' [experimental], 
+                        'DESY3' [experimental; requires access to proprietary DES data]; 'PS1' [experimental]; 
+                        'DECaLS' (DR5) [experimental]; or the path to a .fits table with columns in the 
+                        appropriate format ('ID', 'RADeg', 'decDeg', and magnitude column names in the form 
                         'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.).""")
     parser.add_argument("-o", "--output-label", dest="outLabel", help="""Label to use for outputs  
                         (default: catalogFileName_database, stripped of file extension). 
