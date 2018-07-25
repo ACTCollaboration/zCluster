@@ -25,6 +25,8 @@ import os
 import sys
 import argparse
 import astropy.table as atpy
+from astropy.coordinates import SkyCoord
+from astropy.coordinates import match_coordinates_sky
 from zCluster import *
 import pylab as plt
 import numpy as np
@@ -86,6 +88,8 @@ if __name__ == '__main__':
     parser.add_argument("-y", "--yrange", dest="yRangeStr", help="""Range of the plot y-axis (which
                         is the difference between the inCatalog redshift and the redshift in 
                         zClusterCatalog), given in the format yMin:yMax.""", default = "-0.55:0.55")
+    parser.add_argument("-m", "--match-value", dest="matchValue", help="""Only consider objects in
+                        zC""", default = None)
     args = parser.parse_args()
 
     inCatalogFileName=args.inCatalog
@@ -127,14 +131,24 @@ if __name__ == '__main__':
     else:
         raise Exception, "didn't find 'z' or 'redshift' column in input table %s" % (inCatalogFileName)
     
-    # Match on names
-    outTab.add_column(atpy.Column(np.zeros(len(outTab)), "zIn"))
-    for irow in inTab:
-        for orow in outTab:
-            if str(irow['name']) == str(orow['name']):
-                orow['zIn']=irow[zKey]
-    tab=outTab[np.where(outTab['zIn'] > 0.0)]
+    # Now cross matching against spec-zs table by nearest match in zCluster results file by coords
+    # This is to handle running zCluster on 'unified' catalogs, where there may be duplicate objects 
+    # (same name, slightly different coords)
+    cat1=SkyCoord(ra = inTab['RADeg'], dec = inTab['decDeg'], unit = 'deg')     # spec-z catalog
+    cat2=SkyCoord(ra = outTab['RADeg'], dec = outTab['decDeg'], unit = 'deg')   # zCluster results catalog
+    xMatchRadiusDeg=10.0/3600.0   # 10" should be good enough for anything
+    xIndices, rDeg, sep3d = match_coordinates_sky(cat1, cat2, nthneighbor = 1)
+    mask=np.less(rDeg.value, xMatchRadiusDeg)
+    cutTab=outTab[xIndices]
+        
+    tab=atpy.Table()
+    tab.add_column(inTab['name'])
+    tab.add_column(cutTab['RADeg'])
+    tab.add_column(cutTab['decDeg'])
+    tab.add_column(atpy.Column(inTab[zKey], 'zIn'))
+    tab.add_column(cutTab['z'])
     tab.add_column(atpy.Column(tab['zIn']-tab['z'], 'zDiff'))
+    tab.add_column(cutTab['delta'])
     tab=tab[np.where(tab['z'] > 0)] # because filled in -99 for fails/missing clusters (e.g., not in S82)
     tab=tab[np.where(tab['delta'] != np.inf)]
     
