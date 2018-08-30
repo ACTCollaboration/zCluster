@@ -36,7 +36,7 @@ import sys
 import numpy as np
 from astLib import *
 import astropy.table as atpy
-import pyfits
+import astropy.io.fits as pyfits
 import urllib.request, urllib.parse, urllib.error
 import urllib.request, urllib.error, urllib.parse
 import pylab
