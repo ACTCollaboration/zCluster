@@ -51,7 +51,7 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
     # For speed, we make a big array of all p(z) here
     pzArray=[]
     for obj in catalog:
-        if 'pz' in obj.keys():
+        if 'pz' in list(obj.keys()):
             pzArray.append(obj['pz'])
     pzArray=np.array(pzArray)
     
@@ -62,12 +62,12 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
     # Sanity check: if we didn't find a decent number of galaxies close to the cluster centre, 
     # the cluster is probably not actually in the optical catalog footprint (e.g., just outside edge of S82)
     if applySanityCheckRadius == True and np.sum(np.less(np.degrees(tanArray), sanityCheckRadiusArcmin/60.0)) == 0:
-        print "... no galaxies within %.1f' of cluster position ..." % (sanityCheckRadiusArcmin)
+        print("... no galaxies within %.1f' of cluster position ..." % (sanityCheckRadiusArcmin))
         return None
 
     # Assume same z grid for all objects, calculate DAs
     for obj in catalog:
-        if 'pz_z' in obj.keys():
+        if 'pz_z' in list(obj.keys()):
             zArray=obj['pz_z']
             break
     DAArray=[]
@@ -125,7 +125,7 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
         rWeights[np.greater(rMpc, maxDistanceMpc)]=0.0
     
     else:
-        raise Exception, "didn't understand weightsType"
+        raise Exception("didn't understand weightsType")
     
     # Simplest odds weighting scheme is to cut everything with odds < some value
     # Whatever happens, we definitely want to cut anything with odds == 0, as its z will default to zMin
@@ -164,13 +164,13 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
             
     """
     
-    print "... estimating cluster photo-z ..."
+    print("... estimating cluster photo-z ...")
 
     # Initial sanity check: if we didn't find a decent number of galaxies close to the cluster centre, 
     # the cluster is probably not actually in the optical catalog footprint (e.g., just outside edge of S82)
     gOdds, gRedshifts, angSepArray, tanArray=extractArraysFromGalaxyCatalog(catalog, RADeg, decDeg)
     if np.sum(np.less(np.degrees(tanArray), sanityCheckRadiusArcmin/60.0)) == 0:
-        print "... no galaxies within %.1f' of cluster position ..." % (sanityCheckRadiusArcmin)
+        print("... no galaxies within %.1f' of cluster position ..." % (sanityCheckRadiusArcmin))
         return None
         
     # Here, we do a weighted average of the p(z) distribution
@@ -179,7 +179,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     clusterNzDict=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, maxDistanceMpc = 1.0)
     zArray=clusterNzDict['zArray']
     if clusterNzDict['NzWeightedSum'].sum() == 0:
-        print "... no galaxies in n(z) - skipping..."
+        print("... no galaxies in n(z) - skipping...")
         return None
     
     # This is how we have been calculating redshifts
@@ -191,7 +191,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     try:
         z, odds, zOdds=calculateRedshiftAndOdds(pzWeightedMean, clusterNzDict['zArray'], dzOdds = 0.05, method = zMethod, zPriorMax = zPriorMax, zPriorMin = zPriorMin)
     except:
-        print "Hmm - failed in z, odds calc: what happened?"
+        print("Hmm - failed in z, odds calc: what happened?")
         IPython.embed()
         sys.exit()
     
@@ -215,7 +215,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     if np.isnan(errDelta) == True:
         errDelta=0
             
-    print "... zCluster = %.2f, delta = %.1f, errDelta = %.1f (RADeg = %.6f, decDeg = %.6f) ..." % (z, delta, errDelta, RADeg, decDeg)
+    print("... zCluster = %.2f, delta = %.1f, errDelta = %.1f (RADeg = %.6f, decDeg = %.6f) ..." % (z, delta, errDelta, RADeg, decDeg))
 
     return {'z': z, 'pz': pzWeightedMean, 'zOdds': zOdds, 'pz_z': zArray, 'delta': delta, 'errDelta': errDelta}
 
@@ -234,7 +234,7 @@ def extractArraysFromGalaxyCatalog(catalog, RADeg, decDeg):
     for obj in catalog:
         RAs.append(obj['RADeg'])
         decs.append(obj['decDeg'])
-        if 'pz' in obj.keys():
+        if 'pz' in list(obj.keys()):
             gOdds.append(obj['odds'])
             gRedshifts.append(obj['zPhot'])
             #gTemplates.append(obj['bestFitSEDFileName'])

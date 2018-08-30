@@ -30,7 +30,7 @@ from scipy import stats
 from scipy import interpolate
 import string
 import glob
-import cPickle
+import pickle
 import time
 import IPython
 
@@ -75,7 +75,7 @@ class PhotoRedshiftEngine:
                 else:
                     self.passbandsList.append(astSED.Passband(passbandsDir+"RSR-%s.EE.txt" % (string.upper(band)), inputUnits = "microns"))
         else:
-            raise Exception, "Unknown passbandSet '%s'" % (passbandSet)
+            raise Exception("Unknown passbandSet '%s'" % (passbandSet))
             
         # This probably doesn't gain us much
         self.effectiveWavelength=[]
@@ -164,7 +164,7 @@ class PhotoRedshiftEngine:
             magAB=[]
             magErrAB=[]
             for k in self.bands:
-                if k in galaxy.keys():
+                if k in list(galaxy.keys()):
                     magAB.append(galaxy[k])
                     magErrAB.append(galaxy['%sErr' % (k)])
                 else:
@@ -187,7 +187,7 @@ class PhotoRedshiftEngine:
             chiSq=np.sum(((sedFlux-norm.reshape([norm.shape[0], 1])*self.modelFlux)**2)/sedFluxErr2, axis=1)
             chiSq[np.isnan(chiSq)]=1e6   # throw these out, should check this out and handle more gracefully
             minChiSq=chiSq.min()
-            chiSqProb=stats.chisqprob(chiSq, len(self.bands)-2)
+            chiSqProb=np.exp(-chiSq/2)#stats.chisqprob(chiSq, len(self.bands)-2)
             chiSqProb=chiSqProb.reshape([self.numModels, self.zRange.shape[0]])
             pz=np.sum(chiSqProb, axis = 0)            
             # Mag prior

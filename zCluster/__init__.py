@@ -20,9 +20,9 @@
 
 """
 
-import catalogRetriever
-import catalogTools
-import clusterFinding
+from . import catalogRetriever
+from . import catalogTools
+from . import clusterFinding
 
 __all__=['catalogRetriever', 'catalogTools', 'PhotoRedshiftEngine', 'clusterFinding']
 

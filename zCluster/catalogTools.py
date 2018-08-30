@@ -26,8 +26,8 @@ from astLib import *
 import numpy as np
 import operator
 import os
-import urllib
-import urllib2
+import urllib.request, urllib.parse, urllib.error
+import urllib.request, urllib.error, urllib.parse
 import sys
 import time
 
@@ -142,14 +142,14 @@ def writeCatalog(catalog, outFileName, keysToWrite, keyFormats, constraintsList,
                     try:
                         line=line+f % (obj[k]) 
                     except:
-                        print "Argh!"
+                        print("Argh!")
                         ipshell()
                         sys.exit()
                 else:
                     line=line+str(None)
         # Add on a 'notes' column - any key which is just a bool gets added to a , delimited list if True
         notes=""
-        for key in obj.keys():
+        for key in list(obj.keys()):
             if type(obj[key]) == bool and obj[key] == True:
                 if notes != "":
                     notes=notes+","
@@ -173,11 +173,11 @@ def getNEDInfo(obj, nedDir = "NEDResults", radiusDeg = 5.0/60.0, crossMatchRadiu
             
     outFileName=nedDir+os.path.sep+name.replace(" ", "_")+"_%.1f.txt" % (radiusDeg*60.0)        
     if os.path.exists(outFileName) == False or refetch == True:
-        print "... fetching NED info for %s ..." % (name)
+        print("... fetching NED info for %s ..." % (name))
         try:                
-            urllib.urlretrieve("http://ned.ipac.caltech.edu/cgi-bin/objsearch?search_type=Near+Position+Search&in_csys=Equatorial&in_equinox=J2000.0&lon=%.6fd&lat=%.6fd&radius=%.2f&dot_include=ANY&in_objtypes1=GGroups&in_objtypes1=GClusters&in_objtypes1=QSO&in_objtypes2=Radio&in_objtypes2=SmmS&in_objtypes2=Infrared&in_objtypes2=Xray&nmp_op=ANY&out_csys=Equatorial&out_equinox=J2000.0&obj_sort=RA+or+Longitude&of=ascii_tab&zv_breaker=30000.0&list_limit=5&img_stamp=YES" % (RADeg, decDeg, radiusDeg*60.0), filename = outFileName)
+            urllib.request.urlretrieve("http://ned.ipac.caltech.edu/cgi-bin/objsearch?search_type=Near+Position+Search&in_csys=Equatorial&in_equinox=J2000.0&lon=%.6fd&lat=%.6fd&radius=%.2f&dot_include=ANY&in_objtypes1=GGroups&in_objtypes1=GClusters&in_objtypes1=QSO&in_objtypes2=Radio&in_objtypes2=SmmS&in_objtypes2=Infrared&in_objtypes2=Xray&nmp_op=ANY&out_csys=Equatorial&out_equinox=J2000.0&obj_sort=RA+or+Longitude&of=ascii_tab&zv_breaker=30000.0&list_limit=5&img_stamp=YES" % (RADeg, decDeg, radiusDeg*60.0), filename = outFileName)
         except:
-            print "WARNING: couldn't get NED info"
+            print("WARNING: couldn't get NED info")
             #IPython.embed()
             #sys.exit()
             outFileName=None

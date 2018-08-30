@@ -37,8 +37,8 @@ import numpy as np
 from astLib import *
 import astropy.table as atpy
 import pyfits
-import urllib
-import urllib2
+import urllib.request, urllib.parse, urllib.error
+import urllib.request, urllib.error, urllib.parse
 import pylab
 import subprocess
 import time
@@ -72,7 +72,7 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
     #tableName="PhotoObj"
     tableName="Galaxy"
     
-    if 'altCacheDir' in optionsDict.keys():
+    if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
@@ -80,11 +80,11 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
     url = 'http://cas.sdss.org/stripe82/en/tools/search/x_sql.asp'
             
     outFileName=cacheDir+os.path.sep+"S82_%.4f_%.4f_%.4f_%s.csv" % (RADeg, decDeg, halfBoxSizeDeg, tableName)
-    print "... getting SDSS Stripe82 photometry (file: %s) ..." % (outFileName)
+    print("... getting SDSS Stripe82 photometry (file: %s) ..." % (outFileName))
             
     if os.path.exists(outFileName) == False:
     
-        print "... fetching from the internet ..."
+        print("... fetching from the internet ...")
 
         # Clean galaxy photometry query - note flags for r-band only, may want to change
         # Assuming for limits here on equator, so don't bother with cos(dec)
@@ -127,7 +127,7 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
         
         # Bail if no chance this is anywhere near S82
         if decMin > 2.5 or decMax < -2.5:
-            print "... not close to S82 region ..."
+            print("... not close to S82 region ...")
             return None
         
         # Filter SQL so that it'll work
@@ -135,26 +135,26 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
         for line in sql.split('\n'):
             fsql += line.split('--')[0] + ' ' + os.linesep;
         
-        params=urllib.urlencode({'cmd': fsql, 'format': "csv"})
+        params=urllib.parse.urlencode({'cmd': fsql, 'format': "csv"})
         response=None
         while response == None:
             try:
-                response=urllib2.urlopen(url+'?%s' % (params))
+                response=urllib.request.urlopen(url+'?%s' % (params))
             except:
-                print "Network down? Waiting 30 sec..."
+                print("Network down? Waiting 30 sec...")
                 time.sleep(30)
             
         lines=response.read()
         lines=lines.split("\n")
 
-        outFile=file(outFileName, "w")
+        outFile=open(outFileName, "w")
         for line in lines:
             outFile.write(line+"\n")
         outFile.close()
     
     else:
         
-        inFile=file(outFileName, "r")
+        inFile=open(outFileName, "r")
         lines=inFile.readlines()
         inFile.close()
     
@@ -162,7 +162,7 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
     if lines[0].find("No objects have been found") != -1 or len(lines) > 1 and lines[1][:5] == "ERROR":
         catalog=None
     elif lines[1] == 'ERROR\n':
-        raise Exception, "Error returned by SDSS query - probably too many objects?"
+        raise Exception("Error returned by SDSS query - probably too many objects?")
     else:
         catalog=[]
         idCount=0
@@ -176,12 +176,12 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
                     photDict['RADeg']=float(bits[0])
                 except:
                     if lines[1][:46] == '"ERROR: Maximum 60 queries allowed per minute.':
-                        print "... exceeded server queries per minute limit - waiting ..."
+                        print("... exceeded server queries per minute limit - waiting ...")
                         time.sleep(70)
                         os.remove(outFileName)
                         return "retry"
                     else:
-                        print "what?"
+                        print("what?")
                         ipshell()
                         sys.exit()
                 photDict['decDeg']=float(bits[1])
@@ -199,7 +199,7 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
                 # Apply mag error cuts if given
                 # We're just making the mag unconstrained here (missing data), rather than applying a limit
                 # If we don't have a minimum of three useful bands, reject
-                if 'maxMagError' in optionsDict.keys():
+                if 'maxMagError' in list(optionsDict.keys()):
                     keep=checkMagErrors(photDict, optionsDict['maxMagError'])
                 else:
                     keep=True
@@ -264,7 +264,7 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
     
     """
 
-    if 'altCacheDir' in optionsDict.keys():
+    if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
@@ -275,10 +275,10 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
     try:
         connection=optionsDict['connection']
     except:
-        raise Exception, "No DES database connection"
+        raise Exception("No DES database connection")
     
     if decDeg > 5:
-        print "... outside DES area - skipping ..."
+        print("... outside DES area - skipping ...")
         return None
     
     outFileName=cacheDir+os.path.sep+"DES%s_%.4f_%.4f_%.4f.csv" % (DR, RADeg, decDeg, halfBoxSizeDeg)      
@@ -291,9 +291,9 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
         magKey="MAG_AUTO_$BAND_DERED"
         magErrKey="MAGERR_AUTO_$BAND"
     else:
-        raise Exception, "didn't recognise requested DES DR"
+        raise Exception("didn't recognise requested DES DR")
 
-    if os.path.exists(outFileName) == False or 'refetch' in optionsDict.keys() and optionsDict['refetch'] == True:
+    if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
         # Y3 Gold v1.0
         #query="SELECT coadd_object_id, ra, dec, ngmix_cm_mag_g - (3.186 * EBV_SFD98) AS cm_mag_g, ngmix_cm_mag_r - (2.140 * EBV_SFD98) AS cm_mag_r, ngmix_cm_mag_i - (1.569 * EBV_SFD98) AS cm_mag_i, ngmix_cm_mag_z - (1.196 * EBV_SFD98) AS cm_mag_z, ngmix_cm_mag_err_g AS cm_mag_err_g, ngmix_cm_mag_err_r AS cm_mag_err_r, ngmix_cm_mag_err_i AS cm_mag_err_i, ngmix_cm_mag_err_z AS cm_mag_err_z FROM y3_gold_1_0 SAMPLE WHERE ra BETWEEN %.6f and %.6f AND dec BETWEEN %.6f and %.6f AND flag_gold = 0 AND flag_footprint = 1 AND flag_foreground = 0 AND extended_class_mash BETWEEN 3 AND 4" % (RAMin, RAMax, decMin, decMax) 
@@ -303,22 +303,22 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
         elif DR == 'DR1':
             query="SELECT RA, DEC, MAG_AUTO_G_DERED, MAG_AUTO_R_DERED, MAG_AUTO_I_DERED, MAG_AUTO_Z_DERED, MAGERR_AUTO_G, MAGERR_AUTO_R, MAGERR_AUTO_I, MAGERR_AUTO_Z FROM DR1_MAIN WHERE WAVG_SPREAD_MODEL_I + 3.0*WAVG_SPREADERR_MODEL_I > 0.005 and WAVG_SPREAD_MODEL_I + 1.0*WAVG_SPREADERR_MODEL_I > 0.003 and WAVG_SPREAD_MODEL_I - 1.0*WAVG_SPREADERR_MODEL_I > 0.001 and WAVG_SPREAD_MODEL_I > -1 and IMAFLAGS_ISO_I = 0 and MAG_AUTO_I < 24 and RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
         else:
-            raise Exception, "didn't recognise requested DES DR"
+            raise Exception("didn't recognise requested DES DR")
         
         # This should restart the connection if it drops
         if connection.ping() == False:
-            print "... DES database connection lost: reconnecting ..."
+            print("... DES database connection lost: reconnecting ...")
             import easyaccess as ea
             connection=ea.connect()
         if connection.ping() == True:
             connection.query_and_save(query, outFileName)
         else:
-            raise Exception, "DES database connection lost"
+            raise Exception("DES database connection lost")
 
     # No output is written if the query returns nothing... so we'll write a blank file to save repeating the query next time
     catalog=[]
     if os.path.exists(outFileName) == False:
-        outFile=file(outFileName, "w")
+        outFile=open(outFileName, "w")
         outFile.write("# No objects returned by query\n")
         outFile.close()
     else:
@@ -344,7 +344,7 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
             # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
             # We're just making the mag unconstrained here (missing data), rather than applying a limit
             # If we don't have a minimum of three useful bands, reject
-            if 'maxMagError' in optionsDict.keys():
+            if 'maxMagError' in list(optionsDict.keys()):
                 keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['g', 'r', 'i', 'z'])
             else:
                 keep=True
@@ -363,7 +363,7 @@ def KIDSDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}
     
     """
 
-    if 'altCacheDir' in optionsDict.keys():
+    if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
@@ -374,7 +374,7 @@ def KIDSDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}
     try:
         br=optionsDict['connection']
     except:
-        raise Exception, "No ESO database connection"
+        raise Exception("No ESO database connection")
     
     # This defines the rough final KIDS area (split into two fields) - DR3 is a fraction of this
     inKIDSRegion=False
@@ -385,13 +385,13 @@ def KIDSDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}
     if RADeg < 60 and decDeg > -37 and decDeg < -25:
         inKIDSRegion=True
     if inKIDSRegion == False:
-        print "... outside KIDS area - skipping ..."
+        print("... outside KIDS area - skipping ...")
         return None
 
     outFileName=cacheDir+os.path.sep+"KIDSDR3_%.4f_%.4f_%.4f.fits" % (RADeg, decDeg, halfBoxSizeDeg)      
-    if os.path.exists(outFileName) == False or 'refetch' in optionsDict.keys() and optionsDict['refetch'] == True:
+    if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
-        print "... downloading catalog %s ..." % (outFileName)
+        print("... downloading catalog %s ..." % (outFileName))
         queryURL="https://www.eso.org/qi/catalogQuery/index/112"
         br.open(queryURL)
         br.select_form(nr=1)
@@ -402,16 +402,16 @@ def KIDSDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}
         br.form['selectedFields_112']=',row_112_1,row_112_2,row_112_5,row_112_6,row_112_7,row_112_126,row_112_127,row_112_128,row_112_129,row_112_134,row_112_135,row_112_136,row_112_137,row_112_161,row_112_162,row_112_163,row_112_164,row_112_165,row_112_166,row_112_167,row_112_168,row_112_173,row_112_174,row_112_175,row_112_176,row_112_177,row_112_178'    
         a=br.submit(id = 'exportGeoButtonSpatial')
         b=a.get_data()
-        outFile=file(outFileName, "wb")
+        outFile=open(outFileName, "wb")
         outFile.write(b)
         outFile.close()
 
     # Load/parse table
-    print "... reading catalog %s ..." % (outFileName)
+    print("... reading catalog %s ..." % (outFileName))
     try:
         tab=atpy.Table().read(outFileName)
     except ValueError:
-        print "... no objects in catalog - skipping ..."
+        print("... no objects in catalog - skipping ...")
         return None
     
     magKey="MAG_GAAP_$BAND"
@@ -445,7 +445,7 @@ def KIDSDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}
         # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
         # We're just making the mag unconstrained here (missing data), rather than applying a limit
         # If we don't have a minimum of three useful bands, reject
-        if 'maxMagError' in optionsDict.keys():
+        if 'maxMagError' in list(optionsDict.keys()):
             keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['u', 'g', 'r', 'i'])
         else:
             keep=True
@@ -464,7 +464,7 @@ def ATLASDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
     
     """
 
-    if 'altCacheDir' in optionsDict.keys():
+    if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
@@ -475,7 +475,7 @@ def ATLASDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
     try:
         br=optionsDict['connection']
     except:
-        raise Exception, "No ESO database connection"
+        raise Exception("No ESO database connection")
     
     # This defines the rough ATLAS DR3 area
     inATLASRegion=False
@@ -483,13 +483,13 @@ def ATLASDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
         if decDeg > -42 and decDeg < -7:
             inATLASRegion=True
     if inATLASRegion == False:
-        print "... outside ATLAS area - skipping ..."
+        print("... outside ATLAS area - skipping ...")
         return None
 
     outFileName=cacheDir+os.path.sep+"ATLASDR3_%.4f_%.4f_%.4f.fits" % (RADeg, decDeg, halfBoxSizeDeg)      
-    if os.path.exists(outFileName) == False or 'refetch' in optionsDict.keys() and optionsDict['refetch'] == True:
+    if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
-        print "... downloading catalog %s ..." % (outFileName)
+        print("... downloading catalog %s ..." % (outFileName))
         queryURL="https://www.eso.org/qi/catalogQuery/index/147"
         br.open(queryURL)
         br.select_form(nr=1)
@@ -501,16 +501,16 @@ def ATLASDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
         br.form['selectedFields_147']=',row_147_5,row_147_6,row_147_30,row_147_31,row_147_35,row_147_36,row_147_37,row_147_38,row_147_39,row_147_41,row_147_42,row_147_65,row_147_66,row_147_89,row_147_90,row_147_113,row_147_114,row_147_137,row_147_138'    
         a=br.submit(id = 'exportGeoButtonSpatial')
         b=a.get_data()
-        outFile=file(outFileName, "wb")
+        outFile=open(outFileName, "wb")
         outFile.write(b)
         outFile.close()
 
     # Load/parse table
-    print "... reading catalog %s ..." % (outFileName)
+    print("... reading catalog %s ..." % (outFileName))
     try:
         tab=atpy.Table().read(outFileName)
     except ValueError:
-        print "... no objects in catalog - skipping ..."
+        print("... no objects in catalog - skipping ...")
         return None
     
     magKey="$BANDPETROMAG"
@@ -547,7 +547,7 @@ def ATLASDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
         # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
         # We're just making the mag unconstrained here (missing data), rather than applying a limit
         # If we don't have a minimum of three useful bands, reject
-        if 'maxMagError' in optionsDict.keys():
+        if 'maxMagError' in list(optionsDict.keys()):
             keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['u', 'g', 'r', 'i', 'z'])
         else:
             keep=True
@@ -563,7 +563,7 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
         
     """
 
-    if 'altCacheDir' in optionsDict.keys():
+    if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
@@ -572,21 +572,21 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
         os.makedirs(cacheDir)
 
     outFileName=cacheDir+os.path.sep+"PS1_%.4f_%.4f_%.4f.xml" % (RADeg, decDeg, halfBoxSizeDeg)      
-    print "... getting PS1 photometry (file: %s) ..." % (outFileName)
+    print("... getting PS1 photometry (file: %s) ..." % (outFileName))
 
     if decDeg < -30:
-        print "... outside PS1 area - skipping ..."
+        print("... outside PS1 area - skipping ...")
         return None
     
-    if os.path.exists(outFileName) == False or 'refetch' in optionsDict.keys() and optionsDict['refetch'] == True:
-        print "... fetching from the internet ..."
+    if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
+        print("... fetching from the internet ...")
         minDet=1
         r=requests.get('https://archive.stsci.edu/panstarrs/search.php', 
                         params= {'RA': RADeg, 'DEC': decDeg, 
                                  'SR': halfBoxSizeDeg, 'max_records': 30000, 
                                  'outputformat': 'VOTable',
                                  'ndetections': ('>%d' % minDet)}) 
-        outFile=file(outFileName, 'w') 
+        outFile=open(outFileName, 'w') 
         outFile.write(r.text) 
         outFile.close()
     
@@ -641,7 +641,7 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
             # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
             # We're just making the mag unconstrained here (missing data), rather than applying a limit
             # If we don't have a minimum of three useful bands, reject
-            if 'maxMagError' in optionsDict.keys():
+            if 'maxMagError' in list(optionsDict.keys()):
                 keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['g', 'r', 'i', 'z'])
             else:
                 keep=True
@@ -671,7 +671,7 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
     
     makeCacheDir()
     
-    if 'altCacheDir' in optionsDict.keys():
+    if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
@@ -701,11 +701,11 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
    
     outFileName=outFileName.replace(".csv", "_%s.csv" % (tableName))
                                     
-    print "... getting SDSS DR%d photometry (file: %s) ..." % (DR, outFileName)
+    print("... getting SDSS DR%d photometry (file: %s) ..." % (DR, outFileName))
         
-    if os.path.exists(outFileName) == False or 'refetch' in optionsDict.keys() and optionsDict['refetch'] == True:
+    if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
         
-        print "... fetching from the internet ..."
+        print("... fetching from the internet ...")
         
         # Clean galaxy photometry query - note flags for r-band only, may want to change
         # We may want to add something that does multiple queries if we want a bigger area from the standard
@@ -753,26 +753,29 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
         for line in sql.split('\n'):
             fsql += line.split('--')[0] + ' ' + os.linesep;
     
-        params=urllib.urlencode({'cmd': fsql, 'format': "csv"})
+        params=urllib.parse.urlencode({'cmd': fsql, 'format': "csv"})
         response=None
         while response == None:
             try:
-                response=urllib2.urlopen(url+'%s' % (params))
+                response=urllib.request.urlopen(url+'%s' % (params))
             except:
-                print "Network down? Waiting 30 sec..."
+                print("Network down? Waiting 30 sec...")
                 time.sleep(30)
 
+        # Some faffing about here because of python2 -> python3 
         lines=response.read()
-        lines=lines.split("\n")
-        
-        outFile=file(outFileName, "w")
+        lines=lines.splitlines()        
+        outFile=open(outFileName, "w")
+        strLines=[]
         for line in lines:
-            outFile.write(line+"\n")
+            strLines.append(line.decode('utf-8'))
+            outFile.write(strLines[-1]+"\n")
         outFile.close()
+        lines=strLines
     
     else:
         
-        inFile=file(outFileName, "r")
+        inFile=open(outFileName, "r")
         lines=inFile.readlines()
         inFile.close()
     
@@ -791,7 +794,7 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
                 try:
                     photDict['RADeg']=float(bits[0])
                 except:
-                    print "... problem with file %s - removing and retrying in 70 sec ..." % (outFileName)
+                    print("... problem with file %s - removing and retrying in 70 sec ..." % (outFileName))
                     os.remove(outFileName)
                     time.sleep(70)
                     return "retry"                    
@@ -824,7 +827,7 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
                 # Apply mag error cuts if given
                 # We're just making the mag unconstrained here (missing data), rather than applying a limit
                 # If we don't have a minimum of three useful bands, reject
-                if 'maxMagError' in optionsDict.keys():
+                if 'maxMagError' in list(optionsDict.keys()):
                     keep=checkMagErrors(photDict, optionsDict['maxMagError'])
                 else:
                     keep=True
@@ -844,7 +847,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
 
     makeCacheDir()
     
-    if 'altCacheDir' in optionsDict.keys():
+    if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
@@ -858,7 +861,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
     outFileName=cacheDir+os.path.sep+"DECaLSDR5_%.4f_%.4f_%.2f.fits" % (RADeg, decDeg,
                                                                             halfBoxSizeDeg)
     
-    print "... getting DECaLS photometry (file: %s) ..." % (outFileName)
+    print("... getting DECaLS photometry (file: %s) ..." % (outFileName))
 
     bricksTab=optionsDict['bricksTab']
     DR6Tab=optionsDict['DR6Tab']
@@ -876,17 +879,17 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
         cacheFileNames=[]
         matchTab=atpy.join(matchTab, DR6Tab, keys = 'BRICKNAME')
         for mrow in matchTab:
-            print "... retrieving tractor catalog from web ..."
+            print("... retrieving tractor catalog from web ...")
             url=basePath+"%03d" % np.floor(mrow['RA'])
             url=url+os.path.sep+"tractor-"+mrow['BRICKNAME']+".fits"
             fileName=cacheDir+os.path.sep+"tractor-tmp_%s.fits" % (mrow['BRICKNAME'])
             cacheFileNames.append(fileName)
-            urllib.urlretrieve(url, filename = fileName)
+            urllib.request.urlretrieve(url, filename = fileName)
             try:
                 tractorTab=atpy.Table.read(fileName)
                 tractorTabs.append(tractorTab)
             except:
-                print "... probably a 404 error for %s ..." % (fileName)
+                print("... probably a 404 error for %s ..." % (fileName))
         # Stitch catalogs together and write to cache, delete temporary files
         if len(tractorTabs) > 0:
             uberTab=atpy.vstack(tractorTabs)
@@ -918,7 +921,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
                 extKey='ext_%s' % (b)
                 colsToAdd=[magLabel, magErrLabel]
                 for col in colsToAdd:
-                    if col not in tab.keys():
+                    if col not in list(tab.keys()):
                         tab.add_column(atpy.Column(np.ones(len(tab))*99., col))
                 nanoMaggies=np.array(tab['flux_%s' % (b)])
                 validMask=np.greater(nanoMaggies, 0.)
@@ -926,7 +929,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
                 tab[magLabel][mask]=-2.5*np.log10(nanoMaggies[mask])+22.5
                 validFluxErr=np.sqrt(1./tab['flux_ivar_%s' % (b)][mask])
                 tab[magErrLabel][mask]=1./(nanoMaggies[mask]/validFluxErr)
-                if extKey in brickExtTab.keys():
+                if extKey in list(brickExtTab.keys()):
                     dustCorrMag=brickExtTab[extKey][0]
                     tab[magLabel][mask]=tab[magLabel][mask]-dustCorrMag
         
@@ -939,7 +942,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
             for b in bands:
                 photDict[b]=row['%s_mag' % (b)]
                 photDict[b+"Err"]=row['%s_magErr' % (b)]
-            if 'maxMagError' in optionsDict.keys():
+            if 'maxMagError' in list(optionsDict.keys()):
                 keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
             else:
                 keep=True
@@ -999,7 +1002,7 @@ def CFHTLenSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
     
     makeCacheDir()
     
-    if 'altCacheDir' in optionsDict.keys():
+    if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
@@ -1016,31 +1019,31 @@ def CFHTLenSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
 
     outFileName=cacheDir+os.path.sep+"CFHTLenS_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
 
-    print "... getting CFHTLenS photometry (file: %s) ..." % (outFileName) 
+    print("... getting CFHTLenS photometry (file: %s) ..." % (outFileName)) 
         
     if os.path.exists(outFileName) == False:
         
-        print "... fetching from the internet ..."
+        print("... fetching from the internet ...")
             
         response=None
         while response == None:
             try:
-                response=urllib2.urlopen(url)
+                response=urllib.request.urlopen(url)
             except:
-                print "Network down, or CADC changed URLs again? Waiting 30 sec..."
+                print("Network down, or CADC changed URLs again? Waiting 30 sec...")
                 time.sleep(30)
                 
         lines=response.read()
         lines=lines.split("\n")
 
-        outFile=file(outFileName, "w")
+        outFile=open(outFileName, "w")
         for line in lines:
             outFile.write(line+"\n")
         outFile.close()
     
     else:
         
-        inFile=file(outFileName, "r")
+        inFile=open(outFileName, "r")
         lines=inFile.readlines()
         inFile.close()
 
@@ -1060,7 +1063,7 @@ def CFHTLenSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
                 try:
                     photDict['RADeg']=float(bits[1])
                 except:
-                    print "... problem with file %s - removing and retrying in 70 sec ..." % (outFileName)
+                    print("... problem with file %s - removing and retrying in 70 sec ..." % (outFileName))
                     os.remove(outFileName)
                     time.sleep(70)
                 # Note: skip mag y, old version of i-band filter
@@ -1079,7 +1082,7 @@ def CFHTLenSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
                 # Apply mag error cuts if given
                 # We're just making the mag unconstrained here (missing data), rather than applying a limit
                 # If we don't have a minimum of three useful bands, reject
-                if 'maxMagError' in optionsDict.keys():
+                if 'maxMagError' in list(optionsDict.keys()):
                     keep=checkMagErrors(photDict, optionsDict['maxMagError'])
                 else:
                     keep=True
@@ -1102,7 +1105,7 @@ def getEBMinusV(RADeg, decDeg, optionsDict = {}):
     """
 
     makeCacheDir()
-    if 'altCacheDir' in optionsDict.keys():
+    if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
@@ -1110,9 +1113,9 @@ def getEBMinusV(RADeg, decDeg, optionsDict = {}):
     fileName=cacheDir+os.path.sep+"SchlegelIRSA_%.6f_%.6f.xml" % (RADeg, decDeg)
     if os.path.exists(fileName) == False:
         url="http://irsa.ipac.caltech.edu/cgi-bin/DUST/nph-dust?locstr="+str(RADeg)+"%20"+str(decDeg)+"%20Equ%20J2000"
-        urllib.urlretrieve(url, filename = fileName)
+        urllib.request.urlretrieve(url, filename = fileName)
     
-    inFile=file(fileName, "r")
+    inFile=open(fileName, "r")
     lines=inFile.readlines()
     inFile.close()
     for i in range(len(lines)):
@@ -1157,7 +1160,7 @@ def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
     # Work out available bands
     acceptableBands=['u', 'g', 'r', 'i', 'z', 'Ks']
     tabBands=[]
-    for key in tab.keys():
+    for key in list(tab.keys()):
         bits=key.split("_")
         if len(bits) > 0 and bits[0] in acceptableBands and bits[0] not in tabBands:
             tabBands.append(bits[0])
@@ -1186,7 +1189,7 @@ def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
         catalog.append(photDict)
 
     # Get SDSS catalog, if we want to include missing bands
-    if 'addSDSS' in optionsDict.keys() and optionsDict['addSDSS'] == True:
+    if 'addSDSS' in list(optionsDict.keys()) and optionsDict['addSDSS'] == True:
         SDSSCat, SDSSFilterCodes=SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 12)
         RAs_SDSS=[]
         decs_SDSS=[]
@@ -1205,7 +1208,7 @@ def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
                 SDSSObjDict=SDSSCat[i]
                 keysToAdd=['u', 'g', 'r', 'i', 'z']
                 for k in keysToAdd:
-                    if k not in objDict.keys():
+                    if k not in list(objDict.keys()):
                         objDict['%s' % (k)]=SDSSObjDict[k]
                         objDict['%sErr' % (k)]=SDSSObjDict["%sErr" % (k)]
                     # For sanity check below - we will do this properly somewhere else
@@ -1236,12 +1239,12 @@ def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
     try:
         tab=atpy.Table().read(optionsDict['fileName'])
     except:
-        raise Exception, "assumed database is a FITS table file, but failed to read"
+        raise Exception("assumed database is a FITS table file, but failed to read")
     
     # If the position isn't actually in our galaxy catalog, we give up now
     rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, tab['RADeg'], tab['decDeg'])
     if rDeg.min() > halfBoxSizeDeg:
-        print "... no galaxies found in FITS catalog near RA, dec = (%.6f, %.6f) ..." % (RADeg, decDeg)
+        print("... no galaxies found in FITS catalog near RA, dec = (%.6f, %.6f) ..." % (RADeg, decDeg))
         return None
     tab=tab[np.where(rDeg < halfBoxSizeDeg)]
     

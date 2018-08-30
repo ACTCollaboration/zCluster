@@ -29,7 +29,7 @@ import zCluster
 from zCluster import *
 import sqlite3
 import pylab as plt
-import cPickle
+import pickle
 import numpy as np
 from astLib import *
 from scipy import interpolate
@@ -210,7 +210,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
     count=0
     for obj in catalog:
         count=count+1
-        print ">>> %s (%d/%d):" % (obj['name'], count, len(catalog))
+        print(">>> %s (%d/%d):" % (obj['name'], count, len(catalog)))
         
         # We actually query both the process database AND the global database
         c.execute("SELECT name FROM redshifts where name=?", (obj['name'],))
@@ -242,9 +242,9 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
             
                     # Also r-i colour, useful for sanity checking of BCGs
                     for gobj in galaxyCatalog:
-                        if 'r' in gobj.keys() and 'i' in gobj.keys():
+                        if 'r' in list(gobj.keys()) and 'i' in list(gobj.keys()):
                             gobj['r-i']=gobj['r']-gobj['i']
-                        if 'r' in gobj.keys() and 'z' in gobj.keys():
+                        if 'r' in list(gobj.keys()) and 'z' in list(gobj.keys()):
                             gobj['r-z']=gobj['r']-gobj['z']
 
                     wantedKeys=['id', 'RADeg', 'decDeg', 'u', 'uErr', 'g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'z', 'zErr', 'Ks', 'KsErr', 'zPhot', 'odds', 'r-i', 'r-z']
@@ -292,7 +292,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
             conn.commit() # May want to think about how often we do this...
             
         else:
-            print "... already measured photo-z ..."
+            print("... already measured photo-z ...")
             # Prefer the global result, if it exists
             if len(matches) > 0:
                 thisCursor=c
@@ -319,7 +319,7 @@ def getRoughFootprint(database):
     elif database == 'CFHTLenS':
         RAMin, RAMax, decMin, decMax=[30.5, 38.5, -11.5, -2.5]
     else:
-        print "WARNING: no rough footprint defined for database '%s' yet" % (database)
+        print("WARNING: no rough footprint defined for database '%s' yet" % (database))
         return None
     
     return RAMin, RAMax, decMin, decMax
@@ -414,15 +414,15 @@ if __name__ == '__main__':
     outFileName="zCluster_"+baseOutputLabel+".fits"
 
     if method not in ['odds', 'max']:
-        raise Exception, "method must be 'odds' or 'max'"
+        raise Exception("method must be 'odds' or 'max'")
     
     if weightsType not in ['flat', 'radial', 'NFW']:
-        raise Exception, "weights must be 'flat', 'radial', or 'NFW'"
+        raise Exception("weights must be 'flat', 'radial', or 'NFW'")
 
     # These are ONLY used if not None...
     bckCatalogFileName=args.bckCatalogFileName
     if args.bckAreaDeg2 == None and bckCatalogFileName != None:
-        raise Exception, "area covered by separate background galaxy catalogue must be given."
+        raise Exception("area covered by separate background galaxy catalogue must be given.")
     if args.bckAreaDeg2 != None:
         bckAreaDeg2=float(args.bckAreaDeg2)
     else:
@@ -434,7 +434,7 @@ if __name__ == '__main__':
         size=comm.Get_size()
         rank=comm.Get_rank()
         if size == 1:
-            raise Exception, "if you want to use MPI, run with mpirun --np 4 zCluster ..."
+            raise Exception("if you want to use MPI, run with mpirun --np 4 zCluster ...")
     else:
         rank=0
                        
@@ -483,8 +483,8 @@ if __name__ == '__main__':
     elif database == 'KIDSDR3':
         # ESO requires log-in to access public data - do once
         if args.credentialsFileName == None:
-            raise Exception, "need to use -C option to point to file containing ESO Portal login credentials"
-        inFile=file(args.credentialsFileName, "r")
+            raise Exception("need to use -C option to point to file containing ESO Portal login credentials")
+        inFile=open(args.credentialsFileName, "r")
         lines=inFile.readlines()
         inFile.close()
         import mechanize
@@ -503,8 +503,8 @@ if __name__ == '__main__':
     elif database == 'ATLASDR3':
         # ESO requires log-in to access public data - do once
         if args.credentialsFileName == None:
-            raise Exception, "need to use -C option to point to file containing ESO Portal login credentials"
-        inFile=file(args.credentialsFileName, "r")
+            raise Exception("need to use -C option to point to file containing ESO Portal login credentials")
+        inFile=open(args.credentialsFileName, "r")
         lines=inFile.readlines()
         inFile.close()
         import mechanize
@@ -566,9 +566,9 @@ if __name__ == '__main__':
             logFileName=outDir+os.path.sep+args.name+os.path.sep+"zCluster.log"
         else:
             logFileName=outDir+os.path.sep+"zCluster.log"
-        logFile=file(logFileName, "w")
+        logFile=open(logFileName, "w")
         logFile.write("started: %s\n" % (datetime.datetime.now().isoformat()))
-        for key in args.__dict__.keys(): 
+        for key in list(args.__dict__.keys()): 
             if key not in ['zPriorMin', 'zPriorMax']:
                 logFile.write("%s: %s\n" % (key, str(args.__dict__[key])))
         logFile.write("zPriorMin: %.3f\n" % (zPriorMin))
@@ -585,7 +585,7 @@ if __name__ == '__main__':
     if catalogFileName == 'nullTest':
         runningNullTest=True
         # Generate a catalog of random points
-        print ">>> Running null test ..."
+        print(">>> Running null test ...")
         catalogFileName="nullTest.fits"
         if os.path.exists(catalogFileName) == False:
             rmTab=atpy.Table().read(zCluster.__path__[0]+os.path.sep+"data"+os.path.sep+"redmapper_dr8_public_v5.10_catalog.fits")
@@ -605,10 +605,10 @@ if __name__ == '__main__':
                     catalog.append(obj)
                     count=count+1
                 else:
-                    print "... rejected position near NED or RM cluster ..."
+                    print("... rejected position near NED or RM cluster ...")
             writeRedshiftsCatalog(catalog, catalogFileName)
         else:
-            print "... using existing nullTest.fits catalog..."
+            print("... using existing nullTest.fits catalog...")
             catalog=parseClusterCatalog(catalogFileName)
             #catalog=catalog[:500] # For testing   
     else:
@@ -623,10 +623,10 @@ if __name__ == '__main__':
                 break
         catalog=[objDict]
         if foundObj == False:
-            raise Exception, "didn't find %s in input catalog" % (args.name)
+            raise Exception("didn't find %s in input catalog" % (args.name))
 
     if MPIEnabled == True:
-        objsPerNode=len(catalog)/size
+        objsPerNode=int(len(catalog)/size)
         startIndex=objsPerNode*rank
         if rank == size-1:
             endIndex=len(catalog)
@@ -654,7 +654,7 @@ if __name__ == '__main__':
     # Makes a global .db file (might be useful) after run complete
     if os.path.exists(outDir+os.path.sep+"redshifts_global.db") == True:
         os.remove(outDir+os.path.sep+"redshifts_global.db")
-    print ">>> Updating global redshifts .db file ..."
+    print(">>> Updating global redshifts .db file ...")
     conn=sqlite3.connect(outDir+os.path.sep+"redshifts_global.db")
     c=conn.cursor()
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='redshifts'")
@@ -670,10 +670,10 @@ if __name__ == '__main__':
     if runningNullTest == True:
         deltaArr=[]
         for obj in catalog:
-            if 'zClusterResult' in obj.keys() and obj['zClusterResult'] != None:
-                if 'delta' in obj['zClusterResult'].keys():
+            if 'zClusterResult' in list(obj.keys()) and obj['zClusterResult'] != None:
+                if 'delta' in list(obj['zClusterResult'].keys()):
                     deltaArr.append(obj['zClusterResult']['delta'])
-                elif 'SNR' in obj['zClusterResult'].keys():
+                elif 'SNR' in list(obj['zClusterResult'].keys()):
                     deltaArr.append(obj['zClusterResult']['SNR'])
             else:
                 deltaArr.append(0)
@@ -703,9 +703,9 @@ if __name__ == '__main__':
         plt.savefig(outDir+os.path.sep+"nullTest.pdf")
         plt.close()
 
-        print ">>> Null test stats:"
+        print(">>> Null test stats:")
         for n in range(2, 9):
-            print "... percentage false detections at delta > %d = %.2f" % (n, percentileArr[np.equal(cumulativeRange, n)][0])
+            print("... percentage false detections at delta > %d = %.2f" % (n, percentileArr[np.equal(cumulativeRange, n)][0]))
 
     # Want this either way
     writeRedshiftsCatalog(catalog, outFileName)

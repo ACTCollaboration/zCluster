@@ -124,12 +124,12 @@ if __name__ == '__main__':
     plotFileName=outFileName.replace(".fits", "")
     plotFileName=plotFileName.replace(".", "p")+".pdf"
 
-    if 'z' in inTab.keys():
+    if 'z' in list(inTab.keys()):
         zKey='z'
-    elif 'redshift' in inTab.keys():
+    elif 'redshift' in list(inTab.keys()):
         zKey='redshift'
     else:
-        raise Exception, "didn't find 'z' or 'redshift' column in input table %s" % (inCatalogFileName)
+        raise Exception("didn't find 'z' or 'redshift' column in input table %s" % (inCatalogFileName))
     
     # Now cross matching against spec-zs table by nearest match in zCluster results file by coords
     # This is to handle running zCluster on 'unified' catalogs, where there may be duplicate objects 
@@ -161,7 +161,7 @@ if __name__ == '__main__':
     # Stats based on delta cut by z
     zCutsList=[[0.0, 2.0],[0.1, 0.5],[0.5, 1.0], [0.5, 1.5], [1.0, 2.0]]
     if deltaMin != None:
-        print ">>> Stats for delta > %.2f:" % (deltaMin)
+        print(">>> Stats for delta > %.2f:" % (deltaMin))
         for zCuts in zCutsList:
             zMin=zCuts[0]
             zMax=zCuts[1]
@@ -170,20 +170,20 @@ if __name__ == '__main__':
             zMask=np.logical_and(np.greater(zIn, zMin), np.less(zIn, zMax))
             mask=np.logical_and(zMask, deltaMask)
             if mask.sum() > 0:
-                print "--> %.2f < z < %.2f (N = %d):" % (zMin, zMax, mask.sum())
+                print("--> %.2f < z < %.2f (N = %d):" % (zMin, zMax, mask.sum()))
                 maskedDiff=zIn[mask]-zOut[mask]
                 meanMaskedDiff=np.mean(maskedDiff)
                 stdMaskedDiff=np.std(maskedDiff)
                 maskedDiff_over1plusz=(zIn[mask]-zOut[mask])/(1+zIn[mask])
                 meanMaskedDiff_over1plusz=np.mean(maskedDiff_over1plusz)
                 stdMaskedDiff_over1plusz=np.std(maskedDiff_over1plusz)
-                print "... median (zIn - zOut) = %.3f" % (np.median(maskedDiff))
-                print "... mean (zIn - Zout) = %.3f +/- %.3f" % (meanMaskedDiff, stdMaskedDiff / np.sqrt(mask.sum()))
-                print "... sigma (zIn - zOut) = %.3f" % (stdMaskedDiff)
+                print("... median (zIn - zOut) = %.3f" % (np.median(maskedDiff)))
+                print("... mean (zIn - Zout) = %.3f +/- %.3f" % (meanMaskedDiff, stdMaskedDiff / np.sqrt(mask.sum())))
+                print("... sigma (zIn - zOut) = %.3f" % (stdMaskedDiff))
                 if zCuts == zCutsList[0]:
-                    print "... median (zIn - zOut) / (1 + zIn) = %.3f" % (np.median(maskedDiff_over1plusz))
-                    print "... mean (zIn - Zout) / (1 + zIn)  = %.3f" % (meanMaskedDiff_over1plusz)
-                    print "... sigma (zIn - zOut) / (1 + zIn)  = %.3f" % (stdMaskedDiff_over1plusz)
+                    print("... median (zIn - zOut) / (1 + zIn) = %.3f" % (np.median(maskedDiff_over1plusz)))
+                    print("... mean (zIn - Zout) / (1 + zIn)  = %.3f" % (meanMaskedDiff_over1plusz))
+                    print("... sigma (zIn - zOut) / (1 + zIn)  = %.3f" % (stdMaskedDiff_over1plusz))
 
     # Default mask / stats for plotting
     zMin=zCutsList[0][0]
