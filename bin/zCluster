@@ -155,7 +155,7 @@ def writeRedshiftsCatalog(catalog, outFileName):
         os.remove(outFileName)
     
     tab=atpy.Table()
-    keys=['name', 'RADeg', 'decDeg', 'z', 'delta']
+    keys=['name', 'RADeg', 'decDeg', 'z', 'delta', 'errDelta']
     
     for key in keys:
         arr=[]
@@ -190,7 +190,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='redshifts'")
     matches=c.fetchall()
     if len(matches) == 0:
-        c.execute("CREATE TABLE redshifts (name text, RADeg real, decDeg real, z real, delta real)")
+        c.execute("CREATE TABLE redshifts (name text, RADeg real, decDeg real, z real, delta real, errDelta real)")
     
     # The global database for checking if we've already measured a redshift - read only
     if os.path.exists(outDir+os.path.sep+"redshifts_global.db") == True:
@@ -280,15 +280,17 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
 
             # Insert a row of data
             if obj['zClusterResult'] != None:
-                c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?)", 
-                      (obj['name'], obj['RADeg'], obj['decDeg'], obj['zClusterResult']['z'], obj['zClusterResult']['delta'],))
+                c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?)", 
+                      (obj['name'], obj['RADeg'], obj['decDeg'], obj['zClusterResult']['z'], obj['zClusterResult']['delta'], obj['zClusterResult']['errDelta']))
                 obj['z']=obj['zClusterResult']['z']
                 obj['delta']=obj['zClusterResult']['delta']
+                obj['errDelta']=obj['zClusterResult']['errDelta']
             else:
-                c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?)", 
-                      (obj['name'], obj['RADeg'], obj['decDeg'], -99, 0,))
+                c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?)", 
+                      (obj['name'], obj['RADeg'], obj['decDeg'], -99, 0, -99))
                 obj['z']=-99
                 obj['delta']=0
+                obj['errDelta']=0
             conn.commit() # May want to think about how often we do this...
             
         else:
@@ -298,10 +300,11 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                 thisCursor=c
             if len(globalMatches) > 0:
                 thisCursor=cGlobal
-            thisCursor.execute("SELECT z, delta FROM redshifts WHERE name = ?", (obj['name'],))
+            thisCursor.execute("SELECT z, delta, errDelta FROM redshifts WHERE name = ?", (obj['name'],))
             match=thisCursor.fetchone()
             obj['z']=match[0]
             obj['delta']=match[1]
+            obj['errDelta']=match[2]
  
     return catalog
 
@@ -460,18 +463,28 @@ if __name__ == '__main__':
         retrieverOptions={'maxMagError': maxMagError}
     elif database == 'PS1':
         retriever=catalogRetriever.PS1Retriever
-        zPriorMin=0.05
-        zPriorMax=0.8
+        # Min prior here set to match 4 Mpc max search radius
+        zPriorMin=0.15
+        zPriorMax=0.6
         passbandSet='PS1'
         retrieverOptions={'maxMagError': maxMagError}
     elif database == 'DESY3':
         import easyaccess as ea
         connection=ea.connect()
+        #connection=None
         retriever=catalogRetriever.DESY3Retriever
         zPriorMin=0.05
         zPriorMax=1.5
         passbandSet='DES'
         retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
+    elif database == 'DESY3+WISE':
+        import easyaccess as ea
+        connection=ea.connect()
+        retriever=catalogRetriever.DESY3Retriever
+        zPriorMin=0.05
+        zPriorMax=1.5
+        passbandSet='DECaLS'
+        retrieverOptions={'maxMagError': maxMagError, 'connection': connection, 'addWISE': True}
     elif database == 'DESDR1':
         import easyaccess as ea
         connection=ea.connect()
@@ -660,10 +673,10 @@ if __name__ == '__main__':
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='redshifts'")
     matches=c.fetchall()
     if len(matches) == 0:
-        c.execute("CREATE TABLE redshifts (name text, RADeg real, decDeg real, z real, delta real)")
+        c.execute("CREATE TABLE redshifts (name text, RADeg real, decDeg real, z real, delta real, errDelta real)")
     for obj in catalog:
-        c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?)", 
-                    (obj['name'], obj['RADeg'], obj['decDeg'], obj['z'], obj['delta'],))
+        c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?)", 
+                    (obj['name'], obj['RADeg'], obj['decDeg'], obj['z'], obj['delta'], obj['errDelta']))
     conn.commit()
     conn.close()
         

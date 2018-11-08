@@ -59,7 +59,7 @@ class PhotoRedshiftEngine:
                 else:
                     self.passbandsList.append(astSED.Passband(passbandsDir+band+"_SDSS.res"))
         elif passbandSet == 'PS1':
-            self.bands=['g', 'r', 'i', 'z', 'Y']
+            self.bands=['g', 'r', 'i', 'z']#, 'y']
             for band in self.bands:
                 self.passbandsList.append(astSED.Passband(passbandsDir+band+"PS1.res"))
         elif passbandSet == 'DES':
@@ -73,7 +73,7 @@ class PhotoRedshiftEngine:
                 if band[0] != "w":
                     self.passbandsList.append(astSED.Passband(passbandsDir+band+"DES.res"))
                 else:
-                    self.passbandsList.append(astSED.Passband(passbandsDir+"RSR-%s.EE.txt" % (string.upper(band)), inputUnits = "microns"))
+                    self.passbandsList.append(astSED.Passband(passbandsDir+"RSR-%s.EE.txt" % (band.upper()), inputUnits = "microns"))
         else:
             raise Exception("Unknown passbandSet '%s'" % (passbandSet))
             

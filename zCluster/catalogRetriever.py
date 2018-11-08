@@ -59,7 +59,88 @@ def makeCacheDir():
     
     if os.path.exists(CACHE_DIR) == False:
         os.makedirs(CACHE_DIR)
+
+#-------------------------------------------------------------------------------------------------------------
+def addWISEPhotometry(RADeg, decDeg, catalog, halfBoxSizeDeg = 36.0/60.):
+    """This is an option that can be enabled in other retriever functions by adding 'addWISE': True in
+    optionsDict. For this to work, the passbandSet used by PhotoRedshiftEngine must also have the WISE bands
+    defined. We can probably tidy this up a bit...
+       
+    """
     
+    cacheDir="WISECache"
+    if os.path.exists(cacheDir) == False:
+        os.makedirs(cacheDir)
+    
+    # Note that using size= in query below is broken (even though it is on IPAC docs)
+    outFileName=cacheDir+os.path.sep+"unWISE_%.6f_%.6f.vot" % (RADeg, decDeg)
+    gotFileSuccessfully=False
+    while gotFileSuccessfully == False:
+        if os.path.exists(outFileName) == False:        
+            rah, ram, ras=astCoords.decimal2hms(RADeg, ":").split(":")
+            dd, dm, ds=astCoords.decimal2dms(decDeg, ":").split(":")
+            radiusSize=halfBoxSizeDeg*3600.0#np.degrees(4./astCalc.da(1.0))*3600.0
+            # NOTE: URL modified March 2017 as IPAC seems to have changed name from wise_allwise_p3as_psd to allwise_p3as_psd
+            url="http://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query?spatial=cone&catalog=allwise_p3as_psd&objstr=%sh+%sm+%ss+%sd+%sm+%ss&radius=%d&outfmt=3" % (rah, ram, ras, dd, dm, ds, int(round(radiusSize))) 
+            urllib.request.urlretrieve(url, outFileName)
+        
+        try:
+            tab=atpy.Table().read(outFileName)
+            gotFileSuccessfully=True
+        except:
+            print("... error reading WISE catalog: retrying download in 1 min ...")
+            ##return None
+            #IPython.embed()
+            #sys.exit()
+            os.remove(outFileName)
+            time.sleep(60)
+    
+    # Now need to merge tab with catalog
+    matchRadiusDeg=2.0/3600.0
+    bands=[]
+    for key in catalog[0].keys():
+        if key not in ['RADeg', 'decDeg', 'id'] and key.find("Err") == -1:
+            bands.append(key)
+    catRAs=[]
+    catDecs=[]
+    for objDict in catalog:
+        catRAs.append(objDict['RADeg'])
+        catDecs.append(objDict['decDeg'])
+        # Defaults: assume not detected
+        objDict['w1']=99.0
+        objDict['w1Err']=99.0
+        objDict['w2']=99.0
+        objDict['w2Err']=99.0
+    catRAs=np.array(catRAs)
+    catDecs=np.array(catDecs)
+    objsToAdd=[]
+    count=len(catalog)
+    for row in tab:
+        rDeg=astCoords.calcAngSepDeg(row['ra'], row['dec'], catRAs, catDecs)
+        if rDeg.min() < matchRadiusDeg:
+            objDict=catalog[np.argmin(rDeg)]
+            objDict['w1']=row['w1mpro']+2.699   # Vega -> AB http://wise2.ipac.caltech.edu/docs/release/allsky/expsup/sec4_4h.html#conv2ab
+            objDict['w1Err']=row['w1sigmpro']
+            objDict['w2']=row['w2mpro']+3.339
+            objDict['w2Err']=row['w2sigmpro']
+        else:
+            count=count+1
+            objDict={}
+            objDict['id']=count
+            objDict['RADeg']=row['ra']
+            objDict['decDeg']=row['dec']
+            objDict['w1']=row['w1mpro']+2.699
+            objDict['w1Err']=row['w1sigmpro']
+            objDict['w2']=row['w2mpro']+3.339
+            objDict['w2Err']=row['w2sigmpro']
+            for b in bands:
+                objDict[b]=99.0
+                objDict['%sErr' % (b)]=99.0
+            objsToAdd.append(objDict)
+    catalog=catalog+objsToAdd
+
+    return catalog
+
 #-------------------------------------------------------------------------------------------------------------
 def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
     """Retrieves SDSS Stripe 82 photometry at the given position.
@@ -348,9 +429,21 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
                 keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['g', 'r', 'i', 'z'])
             else:
                 keep=True
-                        
+            
+            ## Additional colour cuts (as used in some DES papers - see e.g., splashback draft)
+            #gr=photDict['g']-photDict['r']
+            #ri=photDict['r']-photDict['i']
+            #iz=photDict['i']-photDict['z']
+            #if keep == True and -1 < gr < 3 and -1 < ri < 2.5 and -1 < iz < 2:
+                #keep=True
+            #else:
+                #keep=False
+                
             if keep == True:
                 catalog.append(photDict)
+    
+    if 'addWISE' in optionsDict.keys() and optionsDict['addWISE'] == True:
+        catalog=addWISEPhotometry(RADeg, decDeg, catalog, halfBoxSizeDeg = halfBoxSizeDeg)
         
     return catalog
     
@@ -558,7 +651,7 @@ def ATLASDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
-def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
+def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
     """Retrieves PS1 photometry at the given position.
         
     """
@@ -580,7 +673,7 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
     
     if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
         print("... fetching from the internet ...")
-        minDet=1
+        minDet=20   # Number of detections has a BIG effect seemingly?
         r=requests.get('https://archive.stsci.edu/panstarrs/search.php', 
                         params= {'RA': RADeg, 'DEC': decDeg, 
                                  'SR': halfBoxSizeDeg, 'max_records': 30000, 
@@ -599,9 +692,6 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
         EBMinusV=getEBMinusV(RADeg, decDeg, optionsDict = optionsDict) # assume same across field
         catalog=[]
         idCount=0
-        # As per this page, use (rmeanpsfmag - rmeankronmag) >= 0.5 to remove stars
-        # https://confluence.stsci.edu/display/PANSTARRS/PS1+Sample+queries#PS1Samplequeries-GalaxyCandidatesforK2C14SNSearch
-        #tab=tab[np.where(tab['rMeanPSFMag']-tab['rMeanKronMag'] >= 0.5)]
         for row in tab:
             idCount=idCount+1
             photDict={}
@@ -612,47 +702,59 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
             photDict['r']=row['rMeanKronMag']
             photDict['i']=row['iMeanKronMag']
             photDict['z']=row['zMeanKronMag']
-            photDict['Y']=row['yMeanKronMag']
+            photDict['y']=row['yMeanKronMag']
             photDict['gErr']=row['gMeanKronMagErr']
             photDict['rErr']=row['rMeanKronMagErr']
             photDict['iErr']=row['iMeanKronMagErr']
             photDict['zErr']=row['zMeanKronMagErr']
-            photDict['YErr']=row['yMeanKronMagErr']
-            #photDict['g']=row['gMeanApMag']
-            #photDict['r']=row['rMeanApMag']
-            #photDict['i']=row['iMeanApMag']
-            #photDict['z']=row['zMeanApMag']
-            #photDict['Y']=row['yMeanApMag']
-            #photDict['gErr']=row['gMeanApMagErr']
-            #photDict['rErr']=row['rMeanApMagErr']
-            #photDict['iErr']=row['iMeanApMagErr']
-            #photDict['zErr']=row['zMeanApMagErr']
-            #photDict['YErr']=row['yMeanApMagErr']
+            #photDict['yErr']=row['yMeanKronMagErr']
             
+            # Apply star-galaxy separation here - using polynomial fit/tests from Farrow et al. 2013 (98 per cent complete)
+            #a0=-0.192
+            #a1=0.120
+            #a2=0.018
+            #thresh=a0+a1*(row['rMeanKronMag']-21)+a2*(row['rMeanKronMag']-21)**2
+            #if row['rMeanKronMag']-row['rMeanPSFMag'] > thresh:
+                #continue   # reject this as a star
+
             # Correct for dust extinction
             # Taken from: http://www.mso.anu.edu.au/~brad/filters.html
             photDict['g']=photDict['g']-EBMinusV*3.322
             photDict['r']=photDict['r']-EBMinusV*2.544 
             photDict['i']=photDict['i']-EBMinusV*2.265 
             photDict['z']=photDict['z']-EBMinusV*1.846 
-            photDict['Y']=photDict['Y']-EBMinusV*1.570 
+            #photDict['y']=photDict['y']-EBMinusV*1.570 
 
             # Apply mag error cuts if given
             # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
             # We're just making the mag unconstrained here (missing data), rather than applying a limit
             # If we don't have a minimum of three useful bands, reject
             if 'maxMagError' in list(optionsDict.keys()):
-                keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['g', 'r', 'i', 'z'])
+                keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['g', 'r', 'i', 'z'], minBands = 4)
             else:
                 keep=True
+
+            # Additional PS1 quality cuts
+            # For qualityFlag, see: https://outerspace.stsci.edu/display/PANSTARRS/PS1+Object+Flags
+            # Here we also have a cut to select galaxies...
+            # ...as seen on PS1 web pages: https://outerspace.stsci.edu/display/PANSTARRS/How+to+separate+stars+and+galaxies
+            if keep == True and row['qualityFlag'] < 64:
+                if row['iMeanPSFMag']-row['iMeanKronMag'] > 0.05 or row['iMeanKronMag'] > 21:
+                    keep=True
+                else:
+                    keep=False
+            else:
+                keep=False
             
-            # Additional PS1 quality cut
-            # NOTE: this does not help (makes scatter worse actually)
-            #if keep == True and row['gQfPerfect'] > 0.9 and row['rQfPerfect'] > 0.9 and row['iQfPerfect'] > 0.9 and row['gQfPerfect'] > 0.9:
+            # Additional colour cuts (as used in some DES papers - see e.g., splashback draft)
+            #gr=photDict['g']-photDict['r']
+            #ri=photDict['r']-photDict['i']
+            #iz=photDict['i']-photDict['z']
+            #if keep == True and -1 < gr < 3 and -1 < ri < 2.5 and -1 < iz < 2:
                 #keep=True
             #else:
                 #keep=False
-            
+                    
             if keep == True:
                 catalog.append(photDict)
         
@@ -1112,7 +1214,7 @@ def getEBMinusV(RADeg, decDeg, optionsDict = {}):
         
     fileName=cacheDir+os.path.sep+"SchlegelIRSA_%.6f_%.6f.xml" % (RADeg, decDeg)
     if os.path.exists(fileName) == False:
-        url="http://irsa.ipac.caltech.edu/cgi-bin/DUST/nph-dust?locstr="+str(RADeg)+"%20"+str(decDeg)+"%20Equ%20J2000"
+        url="http://irsa.ipac.caltech.edu/cgi-bin/DUST/nph-dust?locstr="+str(RADeg)+"+"+str(decDeg)+"+equ+J2000"
         urllib.request.urlretrieve(url, filename = fileName)
     
     inFile=open(fileName, "r")
@@ -1121,7 +1223,10 @@ def getEBMinusV(RADeg, decDeg, optionsDict = {}):
     for i in range(len(lines)):
         if lines[i].find("refPixelValueSFD") != -1:
             break
-    EBMinusV=float(lines[i+1].split(" (")[0])
+    try:
+        EBMinusV=float(lines[i+1].split(" (")[0])
+    except:
+        raise Exception("failed to parse IRSA E(B-V) value - problem with file %s?" % (fileName))
 
     return EBMinusV
 

@@ -49,7 +49,7 @@ def catalog2DS9(catalog, outFileName, constraintsList = [], addInfo = [], idKeyT
     # Cut catalog according to constraints
     cutCatalog=selectFromCatalog(catalog, constraintsList) 
     
-    outFile=file(outFileName, "w")
+    outFile=open(outFileName, "w")
     timeStamp=datetime.datetime.today().date().isoformat()
     comment="# DS9 region file\n"
     outFile.write(comment)
@@ -109,7 +109,7 @@ def writeCatalog(catalog, outFileName, keysToWrite, keyFormats, constraintsList,
     # Cut catalog according to constraints
     cutCatalog=selectFromCatalog(catalog, constraintsList)                                           
     
-    outFile=file(outFileName, "w")
+    outFile=open(outFileName, "w")
     
     # Add meta data
     timeStamp=datetime.datetime.today().date().isoformat()
@@ -225,7 +225,7 @@ def parseNEDResult(inFileName, onlyObjTypes = None):
     """
     
     if inFileName != None and os.path.exists(inFileName):
-        inFile=file(inFileName, "r")
+        inFile=open(inFileName, "r")
         lines=inFile.readlines()
         inFile.close()
     else:
