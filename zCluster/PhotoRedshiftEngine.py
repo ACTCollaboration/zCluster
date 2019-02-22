@@ -66,12 +66,20 @@ class PhotoRedshiftEngine:
             self.bands=['g', 'r', 'i', 'z']
             for band in self.bands:
                 self.passbandsList.append(astSED.Passband(passbandsDir+band+"DES.res"))
-        elif passbandSet == 'DECaLS':
+        elif passbandSet == 'DES+WISE':
             # NOTE: WISE passbands from here: http://wise2.ipac.caltech.edu/docs/release/allsky/expsup/sec4_4h.html
-            self.bands=['g', 'r', 'i', 'z', "w1", "w2"]
+            self.bands=['g', 'r', 'z', "w1", "w2"]
             for band in self.bands:
                 if band[0] != "w":
                     self.passbandsList.append(astSED.Passband(passbandsDir+band+"DES.res"))
+                else:
+                    self.passbandsList.append(astSED.Passband(passbandsDir+"RSR-%s.EE.txt" % (band.upper()), inputUnits = "microns"))
+        elif passbandSet == 'DECaLS':
+            # NOTE: WISE passbands from here: http://wise2.ipac.caltech.edu/docs/release/allsky/expsup/sec4_4h.html
+            self.bands=['g', 'r', 'z', "w1", "w2"]
+            for band in self.bands:
+                if band[0] != "w":
+                    self.passbandsList.append(astSED.Passband(passbandsDir+"decam.%s.am1p4.dat.txt" % (band)))
                 else:
                     self.passbandsList.append(astSED.Passband(passbandsDir+"RSR-%s.EE.txt" % (band.upper()), inputUnits = "microns"))
         else:

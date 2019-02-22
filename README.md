@@ -1,46 +1,50 @@
-# zCluster
-
-A code for measuring galaxy cluster photometric redshifts. For details of the algorithm, its
-performance, and the output of the code, refer to [Hilton et al. 2017](http://adsabs.harvard.edu/abs/2017arXiv170905600H).
-
-zCluster has built-in support for querying large photometric surveys - currently:
+zCluster is a code for measuring galaxy cluster photometric redshifts. For details of the algorithm, its
+performance, and the output of the code, refer to [Hilton et al. (2018)](http://adsabs.harvard.edu/abs/2017arXiv170905600H).
+It has built-in support for querying large photometric surveys - currently:
     
 * SDSS (DR7 - DR12)
 * SDSS Stripe 82 (from SDSS DR7)
 * CFHTLenS
-* PS1 (DR1; experimental!)
-* DECaLS (DR3; experimental!)
+* PS1 (DR1)
+* DECaLS (DR7)
+* DES (DR1 and Y3)
 
-The code has only been tested on SDSS, S82, and CFHTLenS 
-([see the paper](http://adsabs.harvard.edu/abs/2017arXiv170905600H)); PS1 and DECaLS are work in progress.
+The [published paper](http://adsabs.harvard.edu/abs/2017arXiv170905600H) shows results based on SDSS, S82, 
+and CFHTLenS only. The other surveys listed above are work in progress (so use with caution; PS1 in 
+particular is problematic).
 
-zCluster can also run on user supplied .fits table photometric catalogs, provided that they have columns
+zCluster can also run on user-supplied .fits table photometric catalogs, provided that they have columns
 named `ID`, `RADeg`, `decDeg`, and magnitude column names in the form `u_MAG_AUTO`, `u_MAGERR_AUTO` etc..
 
-## Software needed
+# Software needed
 
-zCluster itself is written in pure python (2.7.x). It requires the following additional python modules 
-(current versions used by the author are given in brackets, earlier and later versions also probably work):
+zCluster itself is written in pure Python (developed on Python 3.6; it may still run using Python 2.7 but 
+this is not supported). It requires the following additional Python modules (current versions used by the 
+author are given in brackets, earlier and later versions also probably work):
 
-* pyfits (3.4)
-* numpy (1.13.1)
-* scipy (0.17.0)
+* numpy (1.13.3)
+* scipy (0.19.1)
 * matplotlib (2.0.2)
-* astLib (0.9.2+ or git version: get it with `git clone http://git.code.sf.net/p/astlib/git astlib-git`)
-* astropy (1.1.1)
-* IPython (2.4.1)
+* astLib (0.10.2)
+* astropy (3.0.5)
+* IPython (7.2.0)
 
-IPython isn't really required, but is used for debugging. Note that astropy could be used to replace some
-of the other dependencies in future (e.g., pyfits).
+IPython isn't really required, but is used for debugging.
 
-There is also an optional dependency, if you want to run the code in parallel:
+To run on DES photometry, there is an additional dependency:
+
+* easyaccess (1.4.5)
+
+If you want to run the code in parallel, you will also need:
     
 * mpi4py (2.0.0)
 
 Note that if you want to run the code on a cluster, the bottleneck will be fetching the photometric catalogs
 over the internet. The MPI mode is still useful though on any machine with multiple cores.
 
-## Installation
+All of the dependencies can be installed using `pip`.
+
+# Installation
 
 As root:
     
@@ -54,14 +58,22 @@ Or, in your home directory:
 python setup.py install --prefix=$HOME/local
 ```
 
-Then add `$HOME/local/bin` to $PATH, and e.g., `$HOME/local/lib/python2.7/site-packages` to $PYTHONPATH.
+Then add `$HOME/local/bin` to $PATH, and e.g., `$HOME/local/lib/python3.6/site-packages` to $PYTHONPATH.
 
 ```
 export PATH=$HOME/local/bin:$PATH    
-export PYTHONPATH=$HOME/local/lib/python2.7/site-packages:$PYTHONPATH
+export PYTHONPATH=$HOME/local/lib/python3.6/site-packages:$PYTHONPATH
 ```
 
-## Running zCluster
+Alternatively, 
+
+```
+python setup.py install --user
+```
+
+will install `zCluster` under `$HOME/.local` (on Ubuntu), and in some other default location on Mac.
+
+# Running zCluster
 
 See the `examples/` dir. Here you will find two cluster catalog files (in .csv format rather than .fits),
 `400SDAll.csv` and `400SDSmall.csv`. The latter contains just the first 20 rows of the former, and is enough
@@ -84,7 +96,7 @@ outputting relevant statistics to the console.
 
 You can find out about other options for both codes using the `-h` flag.
 
-## Comments, bug reports, help, suggestions etc..
+# Comments, bug reports, help, suggestions etc..
 
 Please contact Matt Hilton <matt.hilton@mykolab.com>.
 

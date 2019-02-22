@@ -157,7 +157,10 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
-                
+    
+    if os.path.exists(cacheDir) == False:
+        os.makedirs(cacheDir)
+        
     url = 'http://cas.sdss.org/stripe82/en/tools/search/x_sql.asp'
             
     outFileName=cacheDir+os.path.sep+"S82_%.4f_%.4f_%.4f_%s.csv" % (RADeg, decDeg, halfBoxSizeDeg, tableName)
@@ -226,6 +229,7 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
                 time.sleep(30)
             
         lines=response.read()
+        lines=lines.decode()
         lines=lines.split("\n")
 
         outFile=open(outFileName, "w")
@@ -326,6 +330,16 @@ def DESY3Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
     return DESRetriever(RADeg, decDeg, DR = 'Y3', halfBoxSizeDeg = halfBoxSizeDeg, optionsDict = optionsDict)
 
 #-------------------------------------------------------------------------------------------------------------
+def DESY3WISERetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
+    """Retrieves DES Y3 photometry joined to AllWISE at the given position. This assumes you have easyaccess 
+    installed (https://pypi.python.org/pypi/easyaccess/1.0.7) and access rights for the non-public tables
+    in the DES Oracle database.
+    
+    """
+    
+    return DESRetriever(RADeg, decDeg, DR = 'Y3+WISE', halfBoxSizeDeg = halfBoxSizeDeg, optionsDict = optionsDict)
+
+#-------------------------------------------------------------------------------------------------------------
 def DESDR1Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
     """Retrieves DES DR1 photometry at the given position. This assumes you have easyaccess installed
     (https://pypi.python.org/pypi/easyaccess/1.0.7) and have registered for a login to access the DES
@@ -365,7 +379,7 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
     outFileName=cacheDir+os.path.sep+"DES%s_%.4f_%.4f_%.4f.csv" % (DR, RADeg, decDeg, halfBoxSizeDeg)      
 
     # This bit has to be outside, in case we load data from cache
-    if DR == 'Y3':
+    if DR == 'Y3' or DR == 'Y3+WISE':
         magKey="SOF_CM_MAG_CORRECTED_$BAND"
         magErrKey="SOF_CM_MAG_ERR_$BAND"
     elif DR == 'DR1':
@@ -383,6 +397,8 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
             query="SELECT COADD_OBJECT_ID, RA, DEC, DNF_ZMC_SOF, BPZ_ZMC_SOF, SOF_CM_MAG_CORRECTED_G, SOF_CM_MAG_CORRECTED_R, SOF_CM_MAG_CORRECTED_I, SOF_CM_MAG_CORRECTED_Z, SOF_CM_MAG_ERR_G, SOF_CM_MAG_ERR_R, SOF_CM_MAG_ERR_I, SOF_CM_MAG_ERR_Z FROM Y3_GOLD_2_2 WHERE FLAGS_FOOTPRINT = 1 and FLAGS_FOREGROUND = 0 and bitand(FLAGS_GOLD, 62) = 0 and EXTENDED_CLASS_MASH_SOF = 3 and SOF_CM_MAG_I between 16 and 24 AND RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
         elif DR == 'DR1':
             query="SELECT RA, DEC, MAG_AUTO_G_DERED, MAG_AUTO_R_DERED, MAG_AUTO_I_DERED, MAG_AUTO_Z_DERED, MAGERR_AUTO_G, MAGERR_AUTO_R, MAGERR_AUTO_I, MAGERR_AUTO_Z FROM DR1_MAIN WHERE WAVG_SPREAD_MODEL_I + 3.0*WAVG_SPREADERR_MODEL_I > 0.005 and WAVG_SPREAD_MODEL_I + 1.0*WAVG_SPREADERR_MODEL_I > 0.003 and WAVG_SPREAD_MODEL_I - 1.0*WAVG_SPREADERR_MODEL_I > 0.001 and WAVG_SPREAD_MODEL_I > -1 and IMAFLAGS_ISO_I = 0 and MAG_AUTO_I < 24 and RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
+        elif DR == 'Y3+WISE':
+            query="SELECT D.COADD_OBJECT_ID, D.RA, D.DEC, DNF_ZMC_SOF, BPZ_ZMC_SOF, SOF_CM_MAG_CORRECTED_G, SOF_CM_MAG_CORRECTED_R, SOF_CM_MAG_CORRECTED_I, SOF_CM_MAG_CORRECTED_Z, SOF_CM_MAG_ERR_G, SOF_CM_MAG_ERR_R, SOF_CM_MAG_ERR_I, SOF_CM_MAG_ERR_Z, W1MPRO, W1SIGMPRO, W2MPRO, W2SIGMPRO FROM Y3_GOLD_2_2 D LEFT OUTER JOIN DES_ADMIN.Y3A2_WISE_DES W ON D.COADD_OBJECT_ID = W.COADD_OBJECT_ID WHERE FLAGS_FOOTPRINT = 1 and FLAGS_FOREGROUND = 0 and bitand(FLAGS_GOLD, 62) = 0 and EXTENDED_CLASS_MASH_SOF = 3 and SOF_CM_MAG_I between 16 and 24 AND D.RA BETWEEN %.6f AND %.6f AND D.DEC BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
         else:
             raise Exception("didn't recognise requested DES DR")
         
@@ -421,6 +437,25 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
             photDict['rErr']=row[magErrKey.replace("$BAND", "R")]
             photDict['iErr']=row[magErrKey.replace("$BAND", "I")]
             photDict['zErr']=row[magErrKey.replace("$BAND", "Z")]
+            if DR.find("+WISE") != -1:
+                # Convert to AB mags and handle missing values
+                if row['W1MPRO'] < 0:
+                    w1Mag=99.0
+                    w1MagErr=99.0
+                else:
+                    w1Mag=row['W1MPRO']+2.699
+                    w1MagErr=row['W1SIGMPRO']
+                if row['W2MPRO'] < 0:
+                    w2Mag=99.0
+                    w2MagErr=99.0
+                else:
+                    w2Mag=row['W2MPRO']+3.339
+                    w2MagErr=row['W2SIGMPRO']
+                photDict['w1']=w1Mag
+                photDict['w1Err']=w1MagErr
+                photDict['w2']=w2Mag
+                photDict['w2Err']=w2MagErr
+            
             # Apply mag error cuts if given
             # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
             # We're just making the mag unconstrained here (missing data), rather than applying a limit
@@ -442,8 +477,8 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
             if keep == True:
                 catalog.append(photDict)
     
-    if 'addWISE' in optionsDict.keys() and optionsDict['addWISE'] == True:
-        catalog=addWISEPhotometry(RADeg, decDeg, catalog, halfBoxSizeDeg = halfBoxSizeDeg)
+    #if 'addWISE' in optionsDict.keys() and optionsDict['addWISE'] == True:
+        #catalog=addWISEPhotometry(RADeg, decDeg, catalog, halfBoxSizeDeg = halfBoxSizeDeg)
         
     return catalog
     
@@ -692,6 +727,7 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
         EBMinusV=getEBMinusV(RADeg, decDeg, optionsDict = optionsDict) # assume same across field
         catalog=[]
         idCount=0
+
         for row in tab:
             idCount=idCount+1
             photDict={}
@@ -940,11 +976,8 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
 
 #-------------------------------------------------------------------------------------------------------------
 def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
-    """Retrieves DECaLS DR5 tractor catalogs (if they exist) at the given position
-    
-    NOTE: we're using some DR6 files here... but DR5 catalogs... it seems like DR6 is missing the actual 
-    DECaLS data?
-    
+    """Retrieves DECaLS DR7 tractor catalogs (if they exist) at the given position.
+
     """
 
     makeCacheDir()
@@ -958,15 +991,15 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
         os.makedirs(cacheDir)
 
     # Organised such that after this, have subdir with degrees RA (e.g. 000/ is 0 < RADeg < 1 degree)
-    basePath="http://portal.nersc.gov/project/cosmo/data/legacysurvey/dr5/tractor/"
+    basePath="http://portal.nersc.gov/project/cosmo/data/legacysurvey/dr7/tractor/"
 
-    outFileName=cacheDir+os.path.sep+"DECaLSDR5_%.4f_%.4f_%.2f.fits" % (RADeg, decDeg,
+    outFileName=cacheDir+os.path.sep+"DECaLSDR7_%.4f_%.4f_%.2f.fits" % (RADeg, decDeg,
                                                                             halfBoxSizeDeg)
     
     print("... getting DECaLS photometry (file: %s) ..." % (outFileName))
 
     bricksTab=optionsDict['bricksTab']
-    DR6Tab=optionsDict['DR6Tab']
+    DR7Tab=optionsDict['DR7Tab']
     
     if os.path.exists(outFileName) == False:
         
@@ -979,7 +1012,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
         count=0
         tractorTabs=[]
         cacheFileNames=[]
-        matchTab=atpy.join(matchTab, DR6Tab, keys = 'BRICKNAME')
+        matchTab=atpy.join(matchTab, DR7Tab, keys = 'BRICKNAME')
         for mrow in matchTab:
             print("... retrieving tractor catalog from web ...")
             url=basePath+"%03d" % np.floor(mrow['RA'])
@@ -1013,7 +1046,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
         # Convert nanomaggies to mags and do extinction correction
         bricksInTab=np.unique(tab['brickname'])
         for brickName in bricksInTab:
-            brickExtTab=DR6Tab[np.where(DR6Tab['BRICKNAME'] == brickName)]
+            brickExtTab=DR7Tab[np.where(DR7Tab['BRICKNAME'] == brickName)]
             brickIndices=np.where(tab['brickname'] == brickName)
             brickMask=np.zeros(len(tab), dtype = bool)
             brickMask[brickIndices]=True
@@ -1025,15 +1058,18 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
                 for col in colsToAdd:
                     if col not in list(tab.keys()):
                         tab.add_column(atpy.Column(np.ones(len(tab))*99., col))
-                nanoMaggies=np.array(tab['flux_%s' % (b)])
+                # Dust correction: correct flux upwards using mw_transmission (0-1)
+                # Instead of using extinction mags below (seems to make no difference)
+                nanoMaggies=np.array(tab['flux_%s' % (b)] / tab['mw_transmission_%s' % (b)])
                 validMask=np.greater(nanoMaggies, 0.)
                 mask=np.logical_and(brickMask, validMask)
                 tab[magLabel][mask]=-2.5*np.log10(nanoMaggies[mask])+22.5
                 validFluxErr=np.sqrt(1./tab['flux_ivar_%s' % (b)][mask])
                 tab[magErrLabel][mask]=1./(nanoMaggies[mask]/validFluxErr)
-                if extKey in list(brickExtTab.keys()):
-                    dustCorrMag=brickExtTab[extKey][0]
-                    tab[magLabel][mask]=tab[magLabel][mask]-dustCorrMag
+                # Old...
+                #if extKey in list(brickExtTab.keys()):
+                    #dustCorrMag=brickExtTab[extKey][0]
+                    #tab[magLabel][mask]=tab[magLabel][mask]-dustCorrMag
         
         catalog=[]
         for row in tab: 

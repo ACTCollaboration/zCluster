@@ -153,7 +153,8 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
     
 #-------------------------------------------------------------------------------------------------------------
 def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weightsType, maxRMpc, 
-                            zMethod, sanityCheckRadiusArcmin = 1.0, bckCatalog = [], bckAreaDeg2 = None):
+                            zMethod, sanityCheckRadiusArcmin = 1.0, bckCatalog = [], bckAreaDeg2 = None,
+                            zDebias = None):
     """This does the actual work of estimating cluster photo-z from catalog.
     
     Assumes each object has keys 'pz' (p(z), probability distribution), 'pz_z' (corresponding redshifts at 
@@ -161,6 +162,12 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     
     If bckCatalog and bckAreaDeg2 are given, then these are used for the background estimation. If not, then
     a projected 3-4 Mpc annulus is used.
+    
+    If zDebias is not None, the final output redshift ('z') will be:
+        
+        z_final = z_initial + zDebias*(1+z_initial) 
+    
+    This is obviously a fudge, so use with caution (only used for some surveys - see bin/zCluster).
             
     """
     
@@ -214,7 +221,11 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
                      bckNzDict['NzWeightedSum'][zIndex]/bckNzDict['NzWeightedSum'][zIndex]**2)*delta
     if np.isnan(errDelta) == True:
         errDelta=0
-            
+    
+    # Optional: de-bias right here (use with caution)
+    if zDebias != None:
+        z=z+zDebias*(1+z)
+    
     print("... zCluster = %.2f, delta = %.1f, errDelta = %.1f (RADeg = %.6f, decDeg = %.6f) ..." % (z, delta, errDelta, RADeg, decDeg))
 
     return {'z': z, 'pz': pzWeightedMean, 'zOdds': zOdds, 'pz_z': zArray, 'delta': delta, 'errDelta': errDelta}

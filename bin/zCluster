@@ -35,6 +35,7 @@ from astLib import *
 from scipy import interpolate
 import astropy.table as atpy
 import datetime
+import urllib.request
 #import multiprocessing as mp
 import IPython
 plt.matplotlib.interactive(False)
@@ -176,7 +177,7 @@ def writeRedshiftsCatalog(catalog, outFileName):
 #-------------------------------------------------------------------------------------------------------------
 def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir, zPriorMin,
                  zPriorMax, weightsType, maxRMpc, zMethod, bckCatalogFileName, bckAreaDeg2,
-                 writeGalaxyCatalogs = False, writePlots = False, rank = 0):
+                 writeGalaxyCatalogs = False, writePlots = False, rank = 0, zDebias = None):
     """Runs zCluster algorithm on each object in catalog.
     
     """
@@ -231,7 +232,8 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                     
                 obj['zClusterResult']=clusterFinding.estimateClusterRedshift(obj['RADeg'], obj['decDeg'], galaxyCatalog, zPriorMin, 
                                                                              zPriorMax, weightsType, maxRMpc, zMethod, 
-                                                                             bckCatalog = bckCatalog, bckAreaDeg2 = bckAreaDeg2)
+                                                                             bckCatalog = bckCatalog, bckAreaDeg2 = bckAreaDeg2,
+                                                                             zDebias = zDebias)
 
                 # Write out galaxy catalog with photo-zs in both FITS and DS9 .reg format
                 if writeGalaxyCatalogs == True:
@@ -445,6 +447,7 @@ if __name__ == '__main__':
     # Can be overridden with args.zPriorMin, args.zPriorMax... see below
     retrieverOptions={}
     passbandSet='SDSS+Ks'
+    zDebias=None    # A fudge used to correct output zs for some surveys (final z = z + zDebias*(1+z))
     if database == 'S82':
         retriever=catalogRetriever.S82Retriever
         zPriorMin=0.20
@@ -480,11 +483,11 @@ if __name__ == '__main__':
     elif database == 'DESY3+WISE':
         import easyaccess as ea
         connection=ea.connect()
-        retriever=catalogRetriever.DESY3Retriever
+        retriever=catalogRetriever.DESY3WISERetriever
         zPriorMin=0.05
         zPriorMax=1.5
-        passbandSet='DECaLS'
-        retrieverOptions={'maxMagError': maxMagError, 'connection': connection, 'addWISE': True}
+        passbandSet='DES+WISE'
+        retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
     elif database == 'DESDR1':
         import easyaccess as ea
         connection=ea.connect()
@@ -493,7 +496,7 @@ if __name__ == '__main__':
         zPriorMax=1.5
         passbandSet='DES'
         retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
-    elif database == 'KIDSDR3':
+    elif database == 'KiDSDR3':
         # ESO requires log-in to access public data - do once
         if args.credentialsFileName == None:
             raise Exception("need to use -C option to point to file containing ESO Portal login credentials")
@@ -539,14 +542,27 @@ if __name__ == '__main__':
         zPriorMax=1.5
         retrieverOptions={'maxMagError': maxMagError}
     elif database == 'DECaLS':
-        bricksTab=atpy.Table().read(zCluster.__path__[0]+os.path.sep+"data"+os.path.sep+"survey-bricks.fits.gz")
-        DR6Tab=atpy.Table().read(zCluster.__path__[0]+os.path.sep+"data"+os.path.sep+"survey-bricks-dr6.fits.gz")
-        DR6Tab.rename_column("brickname", "BRICKNAME")
+        # For DECaLS, need the bricks files that define survey on the sky
+        # These were previously included in zCluster, but now we fetch over web and cache
+        bricksCacheDir=catalogRetriever.CACHE_DIR
+        catalogRetriever.makeCacheDir()
+        bricksPath=bricksCacheDir+os.path.sep+"survey-bricks.fits.gz"
+        if os.path.exists(bricksPath) == False:
+            print("... fetching and caching DECaLS survey-bricks.fits.gz ...")
+            urllib.request.urlretrieve("http://portal.nersc.gov/project/cosmo/data/legacysurvey/dr7/survey-bricks.fits.gz", bricksPath)
+        bricksDR7Path=bricksCacheDir+os.path.sep+"survey-bricks-dr7.fits.gz"
+        if os.path.exists(bricksDR7Path) == False:
+            print("... fetching and caching DECaLS survey-bricks-dr7.fits.gz ...")
+            urllib.request.urlretrieve("http://portal.nersc.gov/project/cosmo/data/legacysurvey/dr7/survey-bricks-dr7.fits.gz", bricksDR7Path)
+        bricksTab=atpy.Table().read(bricksPath)
+        DR7Tab=atpy.Table().read(bricksDR7Path)
+        DR7Tab.rename_column("brickname", "BRICKNAME")
         retriever=catalogRetriever.DECaLSRetriever
         zPriorMin=0.05
         zPriorMax=1.5
         passbandSet='DECaLS'
-        retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab, 'DR6Tab': DR6Tab}
+        zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
+        retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab, 'DR7Tab': DR7Tab}
     elif database == 'CFHTDeep':
         retriever=catalogRetriever.CFHTDeepRetriever
     elif database == 'CFHTWide':
@@ -649,7 +665,8 @@ if __name__ == '__main__':
 
     catalog=runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir,
                          zPriorMin, zPriorMax, weightsType, maxRMpc, method, bckCatalogFileName, bckAreaDeg2,
-                         writeGalaxyCatalogs = writeGalaxyCatalogs, writePlots = writePlots, rank = rank)
+                         writeGalaxyCatalogs = writeGalaxyCatalogs, writePlots = writePlots, rank = rank,
+                         zDebias = zDebias)
     
     # If running under MPI, gather everything back together
     # Rank 0 process will continue with plots
