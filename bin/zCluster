@@ -480,6 +480,7 @@ if __name__ == '__main__':
         zPriorMax=1.5
         passbandSet='DES'
         retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
+        zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
     elif database == 'DESY3+WISE':
         import easyaccess as ea
         connection=ea.connect()
@@ -488,6 +489,7 @@ if __name__ == '__main__':
         zPriorMax=1.5
         passbandSet='DES+WISE'
         retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
+        zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
     elif database == 'DESDR1':
         import easyaccess as ea
         connection=ea.connect()
