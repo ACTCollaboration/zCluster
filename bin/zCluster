@@ -657,13 +657,20 @@ if __name__ == '__main__':
             raise Exception("didn't find %s in input catalog" % (args.name))
 
     if MPIEnabled == True:
-        objsPerNode=int(len(catalog)/size)
-        startIndex=objsPerNode*rank
-        if rank == size-1:
-            endIndex=len(catalog)
+        # New - bit clunky but distributes more evenly
+        rankCatalogs={}
+        rankCounter=0
+        for objDict in catalog:
+            if rankCounter not in rankCatalogs:
+                rankCatalogs[rankCounter]=[]
+            rankCatalogs[rankCounter].append(objDict)
+            rankCounter=rankCounter+1
+            if rankCounter > size-1:
+                rankCounter=0
+        if rank in rankCatalogs.keys():
+            catalog=rankCatalogs[rank]
         else:
-            endIndex=objsPerNode*(rank+1)
-        catalog=catalog[startIndex:endIndex]
+            catalog=[]
 
     catalog=runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir,
                          zPriorMin, zPriorMax, weightsType, maxRMpc, method, bckCatalogFileName, bckAreaDeg2,
