@@ -8,6 +8,7 @@ It has built-in support for querying large photometric surveys - currently:
 * PS1 (DR1)
 * DECaLS (DR7)
 * DES (DR1 and Y3)
+* KiDS (DR4)
 
 The [published paper](http://adsabs.harvard.edu/abs/2017arXiv170905600H) shows results based on SDSS, S82, 
 and CFHTLenS only. The other surveys listed above are work in progress (so use with caution; PS1 in 

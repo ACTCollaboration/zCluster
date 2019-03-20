@@ -58,6 +58,14 @@ class PhotoRedshiftEngine:
                     self.passbandsList.append(astSED.Passband(passbandsDir+"K_2MASS.res"))
                 else:
                     self.passbandsList.append(astSED.Passband(passbandsDir+band+"_SDSS.res"))
+        if passbandSet == 'KiDS-VIKING':
+            self.bands=['u', 'g', 'r', 'i', 'z', 'J', 'H', 'Ks']
+            for band in self.bands:
+                if band in ['J', 'H', 'Ks']:
+                    self.passbandsList.append(astSED.Passband(passbandsDir+"VISTA_Filters_at80K_forETC_%s.dat" % (band), 
+                                                              inputUnits = 'nanometres'))
+                else:
+                    self.passbandsList.append(astSED.Passband(passbandsDir+band+"_SDSS.res"))
         elif passbandSet == 'PS1':
             self.bands=['g', 'r', 'i', 'z']#, 'y']
             for band in self.bands:
