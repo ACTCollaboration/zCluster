@@ -512,7 +512,7 @@ def KiDSDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}
     if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
         print("... downloading catalog %s ..." % (outFileName))
-        query="select id, RAJ2000, DECJ2000, MAG_GAAP_u, MAG_GAAP_g, MAG_GAAP_r, MAG_GAAP_i, MAG_GAAP_J, MAG_GAAP_H, MAG_GAAP_Ks, MAGERR_GAAP_u, MAGERR_GAAP_g, MAGERR_GAAP_r, MAGERR_GAAP_i, MAGERR_GAAP_J, MAGERR_GAAP_H, MAGERR_GAAP_Ks, SG2DPHOT from KiDS_DR4_0_ugriZYJHKs_cat_fits_V3 where RAJ2000 BETWEEN %.6f AND %.6f AND DECJ2000 BETWEEN %.6f and %.6f and SG2DPHOT = 0;" % (RAMin, RAMax, decMin, decMax)        
+        query="select id, RAJ2000, DECJ2000, MAG_GAAP_u, MAG_GAAP_g, MAG_GAAP_r, MAG_GAAP_i, MAG_GAAP_Z, MAG_GAAP_Y, MAG_GAAP_J, MAG_GAAP_H, MAG_GAAP_Ks, MAGERR_GAAP_u, MAGERR_GAAP_g, MAGERR_GAAP_r, MAGERR_GAAP_i, MAGERR_GAAP_Z, MAGERR_GAAP_Y, MAGERR_GAAP_J, MAGERR_GAAP_H, MAGERR_GAAP_Ks, SG2DPHOT from KiDS_DR4_0_ugriZYJHKs_cat_fits_V3 where RAJ2000 BETWEEN %.6f AND %.6f AND DECJ2000 BETWEEN %.6f and %.6f and SG2DPHOT = 0;" % (RAMin, RAMax, decMin, decMax)        
         r=requests.get('http://archive.eso.org/tap_cat/sync?', 
                         params = {'REQUEST': 'doQuery',
                                   'LANG': 'ADQL',
@@ -536,7 +536,7 @@ def KiDSDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}
     magErrKey="MAGERR_GAAP_$BAND"
     
     # First, get rid of nans or nonsensical values
-    bands=['u', 'g', 'r', 'i', 'J', 'H', 'Ks']
+    bands=['u', 'g', 'r', 'i', 'Z', 'Y', 'J', 'H', 'Ks']
     for b in bands:
         #tab=tab[np.where(np.isnan(tab[magKey.replace("$BAND", b)]) == False)]
         #tab=tab[np.where(np.isnan(tab[magErrKey.replace("$BAND", b)]) == False)]
@@ -557,10 +557,20 @@ def KiDSDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}
         photDict['g']=row[magKey.replace("$BAND", "g")]#-row['EXT_SFD_G']
         photDict['r']=row[magKey.replace("$BAND", "r")]#-row['EXT_SFD_R']
         photDict['i']=row[magKey.replace("$BAND", "i")]#-row['EXT_SFD_I']
+        photDict['Z']=row[magKey.replace("$BAND", "Z")]#-row['EXT_SFD_U']
+        photDict['Y']=row[magKey.replace("$BAND", "Y")]#-row['EXT_SFD_G']
+        photDict['J']=row[magKey.replace("$BAND", "J")]#-row['EXT_SFD_R']
+        photDict['H']=row[magKey.replace("$BAND", "H")]#-row['EXT_SFD_I']
+        photDict['Ks']=row[magKey.replace("$BAND", "Ks")]#-row['EXT_SFD_I']
         photDict['uErr']=row[magErrKey.replace("$BAND", "u")]
         photDict['gErr']=row[magErrKey.replace("$BAND", "g")]
         photDict['rErr']=row[magErrKey.replace("$BAND", "r")]
         photDict['iErr']=row[magErrKey.replace("$BAND", "i")]
+        photDict['ZErr']=row[magErrKey.replace("$BAND", "Z")]
+        photDict['YErr']=row[magErrKey.replace("$BAND", "Y")]
+        photDict['JErr']=row[magErrKey.replace("$BAND", "J")]
+        photDict['HErr']=row[magErrKey.replace("$BAND", "H")]
+        photDict['KsErr']=row[magErrKey.replace("$BAND", "Ks")]
         if 'maxMagError' in list(optionsDict.keys()):
             keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['u', 'g', 'r', 'i'])
         else:

@@ -442,7 +442,13 @@ if __name__ == '__main__':
             raise Exception("if you want to use MPI, run with mpirun --np 4 zCluster ...")
     else:
         rank=0
-                       
+
+    if rank == 0:
+        if cacheDir is not None:
+            os.makedirs(cacheDir)
+        else:
+            os.makedirs(catalogRetriever.CACHE_DIR)
+                    
     # Default prior cuts are defined for each database here... 
     # Can be overridden with args.zPriorMin, args.zPriorMax... see below
     retrieverOptions={}
