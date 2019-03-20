@@ -445,9 +445,11 @@ if __name__ == '__main__':
 
     if rank == 0:
         if cacheDir is not None:
-            os.makedirs(cacheDir)
+            if os.path.exists(cacheDir) == False:
+                os.makedirs(cacheDir)
         else:
-            os.makedirs(catalogRetriever.CACHE_DIR)
+            if os.path.exists(catalogRetriever.CACHE_DIR) == False:
+                os.makedirs(catalogRetriever.CACHE_DIR)
                     
     # Default prior cuts are defined for each database here... 
     # Can be overridden with args.zPriorMin, args.zPriorMax... see below
