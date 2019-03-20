@@ -58,7 +58,7 @@ class PhotoRedshiftEngine:
                     self.passbandsList.append(astSED.Passband(passbandsDir+"K_2MASS.res"))
                 else:
                     self.passbandsList.append(astSED.Passband(passbandsDir+band+"_SDSS.res"))
-        if passbandSet == 'KiDS-VIKING':
+        elif passbandSet == 'KiDS-VIKING':
             self.bands=['u', 'g', 'r', 'i', 'Z', 'Y', 'J', 'H', 'Ks']
             for band in self.bands:
                 if band in ['Z', 'Y', 'J', 'H', 'Ks']:
