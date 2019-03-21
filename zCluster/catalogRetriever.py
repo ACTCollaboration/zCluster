@@ -37,6 +37,8 @@ import numpy as np
 from astLib import *
 import astropy.table as atpy
 import astropy.io.fits as pyfits
+import astropy.io.ascii as pyascii
+import re
 import urllib.request, urllib.parse, urllib.error
 import urllib.request, urllib.error, urllib.parse
 import pylab
@@ -683,11 +685,32 @@ def ATLASDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
         
     return catalog
 
+#------------------------------------------------------------------------------------------------------------
+def fixcolnames(tab):
+    """Fix column names returned by the casjobs query. Needed by PS1Retriever.
+    
+    Parameters
+    ----------
+    tab (astropy.table.Table): Input table
+
+    Returns reference to original table with column names modified"""
+
+    pat = re.compile(r'\[(?P<name>[^[]+)\]')
+    for c in tab.colnames:
+        m = pat.match(c)
+        if not m:
+            raise ValueError("Unable to parse column name '{}'".format(c))
+        newname = m.group('name')
+        tab.rename_column(c,newname)
+    return tab
+
 #-------------------------------------------------------------------------------------------------------------
 def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
     """Retrieves PS1 photometry at the given position.
         
     """
+    
+    import mastcasjobs
 
     if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
@@ -697,7 +720,7 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
     if os.path.exists(cacheDir) == False:
         os.makedirs(cacheDir)
 
-    outFileName=cacheDir+os.path.sep+"PS1_%.4f_%.4f_%.4f.xml" % (RADeg, decDeg, halfBoxSizeDeg)      
+    outFileName=cacheDir+os.path.sep+"PS1_%.4f_%.4f_%.4f.fits" % (RADeg, decDeg, halfBoxSizeDeg)      
     print("... getting PS1 photometry (file: %s) ..." % (outFileName))
 
     if decDeg < -30:
@@ -706,18 +729,19 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
     
     if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
         print("... fetching from the internet ...")
-        minDet=20   # Number of detections has a BIG effect seemingly?
-        r=requests.get('https://archive.stsci.edu/panstarrs/search.php', 
-                        params= {'RA': RADeg, 'DEC': decDeg, 
-                                 'SR': halfBoxSizeDeg, 'max_records': 30000, 
-                                 'outputformat': 'VOTable',
-                                 'ndetections': ('>%d' % minDet)}) 
-        outFile=open(outFileName, 'w') 
-        outFile.write(r.text) 
-        outFile.close()
-    
-    tab=parse_single_table(outFileName).to_table(use_names_over_ids = True)
-
+        query="""select o.objID, o.raMean, o.decMean,
+        m.gMeanKronMag, m.rMeanKronMag, m.iMeanKronMag, m.zMeanKronMag, m.yMeanKronMag, m.gMeanKronMagErr, m.rMeanKronMagErr, m.iMeanKronMagErr, m.zMeanKronMagErr, m.yMeanKronMagErr
+        from fGetNearbyObjEq(%.6f, %.6f, %.6f) nb
+        inner join ObjectThin o on o.objid=nb.objid and o.nDetections > 3
+        inner join MeanObject m on o.objid=m.objid and o.uniquePspsOBid=m.uniquePspsOBid""" % (RADeg, decDeg, halfBoxSizeDeg*60)
+        jobs=optionsDict['jobs']
+        #jobs=mastcasjobs.MastCasJobs(context="PanSTARRS_DR2")
+        results=jobs.quick(query, task_name="python cone search")
+        tab=fixcolnames(pyascii.read(results))
+        tab.write(outFileName, overwrite = True)
+    else:
+        tab=atpy.Table().read(outFileName)
+        
     # Parse table into catalog
     if len(tab) == 0:
         catalog=None
@@ -725,31 +749,16 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
         EBMinusV=getEBMinusV(RADeg, decDeg, optionsDict = optionsDict) # assume same across field
         catalog=[]
         idCount=0
-
+        bands=['g', 'r', 'i', 'z', 'y']
         for row in tab:
             idCount=idCount+1
             photDict={}
             photDict['id']=idCount    # just so we have something - we could use PS1 ID but skipping for now
             photDict['RADeg']=row['raMean']
             photDict['decDeg']=row['decMean']
-            photDict['g']=row['gMeanKronMag']
-            photDict['r']=row['rMeanKronMag']
-            photDict['i']=row['iMeanKronMag']
-            photDict['z']=row['zMeanKronMag']
-            photDict['y']=row['yMeanKronMag']
-            photDict['gErr']=row['gMeanKronMagErr']
-            photDict['rErr']=row['rMeanKronMagErr']
-            photDict['iErr']=row['iMeanKronMagErr']
-            photDict['zErr']=row['zMeanKronMagErr']
-            #photDict['yErr']=row['yMeanKronMagErr']
-            
-            # Apply star-galaxy separation here - using polynomial fit/tests from Farrow et al. 2013 (98 per cent complete)
-            #a0=-0.192
-            #a1=0.120
-            #a2=0.018
-            #thresh=a0+a1*(row['rMeanKronMag']-21)+a2*(row['rMeanKronMag']-21)**2
-            #if row['rMeanKronMag']-row['rMeanPSFMag'] > thresh:
-                #continue   # reject this as a star
+            for b in bands:
+                photDict[b]=row['%sMeanKronMag' % (b)]
+                photDict['%sErr' % (b)]=row['%sMeanKronMagErr' %  (b)]
 
             # Correct for dust extinction
             # Taken from: http://www.mso.anu.edu.au/~brad/filters.html
@@ -757,7 +766,7 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
             photDict['r']=photDict['r']-EBMinusV*2.544 
             photDict['i']=photDict['i']-EBMinusV*2.265 
             photDict['z']=photDict['z']-EBMinusV*1.846 
-            #photDict['y']=photDict['y']-EBMinusV*1.570 
+            photDict['y']=photDict['y']-EBMinusV*1.570 
 
             # Apply mag error cuts if given
             # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
@@ -767,28 +776,7 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
                 keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['g', 'r', 'i', 'z'], minBands = 4)
             else:
                 keep=True
-
-            # Additional PS1 quality cuts
-            # For qualityFlag, see: https://outerspace.stsci.edu/display/PANSTARRS/PS1+Object+Flags
-            # Here we also have a cut to select galaxies...
-            # ...as seen on PS1 web pages: https://outerspace.stsci.edu/display/PANSTARRS/How+to+separate+stars+and+galaxies
-            if keep == True and row['qualityFlag'] < 64:
-                if row['iMeanPSFMag']-row['iMeanKronMag'] > 0.05 or row['iMeanKronMag'] > 21:
-                    keep=True
-                else:
-                    keep=False
-            else:
-                keep=False
-            
-            # Additional colour cuts (as used in some DES papers - see e.g., splashback draft)
-            #gr=photDict['g']-photDict['r']
-            #ri=photDict['r']-photDict['i']
-            #iz=photDict['i']-photDict['z']
-            #if keep == True and -1 < gr < 3 and -1 < ri < 2.5 and -1 < iz < 2:
-                #keep=True
-            #else:
-                #keep=False
-                    
+                
             if keep == True:
                 catalog.append(photDict)
         

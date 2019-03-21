@@ -473,12 +473,17 @@ if __name__ == '__main__':
         zPriorMax=0.8
         retrieverOptions={'maxMagError': maxMagError}
     elif database == 'PS1':
+        import mastcasjobs
+        if not os.environ.get('CASJOBS_WSID'):
+            raise Exception("Set CASJOBS_WSID environment variable to use PS1 (see: http://ps1images.stsci.edu/ps1_dr2_query.html - to get your WSID, go to http://mastweb.stsci.edu/ps1casjobs/ChangeDetails.aspx and check your 'profile' page)")
+        if not os.environ.get('CASJOBS_PW'):
+            raise Exception("Set CASJOBS_PW environment variable to use PS1 (see: http://ps1images.stsci.edu/ps1_dr2_query.html)")
         retriever=catalogRetriever.PS1Retriever
         # Min prior here set to match 4 Mpc max search radius
         zPriorMin=0.15
         zPriorMax=0.6
         passbandSet='PS1'
-        retrieverOptions={'maxMagError': maxMagError}
+        retrieverOptions={'maxMagError': maxMagError, 'jobs': mastcasjobs.MastCasJobs(context="PanSTARRS_DR2")}
     elif database == 'DESY3':
         import easyaccess as ea
         connection=ea.connect()
