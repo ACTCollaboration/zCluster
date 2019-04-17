@@ -403,7 +403,7 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
             query="SELECT D.COADD_OBJECT_ID, D.RA, D.DEC, DNF_ZMC_SOF, BPZ_ZMC_SOF, SOF_CM_MAG_CORRECTED_G, SOF_CM_MAG_CORRECTED_R, SOF_CM_MAG_CORRECTED_I, SOF_CM_MAG_CORRECTED_Z, SOF_CM_MAG_ERR_G, SOF_CM_MAG_ERR_R, SOF_CM_MAG_ERR_I, SOF_CM_MAG_ERR_Z, W1MPRO, W1SIGMPRO, W2MPRO, W2SIGMPRO FROM Y3_GOLD_2_2 D LEFT OUTER JOIN DES_ADMIN.Y3A2_WISE_DES W ON D.COADD_OBJECT_ID = W.COADD_OBJECT_ID WHERE FLAGS_FOOTPRINT = 1 and FLAGS_FOREGROUND = 0 and bitand(FLAGS_GOLD, 62) = 0 and EXTENDED_CLASS_MASH_SOF = 3 and SOF_CM_MAG_I between 16 and 24 AND D.RA BETWEEN %.6f AND %.6f AND D.DEC BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
         else:
             raise Exception("didn't recognise requested DES DR")
-        
+
         # This should restart the connection if it drops
         if connection.ping() == False:
             print("... DES database connection lost: reconnecting ...")

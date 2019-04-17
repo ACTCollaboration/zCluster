@@ -486,7 +486,7 @@ if __name__ == '__main__':
         retrieverOptions={'maxMagError': maxMagError, 'jobs': mastcasjobs.MastCasJobs(context="PanSTARRS_DR2")}
     elif database == 'DESY3':
         import easyaccess as ea
-        connection=ea.connect()
+        connection=ea.connect(section = 'dessci')
         #connection=None
         retriever=catalogRetriever.DESY3Retriever
         zPriorMin=0.05
@@ -496,7 +496,7 @@ if __name__ == '__main__':
         zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
     elif database == 'DESY3+WISE':
         import easyaccess as ea
-        connection=ea.connect()
+        connection=ea.connect(section = 'dessci')
         retriever=catalogRetriever.DESY3WISERetriever
         zPriorMin=0.05
         zPriorMax=1.5
@@ -505,7 +505,7 @@ if __name__ == '__main__':
         zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
     elif database == 'DESDR1':
         import easyaccess as ea
-        connection=ea.connect()
+        connection=ea.connect(section = 'desdr')
         retriever=catalogRetriever.DESDR1Retriever
         zPriorMin=0.05
         zPriorMax=1.5
