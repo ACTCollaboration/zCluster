@@ -256,3 +256,10 @@ def parseNEDResult(inFileName, onlyObjTypes = None):
                     redshifts.append(str(bits[6]))
 
     return {'labels': labels, 'names': names, 'RAs': RAs, 'decs': decs, 'sourceTypes': sourceTypes, 'redshifts': redshifts}
+
+#-------------------------------------------------------------------------------------------------------------
+def makeRADecString(RADeg, decDeg):
+    """Switched to using %.5f_%.5f as part of image file names.
+    
+    """
+    return "%.5f_%.5f" % (RADeg, decDeg)

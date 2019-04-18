@@ -28,7 +28,7 @@ import sys
 import urllib.request, urllib.parse, urllib.error
 import numpy as np
 import astropy.table as atpy
-import pyfits
+import astropy.io.fits as pyfits
 from zCluster import *
 import pylab as plt
 from astLib import *
@@ -42,11 +42,16 @@ from matplotlib.widgets import RadioButtons
 #-------------------------------------------------------------------------------------------------------------
 # Globals because we yanked this out of sourcery SourceBrowser
 
-cacheDir="cache"
+cacheDir="imageCache"
 configDict={'plotSizeArcmin': 8.0, 'figSize': (14, 7.5)}
+DESTiles=None
 
 if os.path.exists(cacheDir) == False:
     os.makedirs(cacheDir)
+
+#-------------------------------------------------------------------------------------------------------------
+def getDESTiles():
+    return DESTiles
 
 #-------------------------------------------------------------------------------------------------------------
 def fetchSDSSImage(obj, refetch = False):
@@ -61,7 +66,8 @@ def fetchSDSSImage(obj, refetch = False):
     name=obj['name']
     RADeg=obj['RADeg']
     decDeg=obj['decDeg']                
-    outFileName=sdssCacheDir+os.path.sep+name.replace(" ", "_")+".jpg"
+    #outFileName=sdssCacheDir+os.path.sep+name.replace(" ", "_")+".jpg"
+    outFileName=sdssCacheDir+os.path.sep+catalogTools.makeRADecString(RADeg, decDeg)+".jpg"
     SDSSWidth=1200.0
     SDSSScale=(configDict['plotSizeArcmin']*60.0)/SDSSWidth # 0.396127
     if os.path.exists(outFileName) == False or refetch == True:
@@ -76,12 +82,35 @@ def fetchSDSSImage(obj, refetch = False):
         os.system("convert -gamma 2 %s %s" % (outFileName, outFileName))
 
 #-------------------------------------------------------------------------------------------------------------
+def fetchDESImage(obj, refetch = False):
+    """Fetches DES image. If the image isn't already in the cache, you'll sourcery installed and a directory 
+    full of DES tile .jpg images (contact Matt).
+    
+    """
+    
+    desCacheDir=cacheDir+os.path.sep+"DES"
+    if os.path.exists(desCacheDir) == False:
+        os.makedirs(desCacheDir)
+        
+    name=obj['name']
+    RADeg=obj['RADeg']
+    decDeg=obj['decDeg']                
+    outFileName=desCacheDir+os.path.sep+name.replace(" ", "_")+".jpg"
+    global DESTiles # We're doing things this way to avoid long set-up time for tile dir
+    if os.path.exists(outFileName) == False or refetch == True:
+        if DESTiles is None:
+            from sourcery import tileDir
+            DESTiles=tileDir.TileDir("DES", "DESTiles", cacheDir, sizePix = 1200)
+        DESTiles.fetchImage(name, RADeg, decDeg, configDict['plotSizeArcmin'], refetch = refetch)
+    
+#-------------------------------------------------------------------------------------------------------------
 class CMDImageCombo:
     """Combination CMD and clickable image plot in one.
     
     """
     
-    def __init__(self, cluster, galTab, surveyLabel, clipSizeArcmin = None, zColumn = 'z', matchTab = None):
+    def __init__(self, cluster, galTab, surveyLabel, clipSizeArcmin = None, zColumn = 'z', matchTab1 = None, 
+                 matchTab2 = None, plotFileName = False):
         """Needs all the info to make a clickable image plot and CMD.
         
         cluster should be a table row or dict with keys 'name', 'RADeg', 'decDeg'
@@ -91,8 +120,10 @@ class CMDImageCombo:
         self.cluster=cluster
         self.redshiftColumn=zColumn
         self.galTab=galTab
-        self.matchTab=matchTab
+        self.matchTab1=matchTab1
+        self.matchTab2=matchTab2
         self.keepBCG=None
+        self.plotFileName=plotFileName
         
         # Just in case they are passed as strings (e.g., if direct from the url)
         name=cluster['name']
@@ -102,7 +133,8 @@ class CMDImageCombo:
         sizeDeg=configDict['plotSizeArcmin']/60.0
         
         # Load data
-        inJPGPath=cacheDir+os.path.sep+surveyLabel+os.path.sep+name.replace(" ", "_")+".jpg"
+        inJPGPath=cacheDir+os.path.sep+surveyLabel+os.path.sep+catalogTools.makeRADecString(RADeg, decDeg)+".jpg"
+        #inJPGPath=cacheDir+os.path.sep+surveyLabel+os.path.sep+name.replace(" ", "_")+".jpg"
         if os.path.exists(inJPGPath) == False:
             return None
         
@@ -110,7 +142,7 @@ class CMDImageCombo:
         data=np.array(im)
         try:
             data=np.flipud(data)
-            data=np.fliplr(data)
+            #data=np.fliplr(data)
         except:
             #"... something odd about image (1d?) - aborting ..."
             return None
@@ -138,7 +170,7 @@ class CMDImageCombo:
         newHead['CRVAL2']=decDeg
         newHead['CRPIX1']=xRefPix+1
         newHead['CRPIX2']=yRefPix+1
-        newHead['CDELT1']=xOutPixScale
+        newHead['CDELT1']=-xOutPixScale
         newHead['CDELT2']=xOutPixScale    # Makes more sense to use same pix scale
         newHead['CUNIT1']='DEG'
         newHead['CUNIT2']='DEG'
@@ -164,6 +196,9 @@ class CMDImageCombo:
         self.imagePlot=astPlots.ImagePlot([R, G, B], wcs, cutLevels = cutLevels, title = name, axes = axes, 
                                           axesLabels = axesLabels)
         
+        # Save as .fits for checking PA stuff
+        #astImages.saveFITS("test.fits", R, wcs)
+        
         # Cut down object catalog to only things we can see in image
         mask=[]
         for g in self.galTab:
@@ -172,16 +207,23 @@ class CMDImageCombo:
             else:
                 mask.append(False)
         self.galTab=self.galTab[np.where(np.array(mask))]
-        #self.galTab=self.galTab.where(mask)
+        
+        # Add image coords to galaxies catalog (since images are TAN projected this is fine for PA calc later)
+        pixCoords=np.array(wcs.wcs2pix(self.galTab['RADeg'].data, self.galTab['decDeg'].data))
+        self.galTab.add_column(atpy.Column(pixCoords[:, 0], "xImage"))
+        self.galTab.add_column(atpy.Column(pixCoords[:, 1], "yImage"))
         
         # Make CMD
         self.cmd=plt.axes([0.63, 0.4, 0.35, 0.535])
         self.drawCMD()
 
         self.imagePlot.draw()
-        if self.matchTab != None:
-            self.imagePlot.addPlotObjects(np.array(self.matchTab['RADeg']), np.array(self.matchTab['decDeg']), 
-                                          'BCG', symbol='circle', size=10.0, color='white')  
+        if self.matchTab1 is not None:
+            self.imagePlot.addPlotObjects(np.array(self.matchTab1['RADeg']), np.array(self.matchTab1['decDeg']), 
+                                          'BCG', symbol='circle', size=10.0, color='yellow')
+        if self.matchTab2 is not None:
+            self.imagePlot.addPlotObjects(np.array(self.matchTab2['RADeg']), np.array(self.matchTab2['decDeg']), 
+                                          'galaxy2', symbol='circle', size=10.0, color='green') 
             
         # Buttons
         axok=plt.axes([0.63, 0.25, 0.1, 0.075])
@@ -205,6 +247,8 @@ class CMDImageCombo:
 
     def okClicked(self, blah):
         self.keepBCG=True
+        if self.plotFileName is not None:
+            self.imageFig.savefig(self.plotFileName) 
         plt.close()
 
     
@@ -231,16 +275,16 @@ class CMDImageCombo:
         zpMask=np.logical_and(np.greater(self.galTab['zPhot'], self.cluster[zColumn]-0.1), np.less(self.galTab['zPhot'], self.cluster[zColumn]+0.1))
         plt.plot(self.galTab['i'], self.galTab['r-i'], 'b.', picker = 5)
         plt.plot(self.galTab['i'][zpMask], self.galTab['r-i'][zpMask], 'r.')
-        if self.matchTab != None:
-            plt.plot(self.matchTab['i'], self.matchTab['r-i'], 'go')
-        else:
-            print("no match tab")
+        if self.matchTab1 is not None:
+            plt.plot(self.matchTab1['i'], self.matchTab1['r-i'], 'yo')
+        if self.matchTab2 is not None:
+            plt.plot(self.matchTab2['i'], self.matchTab2['r-i'], 'go')            
         plt.ylim(-0.5, 1.5)
         plt.xlim(15, 23)
         plt.xlabel("i")
         plt.ylabel("r-i")        
-        
-        
+    
+    
     def onclick(self, event):
         """Get coords of where we clicked, update plots.
         
@@ -249,7 +293,15 @@ class CMDImageCombo:
         button=event.button
         x=event.xdata
         y=event.ydata
-        
+        if button == 1:     # left
+            matchTab=self.matchTab1
+            label='BCG'
+            color='yellow'
+        elif button == 3:   # right
+            matchTab=self.matchTab2
+            label='galaxy2'
+            color='green'
+            
         if event.inaxes == self.imagePlot.axes:
 
             modeText=self.getSelectedMode()
@@ -257,7 +309,7 @@ class CMDImageCombo:
             if modeText == 'Nearest Galaxy':
                 RADeg, decDeg=self.imagePlot.wcs.pix2wcs(x, y)
                 rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, self.galTab['RADeg'], self.galTab['decDeg'])
-                self.matchTab=self.galTab[np.where(np.equal(rDeg, rDeg.min()))]
+                matchTab=self.galTab[np.where(np.equal(rDeg, rDeg.min()))]
             elif modeText == 'Free Selection':
                 RADeg, decDeg=self.imagePlot.wcs.pix2wcs(event.xdata, event.ydata)
                 freeTab=atpy.Table()
@@ -266,13 +318,17 @@ class CMDImageCombo:
                 freeTab['RADeg'][0]=RADeg
                 freeTab['decDeg'][0]=decDeg
                 freeTab.table_name="FreeSelection"
-                self.matchTab=freeTab
+                matchTab=freeTab
                 
             self.drawCMD()
             
-            if button == 1: 
-                self.imagePlot.addPlotObjects(np.array(self.matchTab['RADeg']), np.array(self.matchTab['decDeg']), 
-                                              'BCG', symbol='circle', size=10.0, color='white')
+            self.imagePlot.addPlotObjects(np.array(matchTab['RADeg']), np.array(matchTab['decDeg']), 
+                                          label, symbol='circle', size=10.0, color=color)
+            
+            if button == 1:
+                self.matchTab1=matchTab
+            elif button == 3:
+                self.matchTab2=matchTab
 
             self.imagePlot.draw()
 
@@ -281,22 +337,24 @@ class CMDImageCombo:
         """Select an object in the CMD and highlight it in the image plot.
         
         """
+        
+        # NOTE: This only works with left button (can't use right to pick two different objects)
         thispoint = event.artist
         xdata = thispoint.get_xdata()
         ydata = thispoint.get_ydata()
         ind = event.ind
         colour=ydata[ind]
         mag=xdata[ind]
-
+        
         # Find closest point
         minDiff=1e6
         for m, c in zip(mag, colour):
             diff=np.sqrt((self.galTab['r-i']-c)**2 + (self.galTab['i']-m)**2)
             if diff.min() < minDiff:
-                self.matchTab=self.galTab[np.where(np.equal(diff, diff.min()))]
+                self.matchTab1=self.galTab[np.where(np.equal(diff, diff.min()))]
         self.drawCMD()
-        self.imagePlot.addPlotObjects(np.array(self.matchTab['RADeg']), np.array(self.matchTab['decDeg']), 'BCG', 
-                                      symbol='circle', size=10.0, color='white')        
+        self.imagePlot.addPlotObjects(np.array(self.matchTab1['RADeg']), np.array(self.matchTab1['decDeg']), 'BCG', 
+                                      symbol='circle', size=10.0, color='yellow')        
         self.imagePlot.draw()
 
         
@@ -309,12 +367,24 @@ if __name__ == '__main__':
                         chosen BCG coordinates will be written as catalogFileName_incBCG.fits.""")
     parser.add_argument("resultsDir", help="""A directory containing zCluster results that matches 
                         against cluster names in clusterTable.fits.""")
+    parser.add_argument("-S", "--survey", dest="survey", help="""Name of the imaging survey to use (SDSS or
+                        DES).""", default = 'SDSS')
     parser.add_argument("-n", "--name", dest="name", help="Select/edit BCG only for the named object.")
     parser.add_argument("-s", "--size", dest="sizeArcmin", help="Size of the image plot in arcmin.")
+    parser.add_argument("-P", "--write-image-plots", dest="writeImagePlots", action="store_true", 
+                        help="""Write out .png image plot to the BCGsCache directory.""", 
+                        default = False)
     args = parser.parse_args()
     
     catalogFileName=args.catalogFileName
     resultsDir=args.resultsDir
+    
+    if args.survey == 'SDSS':
+        fetchImage=fetchSDSSImage
+    elif args.survey == 'DES':
+        fetchImage=fetchDESImage
+    else:
+        raise Exception("Unknown survey - only 'SDSS' and 'DES' supported at the moment")
     
     clusTab=atpy.Table().read(catalogFileName)
     if 'z' in list(clusTab.keys()):
@@ -324,17 +394,19 @@ if __name__ == '__main__':
     else:
         raise Exception("No redshift column found")
     
-    if 'BCG_RADeg' not in list(clusTab.keys()):
-        clusTab.add_column('BCG_RADeg', np.zeros(len(clusTab)))
-    if 'BCG_decDeg' not in list(clusTab.keys()):
-        clusTab.add_column('BCG_decDeg', np.zeros(len(clusTab)))
-
+    # Add columns for BCG, an optional 2nd galaxy, and the position angle between them
+    # (this is for setting up long slit observations)
+    colsToAdd=['BCG_RADeg', 'BCG_decDeg', 'BCG_rMag', 'galaxy2_RADeg', 'galaxy2_decDeg', 'galaxy2_rMag', 'PA_deg']
+    for col in colsToAdd:
+        if col not in list(clusTab.keys()):
+            clusTab.add_column(atpy.Column(np.zeros(len(clusTab)), col))
+    
     # Add something so that we can adjust a single BCG if given on command line
     # Keep things straight by making a mask of objects to look at with just that one object selected
     # But still iterate over all rows of clusTab, hoovering up previous BCG positions and adding to clusTab
     # After loop, write out clusTab as catalogFileName with _incBCGPos appended
     selectionMask=np.ones(len(clusTab), dtype = bool)
-    if args.name != None:
+    if args.name is not None:
         selectionMask[np.where(clusTab['name'] != args.name)]=False
     
     if args.sizeArcmin == None:
@@ -352,40 +424,50 @@ if __name__ == '__main__':
         
         galTab=atpy.Table().read(resultsDir+os.path.sep+cluster['name']+os.path.sep+"galaxyCatalog_"+cluster['name'].replace(" ", "_")+".fits")
         outFileName=bcgCacheDir+os.path.sep+cluster['name'].replace(" ", "_")+"_BCG.fits"
+        if args.writeImagePlots == True:
+            plotFileName=outFileName.replace(".fits", ".png")
+        else:
+            plotFileName=None
         if os.path.exists(outFileName) == True:
             print("... found previously determined BCG position ...")
             matchTab=atpy.Table().read(outFileName)
+            matchTab1=matchTab[0:1]
+            if len(matchTab) > 1:
+                matchTab2=matchTab[1:2]
+            else:
+                matchTab2=None
         else:
             matchTab=None
-    
+            matchTab1=None
+            matchTab2=None
+                
         if selected == True:
-            fetchSDSSImage(cluster)
-            cmdImage=CMDImageCombo(cluster, galTab, 'SDSS', clipSizeArcmin = clipSizeArcmin, zColumn = zColumn, matchTab = matchTab)
-            #if matchTab != None:
-                #cmdImage.keepBCG=True
+            fetchImage(cluster)
+            cmdImage=CMDImageCombo(cluster, galTab, args.survey, clipSizeArcmin = clipSizeArcmin, zColumn = zColumn, 
+                                   matchTab1 = matchTab1, matchTab2 = matchTab2, plotFileName = plotFileName)
                 
             plt.show(block = True)
 
             # Store BCG pos separately
             if cmdImage.keepBCG == True:
-                outFileName=bcgCacheDir+os.path.sep+cluster['name'].replace(" ", "_")+"_BCG.fits"
-                if os.path.exists(outFileName) == True:
-                    os.remove(outFileName)
-                cmdImage.matchTab.write(outFileName)
-                matchTab=cmdImage.matchTab
+                matchTab=atpy.vstack([cmdImage.matchTab1, cmdImage.matchTab2])
+                matchTab.write(outFileName, overwrite = True)
             else:
                 matchTab=None
         
-        if matchTab != None:
+        if matchTab is not None:
             cluster['BCG_RADeg']=matchTab['RADeg'][0]
             cluster['BCG_decDeg']=matchTab['decDeg'][0]
-    
+            cluster['BCG_rMag']=matchTab['r'][0]
+            if len(matchTab) > 1:
+                cluster['galaxy2_RADeg']=matchTab['RADeg'][1]
+                cluster['galaxy2_decDeg']=matchTab['decDeg'][1]
+                cluster['galaxy2_rMag']=matchTab['r'][1]
+                # Calculate position angle (fine to use pixel coords as TAN projection)
+                cluster['PA_deg']=np.degrees(np.arctan2(matchTab['yImage'][0]-matchTab['yImage'][1], 
+                                                    matchTab['xImage'][0]-matchTab['xImage'][1]))
+            
     # Write out new table 
     outFileName=catalogFileName.replace(".fits", "_incBCGPos.fits")
-    if os.path.exists(outFileName) == True:
-        os.remove(outFileName)
-    clusTab.write(outFileName)
+    clusTab.write(outFileName, overwrite = True)
 
-        
-        
-    
