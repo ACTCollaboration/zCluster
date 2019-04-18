@@ -95,7 +95,7 @@ def fetchDESImage(obj, refetch = False):
     name=obj['name']
     RADeg=obj['RADeg']
     decDeg=obj['decDeg']                
-    outFileName=desCacheDir+os.path.sep+name.replace(" ", "_")+".jpg"
+    outFileName=desCacheDir+os.path.sep+catalogTools.makeRADecString(RADeg, decDeg)+".jpg"
     global DESTiles # We're doing things this way to avoid long set-up time for tile dir
     if os.path.exists(outFileName) == False or refetch == True:
         if DESTiles is None:
