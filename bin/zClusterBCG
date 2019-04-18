@@ -42,11 +42,16 @@ from matplotlib.widgets import RadioButtons
 #-------------------------------------------------------------------------------------------------------------
 # Globals because we yanked this out of sourcery SourceBrowser
 
-cacheDir="cache"
+cacheDir="imageCache"
 configDict={'plotSizeArcmin': 8.0, 'figSize': (14, 7.5)}
+DESTiles=None
 
 if os.path.exists(cacheDir) == False:
     os.makedirs(cacheDir)
+
+#-------------------------------------------------------------------------------------------------------------
+def getDESTiles():
+    return DESTiles
 
 #-------------------------------------------------------------------------------------------------------------
 def fetchSDSSImage(obj, refetch = False):
@@ -61,7 +66,8 @@ def fetchSDSSImage(obj, refetch = False):
     name=obj['name']
     RADeg=obj['RADeg']
     decDeg=obj['decDeg']                
-    outFileName=sdssCacheDir+os.path.sep+name.replace(" ", "_")+".jpg"
+    #outFileName=sdssCacheDir+os.path.sep+name.replace(" ", "_")+".jpg"
+    outFileName=sdssCacheDir+os.path.sep+catalogTools.makeRADecString(RADeg, decDeg)+".jpg"
     SDSSWidth=1200.0
     SDSSScale=(configDict['plotSizeArcmin']*60.0)/SDSSWidth # 0.396127
     if os.path.exists(outFileName) == False or refetch == True:
@@ -75,6 +81,28 @@ def fetchSDSSImage(obj, refetch = False):
             outFileName=None
         os.system("convert -gamma 2 %s %s" % (outFileName, outFileName))
 
+#-------------------------------------------------------------------------------------------------------------
+def fetchDESImage(obj, refetch = False):
+    """Fetches DES image. If the image isn't already in the cache, you'll sourcery installed and a directory 
+    full of DES tile .jpg images (contact Matt).
+    
+    """
+    
+    desCacheDir=cacheDir+os.path.sep+"DES"
+    if os.path.exists(desCacheDir) == False:
+        os.makedirs(desCacheDir)
+        
+    name=obj['name']
+    RADeg=obj['RADeg']
+    decDeg=obj['decDeg']                
+    outFileName=desCacheDir+os.path.sep+name.replace(" ", "_")+".jpg"
+    global DESTiles # We're doing things this way to avoid long set-up time for tile dir
+    if os.path.exists(outFileName) == False or refetch == True:
+        if DESTiles is None:
+            from sourcery import tileDir
+            DESTiles=tileDir.TileDir("DES", "DESTiles", cacheDir, sizePix = 1200)
+        DESTiles.fetchImage(name, RADeg, decDeg, configDict['plotSizeArcmin'], refetch = refetch)
+    
 #-------------------------------------------------------------------------------------------------------------
 class CMDImageCombo:
     """Combination CMD and clickable image plot in one.
@@ -105,7 +133,8 @@ class CMDImageCombo:
         sizeDeg=configDict['plotSizeArcmin']/60.0
         
         # Load data
-        inJPGPath=cacheDir+os.path.sep+surveyLabel+os.path.sep+name.replace(" ", "_")+".jpg"
+        inJPGPath=cacheDir+os.path.sep+surveyLabel+os.path.sep+catalogTools.makeRADecString(RADeg, decDeg)+".jpg"
+        #inJPGPath=cacheDir+os.path.sep+surveyLabel+os.path.sep+name.replace(" ", "_")+".jpg"
         if os.path.exists(inJPGPath) == False:
             return None
         
@@ -168,7 +197,7 @@ class CMDImageCombo:
                                           axesLabels = axesLabels)
         
         # Save as .fits for checking PA stuff
-        astImages.saveFITS("test.fits", R, wcs)
+        #astImages.saveFITS("test.fits", R, wcs)
         
         # Cut down object catalog to only things we can see in image
         mask=[]
@@ -338,6 +367,8 @@ if __name__ == '__main__':
                         chosen BCG coordinates will be written as catalogFileName_incBCG.fits.""")
     parser.add_argument("resultsDir", help="""A directory containing zCluster results that matches 
                         against cluster names in clusterTable.fits.""")
+    parser.add_argument("-S", "--survey", dest="survey", help="""Name of the imaging survey to use (SDSS or
+                        DES).""", default = 'SDSS')
     parser.add_argument("-n", "--name", dest="name", help="Select/edit BCG only for the named object.")
     parser.add_argument("-s", "--size", dest="sizeArcmin", help="Size of the image plot in arcmin.")
     parser.add_argument("-P", "--write-image-plots", dest="writeImagePlots", action="store_true", 
@@ -347,6 +378,13 @@ if __name__ == '__main__':
     
     catalogFileName=args.catalogFileName
     resultsDir=args.resultsDir
+    
+    if args.survey == 'SDSS':
+        fetchImage=fetchSDSSImage
+    elif args.survey == 'DES':
+        fetchImage=fetchDESImage
+    else:
+        raise Exception("Unknown survey - only 'SDSS' and 'DES' supported at the moment")
     
     clusTab=atpy.Table().read(catalogFileName)
     if 'z' in list(clusTab.keys()):
@@ -404,8 +442,8 @@ if __name__ == '__main__':
             matchTab2=None
                 
         if selected == True:
-            fetchSDSSImage(cluster)
-            cmdImage=CMDImageCombo(cluster, galTab, 'SDSS', clipSizeArcmin = clipSizeArcmin, zColumn = zColumn, 
+            fetchImage(cluster)
+            cmdImage=CMDImageCombo(cluster, galTab, args.survey, clipSizeArcmin = clipSizeArcmin, zColumn = zColumn, 
                                    matchTab1 = matchTab1, matchTab2 = matchTab2, plotFileName = plotFileName)
                 
             plt.show(block = True)
