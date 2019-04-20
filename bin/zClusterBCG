@@ -410,14 +410,16 @@ if __name__ == '__main__':
         selectionMask[np.where(clusTab['name'] != args.name)]=False
     
     if args.sizeArcmin == None:
-        clipSizeArcmin=6.0
+        configDict['plotSizeArcmin']=6.0
     else:
-        clipSizeArcmin=float(args.sizeArcmin)
+        configDict['plotSizeArcmin']=float(args.sizeArcmin)
         
     # Cache previously measured BCG positions
     bcgCacheDir="BCGsCache"
-    if os.path.exists(bcgCacheDir) == False:
-        os.makedirs(bcgCacheDir)
+    jpgsCacheDir=bcgCacheDir+os.path.sep+"jpgs"
+    for dirToMake in [bcgCacheDir, jpgsCacheDir]:
+        if os.path.exists(dirToMake) == False:
+            os.makedirs(dirToMake)
         
     for cluster, selected in zip(clusTab, selectionMask):
         print(">>> %s" % (cluster['name']))
@@ -425,7 +427,7 @@ if __name__ == '__main__':
         galTab=atpy.Table().read(resultsDir+os.path.sep+cluster['name']+os.path.sep+"galaxyCatalog_"+cluster['name'].replace(" ", "_")+".fits")
         outFileName=bcgCacheDir+os.path.sep+cluster['name'].replace(" ", "_")+"_BCG.fits"
         if args.writeImagePlots == True:
-            plotFileName=outFileName.replace(".fits", ".png")
+            plotFileName=jpgsCacheDir+os.path.sep+cluster['name'].replace(" ", "_")+"_BCG.jpg"
         else:
             plotFileName=None
         if os.path.exists(outFileName) == True:
