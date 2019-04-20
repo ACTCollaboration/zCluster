@@ -68,6 +68,7 @@ def fetchSDSSImage(obj, refetch = False):
     decDeg=obj['decDeg']                
     #outFileName=sdssCacheDir+os.path.sep+name.replace(" ", "_")+".jpg"
     outFileName=sdssCacheDir+os.path.sep+catalogTools.makeRADecString(RADeg, decDeg)+".jpg"
+    print("... image path = %s ..." % (outFileName))
     SDSSWidth=1200.0
     SDSSScale=(configDict['plotSizeArcmin']*60.0)/SDSSWidth # 0.396127
     if os.path.exists(outFileName) == False or refetch == True:
@@ -96,6 +97,7 @@ def fetchDESImage(obj, refetch = False):
     RADeg=obj['RADeg']
     decDeg=obj['decDeg']                
     outFileName=desCacheDir+os.path.sep+catalogTools.makeRADecString(RADeg, decDeg)+".jpg"
+    print("... image path = %s ..." % (outFileName))
     global DESTiles # We're doing things this way to avoid long set-up time for tile dir
     if os.path.exists(outFileName) == False or refetch == True:
         if DESTiles is None:
@@ -410,9 +412,9 @@ if __name__ == '__main__':
         selectionMask[np.where(clusTab['name'] != args.name)]=False
     
     if args.sizeArcmin == None:
-        configDict['plotSizeArcmin']=6.0
+        clipSizeArcmin=6.0
     else:
-        configDict['plotSizeArcmin']=float(args.sizeArcmin)
+        clipSizeArcmin=float(args.sizeArcmin)
         
     # Cache previously measured BCG positions
     bcgCacheDir="BCGsCache"
