@@ -68,6 +68,7 @@ def fetchSDSSImage(obj, refetch = False):
     decDeg=obj['decDeg']                
     #outFileName=sdssCacheDir+os.path.sep+name.replace(" ", "_")+".jpg"
     outFileName=sdssCacheDir+os.path.sep+catalogTools.makeRADecString(RADeg, decDeg)+".jpg"
+    print("... image path = %s ..." % (outFileName))
     SDSSWidth=1200.0
     SDSSScale=(configDict['plotSizeArcmin']*60.0)/SDSSWidth # 0.396127
     if os.path.exists(outFileName) == False or refetch == True:
@@ -96,6 +97,7 @@ def fetchDESImage(obj, refetch = False):
     RADeg=obj['RADeg']
     decDeg=obj['decDeg']                
     outFileName=desCacheDir+os.path.sep+catalogTools.makeRADecString(RADeg, decDeg)+".jpg"
+    print("... image path = %s ..." % (outFileName))
     global DESTiles # We're doing things this way to avoid long set-up time for tile dir
     if os.path.exists(outFileName) == False or refetch == True:
         if DESTiles is None:
@@ -416,8 +418,10 @@ if __name__ == '__main__':
         
     # Cache previously measured BCG positions
     bcgCacheDir="BCGsCache"
-    if os.path.exists(bcgCacheDir) == False:
-        os.makedirs(bcgCacheDir)
+    jpgsCacheDir=bcgCacheDir+os.path.sep+"jpgs"
+    for dirToMake in [bcgCacheDir, jpgsCacheDir]:
+        if os.path.exists(dirToMake) == False:
+            os.makedirs(dirToMake)
         
     for cluster, selected in zip(clusTab, selectionMask):
         print(">>> %s" % (cluster['name']))
@@ -425,7 +429,7 @@ if __name__ == '__main__':
         galTab=atpy.Table().read(resultsDir+os.path.sep+cluster['name']+os.path.sep+"galaxyCatalog_"+cluster['name'].replace(" ", "_")+".fits")
         outFileName=bcgCacheDir+os.path.sep+cluster['name'].replace(" ", "_")+"_BCG.fits"
         if args.writeImagePlots == True:
-            plotFileName=outFileName.replace(".fits", ".png")
+            plotFileName=jpgsCacheDir+os.path.sep+cluster['name'].replace(" ", "_")+"_BCG.jpg"
         else:
             plotFileName=None
         if os.path.exists(outFileName) == True:
