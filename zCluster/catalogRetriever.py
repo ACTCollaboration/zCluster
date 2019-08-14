@@ -977,15 +977,15 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
         os.makedirs(cacheDir)
 
     # Organised such that after this, have subdir with degrees RA (e.g. 000/ is 0 < RADeg < 1 degree)
-    basePath="http://portal.nersc.gov/project/cosmo/data/legacysurvey/dr7/tractor/"
+    basePath="https://portal.nersc.gov/project/cosmo/data/legacysurvey/dr8/south/tractor/"
 
-    outFileName=cacheDir+os.path.sep+"DECaLSDR7_%.4f_%.4f_%.2f.fits" % (RADeg, decDeg,
+    outFileName=cacheDir+os.path.sep+"DECaLSDR8_%.4f_%.4f_%.2f.fits" % (RADeg, decDeg,
                                                                             halfBoxSizeDeg)
     
     print("... getting DECaLS photometry (file: %s) ..." % (outFileName))
 
     bricksTab=optionsDict['bricksTab']
-    DR7Tab=optionsDict['DR7Tab']
+    DR8Tab=optionsDict['DR8Tab']
     
     if os.path.exists(outFileName) == False:
         
@@ -998,7 +998,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
         count=0
         tractorTabs=[]
         cacheFileNames=[]
-        matchTab=atpy.join(matchTab, DR7Tab, keys = 'BRICKNAME')
+        matchTab=atpy.join(matchTab, DR8Tab, keys = 'BRICKNAME')
         for mrow in matchTab:
             print("... retrieving tractor catalog from web ...")
             url=basePath+"%03d" % np.floor(mrow['RA'])
@@ -1027,12 +1027,12 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
         tab=tab[np.where(tab['type'] != 'PSF')]
         
         # WISE fluxes are available...
-        bands=['u', 'g', 'r', 'i', 'z', "w1", "w2"]# , 'Y']
+        bands=['g', 'r', 'z', "w1", "w2"]# , 'Y']
 
         # Convert nanomaggies to mags and do extinction correction
         bricksInTab=np.unique(tab['brickname'])
         for brickName in bricksInTab:
-            brickExtTab=DR7Tab[np.where(DR7Tab['BRICKNAME'] == brickName)]
+            brickExtTab=DR8Tab[np.where(DR8Tab['BRICKNAME'] == brickName)]
             brickIndices=np.where(tab['brickname'] == brickName)
             brickMask=np.zeros(len(tab), dtype = bool)
             brickMask[brickIndices]=True
