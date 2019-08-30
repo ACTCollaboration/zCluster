@@ -60,7 +60,7 @@ def makeCacheDir():
     """
     
     if os.path.exists(CACHE_DIR) == False:
-        os.makedirs(CACHE_DIR)
+        os.makedirs(CACHE_DIR, exist_ok = True)
 
 #-------------------------------------------------------------------------------------------------------------
 def addWISEPhotometry(RADeg, decDeg, catalog, halfBoxSizeDeg = 36.0/60.):
@@ -72,7 +72,7 @@ def addWISEPhotometry(RADeg, decDeg, catalog, halfBoxSizeDeg = 36.0/60.):
     
     cacheDir="WISECache"
     if os.path.exists(cacheDir) == False:
-        os.makedirs(cacheDir)
+        os.makedirs(cacheDir, exist_ok = True)
     
     # Note that using size= in query below is broken (even though it is on IPAC docs)
     outFileName=cacheDir+os.path.sep+"unWISE_%.6f_%.6f.vot" % (RADeg, decDeg)
@@ -161,7 +161,7 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
         cacheDir=CACHE_DIR
     
     if os.path.exists(cacheDir) == False:
-        os.makedirs(cacheDir)
+        os.makedirs(cacheDir, exist_ok = True)
         
     url = 'http://cas.sdss.org/stripe82/en/tools/search/x_sql.asp'
             
@@ -367,7 +367,7 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
         cacheDir=CACHE_DIR
     
     if os.path.exists(cacheDir) == False:
-        os.makedirs(cacheDir)
+        os.makedirs(cacheDir, exist_ok = True)
     
     try:
         connection=optionsDict['connection']
@@ -496,7 +496,7 @@ def KiDSDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}
         cacheDir=CACHE_DIR
     
     if os.path.exists(cacheDir) == False:
-        os.makedirs(cacheDir)
+        os.makedirs(cacheDir, exist_ok = True)
         
     # This defines the rough final KIDS area (split into two fields)
     inKIDSRegion=False
@@ -598,7 +598,7 @@ def ATLASDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
         cacheDir=CACHE_DIR
     
     if os.path.exists(cacheDir) == False:
-        os.makedirs(cacheDir)
+        os.makedirs(cacheDir, exist_ok = True)
     
     try:
         br=optionsDict['connection']
@@ -718,7 +718,7 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
         cacheDir=CACHE_DIR
     
     if os.path.exists(cacheDir) == False:
-        os.makedirs(cacheDir)
+        os.makedirs(cacheDir, exist_ok = True)
 
     outFileName=cacheDir+os.path.sep+"PS1_%.4f_%.4f_%.4f.fits" % (RADeg, decDeg, halfBoxSizeDeg)      
     print("... getting PS1 photometry (file: %s) ..." % (outFileName))
@@ -801,7 +801,7 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
         cacheDir=CACHE_DIR
     
     if os.path.exists(cacheDir) == False:
-        os.makedirs(cacheDir)
+        os.makedirs(cacheDir, exist_ok = True)
     
     if DR == 7:
         url='http://cas.sdss.org/astrodr7/en/tools/search/x_sql.asp'
@@ -974,7 +974,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
         cacheDir=CACHE_DIR
     
     if os.path.exists(cacheDir) == False:
-        os.makedirs(cacheDir)
+        os.makedirs(cacheDir, exist_ok = True)
 
     # Organised such that after this, have subdir with degrees RA (e.g. 000/ is 0 < RADeg < 1 degree)
     basePath="https://portal.nersc.gov/project/cosmo/data/legacysurvey/dr8/south/tractor/"

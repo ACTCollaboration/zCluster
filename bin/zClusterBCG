@@ -47,7 +47,7 @@ configDict={'plotSizeArcmin': 8.0, 'figSize': (14, 7.5)}
 DESTiles=None
 
 if os.path.exists(cacheDir) == False:
-    os.makedirs(cacheDir)
+    os.makedirs(cacheDir, exist_ok = True)
 
 #-------------------------------------------------------------------------------------------------------------
 def getDESTiles():
@@ -61,7 +61,7 @@ def fetchSDSSImage(obj, refetch = False):
 
     sdssCacheDir=cacheDir+os.path.sep+"SDSS"
     if os.path.exists(sdssCacheDir) == False:
-        os.makedirs(sdssCacheDir)
+        os.makedirs(sdssCacheDir, exist_ok = True)
         
     name=obj['name']
     RADeg=obj['RADeg']
@@ -91,7 +91,7 @@ def fetchDESImage(obj, refetch = False):
     
     desCacheDir=cacheDir+os.path.sep+"DES"
     if os.path.exists(desCacheDir) == False:
-        os.makedirs(desCacheDir)
+        os.makedirs(desCacheDir, exist_ok = True)
         
     name=obj['name']
     RADeg=obj['RADeg']
@@ -421,7 +421,7 @@ if __name__ == '__main__':
     jpgsCacheDir=bcgCacheDir+os.path.sep+"jpgs"
     for dirToMake in [bcgCacheDir, jpgsCacheDir]:
         if os.path.exists(dirToMake) == False:
-            os.makedirs(dirToMake)
+            os.makedirs(dirToMake, exist_ok = True)
         
     for cluster, selected in zip(clusTab, selectionMask):
         print(">>> %s" % (cluster['name']))

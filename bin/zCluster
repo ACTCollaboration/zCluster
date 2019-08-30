@@ -100,7 +100,7 @@ def writePlot(objName, result, zPriorMax, plotsDir):
     """
 
     if os.path.exists(plotsDir) == False:
-        os.makedirs(plotsDir)
+        os.makedirs(plotsDir, exist_ok = True)
         
     if result != None:            
         
@@ -240,7 +240,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                     
                     objOutDir=outDir+os.path.sep+obj['name']
                     if os.path.exists(objOutDir) == False:
-                        os.makedirs(objOutDir)
+                        os.makedirs(objOutDir, exist_ok = True)
             
                     # Also r-i colour, useful for sanity checking of BCGs
                     for gobj in galaxyCatalog:
@@ -446,10 +446,10 @@ if __name__ == '__main__':
     if rank == 0:
         if cacheDir is not None:
             if os.path.exists(cacheDir) == False:
-                os.makedirs(cacheDir)
+                os.makedirs(cacheDir, exist_ok = True)
         else:
             if os.path.exists(catalogRetriever.CACHE_DIR) == False:
-                os.makedirs(catalogRetriever.CACHE_DIR)
+                os.makedirs(catalogRetriever.CACHE_DIR, exist_ok = True)
                     
     # Default prior cuts are defined for each database here... 
     # Can be overridden with args.zPriorMin, args.zPriorMax... see below
@@ -588,11 +588,11 @@ if __name__ == '__main__':
     # Set-up output dir and log the options we're running with
     if rank == 0:
         if os.path.exists(outDir) == False:
-            os.makedirs(outDir)
+            os.makedirs(outDir, exist_ok = True)
         if args.name != None:
             logDir=logFileName=outDir+os.path.sep+args.name
             if os.path.exists(logDir) == False:
-                os.makedirs(logDir)
+                os.makedirs(logDir, exist_ok = True)
             logFileName=outDir+os.path.sep+args.name+os.path.sep+"zCluster.log"
         else:
             logFileName=outDir+os.path.sep+"zCluster.log"

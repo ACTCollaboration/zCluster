@@ -165,7 +165,7 @@ def getNEDInfo(obj, nedDir = "NEDResults", radiusDeg = 5.0/60.0, crossMatchRadiu
     """
         
     if os.path.exists(nedDir) == False:
-        os.makedirs(nedDir)
+        os.makedirs(nedDir, exist_ok = True)
                     
     name=obj['name']
     RADeg=obj['RADeg']
