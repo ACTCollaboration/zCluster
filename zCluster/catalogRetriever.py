@@ -1315,6 +1315,11 @@ def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
                 photDict[b+"Err"]=row['%s_%s' % (b, magErrKey)][magNumber]
         catalog.append(photDict)
 
+    return catalog
+#---------------------------
+
+def addSDSScat(RADeg, decDeg, catalog, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):        
+        
     # Get SDSS catalog, if we want to include missing bands
     if 'addSDSS' in list(optionsDict.keys()) and optionsDict['addSDSS'] == True:
         SDSSCat, SDSSFilterCodes=SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 12)
@@ -1376,5 +1381,7 @@ def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
     tab=tab[np.where(rDeg < halfBoxSizeDeg)]
     
     catalog=parseFITSPhotoTable(tab, optionsDict = optionsDict)
+    
+    catalog=addSDSScat(RADeg, decDeg, catalog, halfBoxSizeDeg = halfBoxSizeDeg, optionsDict = optionsDict)
 
     return catalog
