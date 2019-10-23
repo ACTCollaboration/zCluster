@@ -151,10 +151,7 @@ def writeRedshiftsCatalog(catalog, outFileName):
     """Writes a .fits table with cluster photo-zs in it
     
     """
-    
-    if os.path.exists(outFileName) == True:
-        os.remove(outFileName)
-    
+        
     tab=atpy.Table()
     keys=['name', 'RADeg', 'decDeg', 'z', 'delta', 'errDelta']
     
@@ -172,7 +169,7 @@ def writeRedshiftsCatalog(catalog, outFileName):
         pass
     
     tab.table_name="zCluster"
-    tab.write(outFileName)
+    tab.write(outFileName, overwrite = True)
 
 #-------------------------------------------------------------------------------------------------------------
 def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir, zPriorMin,

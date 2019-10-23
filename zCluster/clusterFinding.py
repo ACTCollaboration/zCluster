@@ -242,11 +242,15 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     delta=bckSubtractedCount/(bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex])
     errDelta=np.sqrt(bckSubtractedCount/bckSubtractedCount**2 + 
                      bckNzDict['NzWeightedSum'][zIndex]/bckNzDict['NzWeightedSum'][zIndex]**2)*delta
-    if np.isnan(errDelta) == True:
-        errDelta=0
+    if np.isnan(delta) == True or np.isnan(errDelta) == True:
+        print("... delta is nan - i.e., no background galaxies - skipping ...")
+        return None
+    if errDelta > delta:
+        print("... delta highly uncertain (deltaErr > delta) - skipping ...")
+        return None
     
     # Optional: de-bias right here (use with caution)
-    if zDebias != None:
+    if zDebias is not None:
         z=z+zDebias*(1+z)
     
     print("... zCluster = %.2f, delta = %.1f, errDelta = %.1f (RADeg = %.6f, decDeg = %.6f) ..." % (z, delta, errDelta, RADeg, decDeg))
@@ -361,9 +365,9 @@ def calculateRedshiftAndOdds(pz, zArray, dzOdds = 0.2, method = 'max', zPriorMax
     # Prior: to avoid worst cases of overestimating z
     # Prior: low-z cut, set by 1 Mpc radius requirement and 9' radius input catalogues (np.radians(9.0/60)*astCalc.da(0.1))
     prior=np.ones(pz.shape)
-    if zPriorMax != None:
+    if zPriorMax is not None:
         prior[np.greater(zArray, zPriorMax)]=0.0
-    if zPriorMin != None:
+    if zPriorMin is not None:
         prior[np.less(zArray, zPriorMin)]=0.0
     pz=pz*prior
     norm=np.trapz(pz, zArray)
