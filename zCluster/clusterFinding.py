@@ -28,13 +28,17 @@ import numpy as np
 from astLib import *
 from scipy import interpolate
 from scipy import stats
+import astropy.io.fits as pyfits
+from astropy.coordinates import SkyCoord
+from astropy.coordinates import match_coordinates_sky
+from PIL import Image
+from PIL import ImageDraw
 import pylab as plt
 import IPython
-plt.matplotlib.interactive(True)
 
 #-------------------------------------------------------------------------------------------------------------
 def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMpc = 0.0, maxDistanceMpc = 1.0, 
-                   applySanityCheckRadius = True, sanityCheckRadiusArcmin = 1.0):
+                   applySanityCheckRadius = True, sanityCheckRadiusArcmin = 1.0, areaMask = None, wcs = None):
     """Make a N(z) distribution in the direction of the postion (usually of a cluster) given by RADeg, decDeg.
     This is constructed from the p(z) distributions of all galaxies in the catalog, with radial weights applied
     as per weightsType. So, for 'flat1Mpc', the radial weight is 1 if within a projected distance of 1 Mpc of 
@@ -145,11 +149,24 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
     NzWeightedSum=np.sum(pzArray*rWeights*gOddsWeights, axis = 0)
     
     # We may as well keep track of area as well
-    area=np.pi*maxDistanceMpc**2 - np.pi*minDistanceMpc**2
-    
+    if areaMask is None:
+        areaMpc2=np.array([np.pi*maxDistanceMpc**2 - np.pi*minDistanceMpc**2]*len(zArray))
+    else:
+        cx, cy=wcs.wcs2pix(RADeg, decDeg)
+        cx=int(cx); cy=int(cy)
+        x=np.array([np.arange(0, areaMask.shape[1])-cx]*areaMask.shape[0])
+        y=np.array([np.arange(0, areaMask.shape[0])-cy]*areaMask.shape[1]).transpose()
+        rDeg=np.sqrt(x**2 + y**2)*wcs.getPixelSizeDeg()
+        areaMpc2=[]
+        for DA in DAArray:
+            rMpc=np.tan(np.radians(rDeg))*DA
+            areaMap=(np.power(np.tan(np.radians(wcs.getPixelSizeDeg()))*DA, 2)*areaMask)
+            areaMpc2.append(areaMap[np.logical_and(np.greater(rMpc, minDistanceMpc), np.less(rMpc, maxDistanceMpc))].sum())
+        areaMpc2=np.array(areaMpc2)
+
     # If we want p(z), we can divide pzWeightedSum by Nz_r_odds
     return {'NzWeightedSum': NzWeightedSum, 'Nz': Nz_r_odds, 'Nz_total': Nz_r_odds_total, 'zArray': zArray, 
-            'DAArray': DAArray, 'areaMpc2': area}
+            'DAArray': DAArray, 'areaMpc2': areaMpc2}
     
 #-------------------------------------------------------------------------------------------------------------
 def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weightsType, maxRMpc, 
@@ -172,18 +189,23 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     """
     
     print("... estimating cluster photo-z ...")
-
+    
     # Initial sanity check: if we didn't find a decent number of galaxies close to the cluster centre, 
     # the cluster is probably not actually in the optical catalog footprint (e.g., just outside edge of S82)
     gOdds, gRedshifts, angSepArray, tanArray=extractArraysFromGalaxyCatalog(catalog, RADeg, decDeg)
     if np.sum(np.less(np.degrees(tanArray), sanityCheckRadiusArcmin/60.0)) == 0:
         print("... no galaxies within %.1f' of cluster position ..." % (sanityCheckRadiusArcmin))
         return None
-        
+
+    # Automated area mask calculation, using only catalogs
+    # Probably not super accurate but better than nothing - will at least take care of survey boundaries
+    areaMask, wcs=estimateAreaMask(RADeg, decDeg, catalog)
+    
     # Here, we do a weighted average of the p(z) distribution
     # The weighting is done according to distance from the cluster position at the z corresponding to a
     # given p(z). 
-    clusterNzDict=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, maxDistanceMpc = 1.0)
+    clusterNzDict=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, maxDistanceMpc = 1.0,
+                                 areaMask = areaMask, wcs = wcs)
     zArray=clusterNzDict['zArray']
     if clusterNzDict['NzWeightedSum'].sum() == 0:
         print("... no galaxies in n(z) - skipping...")
@@ -201,7 +223,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
         print("Hmm - failed in z, odds calc: what happened?")
         IPython.embed()
         sys.exit()
-    
+        
     # Background - delta (density contrast) measurement
     clusterNzDictForSNR=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, 'flat', maxDistanceMpc = maxRMpc)
     zIndex=np.where(zArray == z)[0][0]
@@ -209,12 +231,13 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
         # Global
         bckNzDict=makeWeightedNz(RADeg, decDeg, bckCatalog, zPriorMax, 'flat', minDistanceMpc = 3.0, maxDistanceMpc = 1e9, 
                                  applySanityCheckRadius = False)
-        bckNzDict['areaMpc2']=((np.radians(np.sqrt(bckAreaDeg2))*bckNzDict['DAArray'])**2)[zIndex]
+        bckNzDict['areaMpc2']=((np.radians(np.sqrt(bckAreaDeg2))*bckNzDict['DAArray'])**2)
     else:
         # Local background - 0.6 deg radius gives us out to 4 Mpc radius at z = 0.1
-        bckNzDict=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, 'flat', minDistanceMpc = 3.0, maxDistanceMpc = 4.0)
+        bckNzDict=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, 'flat', minDistanceMpc = 3.0, maxDistanceMpc = 4.0,
+                                 areaMask = areaMask, wcs = wcs)
     # Both
-    bckAreaNorm=clusterNzDictForSNR['areaMpc2']/bckNzDict['areaMpc2']
+    bckAreaNorm=clusterNzDictForSNR['areaMpc2'][zIndex]/bckNzDict['areaMpc2'][zIndex]
     bckSubtractedCount=clusterNzDictForSNR['NzWeightedSum'][zIndex]-bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex]
     delta=bckSubtractedCount/(bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex])
     errDelta=np.sqrt(bckSubtractedCount/bckSubtractedCount**2 + 
@@ -230,6 +253,74 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
 
     return {'z': z, 'pz': pzWeightedMean, 'zOdds': zOdds, 'pz_z': zArray, 'delta': delta, 'errDelta': errDelta}
 
+#-------------------------------------------------------------------------------------------------------------
+def estimateAreaMask(RADeg, decDeg, catalog):
+    """Using the objects in the catalog, estimate the area covered - to take care of e.g. survey boundaries
+    without needing to get masks for every survey. This works by estimating the average angular separation 
+    between sources in the catalog, and using that to draw a circle of that radius around every object. This 
+    is then used as the mask in area calculations.
+    
+    Args:
+        RADeg (float): Cluster RA position in decimal degrees.
+        decDeg (float): Cluster dec position in decimal degrees.
+        catalog (list): List of dictionaries, where each dictionary defines an object in the catalog.
+    
+    Returns:
+        areaMask (2d array): Mask of area covered.
+        wcs (astWCS.WCS object): WCS corresponding to areaMask.
+    
+    """
+
+    # Typical separation in degrees - use to set scale
+    RAs=[]
+    decs=[]
+    for obj in catalog:
+        RAs.append(obj['RADeg'])
+        decs.append(obj['decDeg'])
+    RAs=np.array(RAs)
+    decs=np.array(decs)
+    catCoords=SkyCoord(ra = RAs, dec = decs, unit = 'deg')
+    xIndices, rDeg, sep3d = match_coordinates_sky(catCoords, catCoords, nthneighbor = 2)
+    sepDeg=np.median(rDeg.data)
+    
+    # Make mask - max radius here is from catalogRetriever but should be adjustable elsewhere
+    maxRadiusDeg=40/60.0
+    widthPix=int(np.ceil((2*maxRadiusDeg)/sepDeg))
+    areaMask=np.zeros([widthPix, widthPix])
+    im=Image.fromarray(areaMask)
+    draw=ImageDraw.Draw(im)
+    CRVAL1, CRVAL2=RADeg, decDeg
+    xSizeDeg, ySizeDeg=2*maxRadiusDeg, 2*maxRadiusDeg
+    xSizePix=float(widthPix)
+    ySizePix=float(widthPix)
+    xRefPix=xSizePix/2.0
+    yRefPix=ySizePix/2.0
+    xOutPixScale=xSizeDeg/xSizePix
+    yOutPixScale=ySizeDeg/ySizePix
+    newHead=pyfits.Header()
+    newHead['NAXIS']=2
+    newHead['NAXIS1']=xSizePix
+    newHead['NAXIS2']=ySizePix
+    newHead['CTYPE1']='RA---TAN'
+    newHead['CTYPE2']='DEC--TAN'
+    newHead['CRVAL1']=CRVAL1
+    newHead['CRVAL2']=CRVAL2
+    newHead['CRPIX1']=xRefPix+1
+    newHead['CRPIX2']=yRefPix+1
+    newHead['CDELT1']=-xOutPixScale
+    newHead['CDELT2']=xOutPixScale
+    newHead['CUNIT1']='DEG'
+    newHead['CUNIT2']='DEG'
+    wcs=astWCS.WCS(newHead, mode='pyfits')
+    for obj in catalog:
+        x, y=wcs.wcs2pix(obj['RADeg'], obj['decDeg'])
+        x=int(x); y=int(y)
+        #areaMask[y, x]=1
+        draw.ellipse([x-2, y-2, x+2, y+2])
+    areaMask=np.array(im)
+
+    return areaMask, wcs
+    
 #-------------------------------------------------------------------------------------------------------------
 def extractArraysFromGalaxyCatalog(catalog, RADeg, decDeg):
     """For convenience: pulls out arrays needed for NGal measurement from galaxy catalog. Needs RADeg, decDeg
