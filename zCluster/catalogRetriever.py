@@ -584,11 +584,8 @@ def KiDSDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}
     return catalog
     
 #-------------------------------------------------------------------------------------------------------------
-def ATLASDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
-    """Retrieves VST ATLAS DR3 photometry, from the ESO Catalogue Facility. This requires an ESO Portal login,
-    which should be stored under $HOME/.zCluster/ESOLogin. That file should just contain the username on the
-    first line, and the password on the second. If security is a concern, this could be stored in an encrypted
-    directory (e.g., KDE's Vaults facility). See the bin/zCluster script for how the login is handled.
+def ATLASDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
+    """Retrieves VST ATLAS DR4 photometry via ESO.
     
     """
 
@@ -599,60 +596,42 @@ def ATLASDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
     
     if os.path.exists(cacheDir) == False:
         os.makedirs(cacheDir, exist_ok = True)
-    
-    try:
-        br=optionsDict['connection']
-    except:
-        raise Exception("No ESO database connection")
-    
-    # This defines the rough ATLAS DR3 area
-    inATLASRegion=False
-    if RADeg > 21*15 or RADeg < 4.2*60:
-        if decDeg > -42 and decDeg < -7:
-            inATLASRegion=True
-    if inATLASRegion == False:
-        print("... outside ATLAS area - skipping ...")
-        return None
-
-    outFileName=cacheDir+os.path.sep+"ATLASDR3_%.4f_%.4f_%.4f.fits" % (RADeg, decDeg, halfBoxSizeDeg)      
+        
+    outFileName=cacheDir+os.path.sep+"ATLASDR4_%.4f_%.4f_%.4f.fits" % (RADeg, decDeg, halfBoxSizeDeg)          
     if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
         print("... downloading catalog %s ..." % (outFileName))
-        queryURL="https://www.eso.org/qi/catalogQuery/index/147"
-        br.open(queryURL)
-        br.select_form(nr=1)
-        br.form['target']='%.6f %.6f' % (RADeg, decDeg)
-        br.form['radius']='%.3f' % (halfBoxSizeDeg)     # default unit is degrees
-        #br.form['param_112_7']='=0'                     # SG2DPHOT: 0 = galaxy
-        br.form.find_control('selectedFields_147').readonly=False
-        # Selected Petrosian mags below (and extinction corrections needed)
-        br.form['selectedFields_147']=',row_147_5,row_147_6,row_147_30,row_147_31,row_147_35,row_147_36,row_147_37,row_147_38,row_147_39,row_147_41,row_147_42,row_147_65,row_147_66,row_147_89,row_147_90,row_147_113,row_147_114,row_147_137,row_147_138'    
-        a=br.submit(id = 'exportGeoButtonSpatial')
-        b=a.get_data()
-        outFile=open(outFileName, "wb")
-        outFile.write(b)
-        outFile.close()
-
+        query="select sourceID, ra2000, dec2000, uPetroMag, uPetroMagErr, gPetroMag, gPetroMagErr, rPetroMag, rPetroMagErr, iPetroMag, iPetroMagErr, zPetroMag, zPetroMagErr, aU, aG, aR, aI, aZ, pGalaxy, pStar from atlas_er4_ugriz_catMetaData_fits_V3 where ra2000 BETWEEN %.4f AND %.4f AND dec2000 BETWEEN %.4f and %.4f and priOrSec = 0 and pGalaxy > 0.5 and gPetroMagErr < 0.2 and rPetroMagErr < 0.2 and iPetroMagErr < 0.2;" % (RAMin, RAMax, decMin, decMax)      
+        #query="select sourceID, ra2000, dec2000, uAperMagNoAperCorr3, uAperMag3Err, gAperMagNoAperCorr3, gAperMag3Err, rAperMagNoAperCorr3, rAperMag3Err, iAperMagNoAperCorr3, iAperMag3Err, zAperMagNoAperCorr3, zAperMag3Err, aU, aG, aR, aI, aZ, pGalaxy, pStar from atlas_er4_ugriz_catMetaData_fits_V3 where ra2000 BETWEEN %.4f AND %.4f AND dec2000 BETWEEN %.4f and %.4f and priOrSec = 0 and pGalaxy > 0.5 and gPetroMagErr < 0.2 and rPetroMagErr < 0.2 and iPetroMagErr < 0.2;" % (RAMin, RAMax, decMin, decMax)   
+        r=requests.get('http://archive.eso.org/tap_cat/sync?', 
+                        params = {'REQUEST': 'doQuery',
+                                  'LANG': 'ADQL',
+                                  'MAXREC': 1000000,
+                                  'FORMAT': 'fits',
+                                  'QUERY': query},
+                        stream = True)
+        with open(outFileName, 'wb') as outFile: 
+            r.raw.decode_content = True
+            outFile.write(r.raw.data) 
+            
     # Load/parse table
     print("... reading catalog %s ..." % (outFileName))
-    try:
-        tab=atpy.Table().read(outFileName)
-    except ValueError:
+    tab=atpy.Table().read(outFileName)
+    if len(tab) == 0:
         print("... no objects in catalog - skipping ...")
         return None
-    
+
     magKey="$BANDPETROMAG"
     magErrKey="$BANDPETROMAGERR"
+    #magKey="$BANDAPERMAGNOAPERCORR3"
+    #magErrKey="$BANDAPERMAG3ERR"
     
     # First, get rid of nans or nonsensical values
-    bands=['U', 'G', 'R', 'I', 'Z']
+    bands=['u', 'g', 'r', 'i', 'z']
     for b in bands:
-        tab[magKey.replace("$BAND", b)][np.isnan(tab[magKey.replace("$BAND", b)])]=99.
-        tab[magErrKey.replace("$BAND", b)][np.isnan(tab[magErrKey.replace("$BAND", b)])]=99.
-
-    # Star-galaxy separation (could be done at query level...)
-    tab=tab[np.where(tab['PGALAXY'] > 0.5)]
-
+        tab[magKey.replace("$BAND", b.upper())][np.isnan(tab[magKey.replace("$BAND", b.upper())])]=99.0
+        tab[magErrKey.replace("$BAND", b.upper())][np.isnan(tab[magErrKey.replace("$BAND", b.upper())])]=99.0
+        
     idCount=0
     catalog=[]
     for row in tab:
@@ -661,25 +640,13 @@ def ATLASDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
         photDict['id']=idCount    # just so we have something - we could use ID but skipping for now
         photDict['RADeg']=row['RA2000']
         photDict['decDeg']=row['DEC2000']
-        photDict['u']=row[magKey.replace("$BAND", "U")]-row['AU']
-        photDict['g']=row[magKey.replace("$BAND", "G")]-row['AG']
-        photDict['r']=row[magKey.replace("$BAND", "R")]-row['AR']
-        photDict['i']=row[magKey.replace("$BAND", "I")]-row['AI']
-        photDict['z']=row[magKey.replace("$BAND", "Z")]-row['AZ']
-        photDict['uErr']=row[magErrKey.replace("$BAND", "U")]
-        photDict['gErr']=row[magErrKey.replace("$BAND", "G")]
-        photDict['rErr']=row[magErrKey.replace("$BAND", "R")]
-        photDict['iErr']=row[magErrKey.replace("$BAND", "I")]
-        photDict['zErr']=row[magErrKey.replace("$BAND", "Z")]
-        # Apply mag error cuts if given
-        # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
-        # We're just making the mag unconstrained here (missing data), rather than applying a limit
-        # If we don't have a minimum of three useful bands, reject
+        for b in bands:
+            photDict[b]=row[magKey.replace("$BAND", b.upper())]-row['A%s' % (b.upper())]
+            photDict[b+'Err']=row[magErrKey.replace("$BAND", b.upper())]-row['A%s' % (b.upper())]
         if 'maxMagError' in list(optionsDict.keys()):
-            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['u', 'g', 'r', 'i', 'z'])
+            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
         else:
             keep=True
-                    
         if keep == True:
             catalog.append(photDict)
         
