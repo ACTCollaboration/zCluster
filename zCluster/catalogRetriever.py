@@ -953,42 +953,35 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
 
     bricksTab=optionsDict['bricksTab']
     DR8Tab=optionsDict['DR8Tab']
-    
-    if os.path.exists(outFileName) == False:
-        
-        # Find matching tractor catalogs and download (temporary) .fits table files
-        RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
-        mask=np.logical_and(np.greater(bricksTab['RA1'], RAMin), np.less(bricksTab['RA2'], RAMax))
-        mask=np.logical_and(mask, np.greater(bricksTab['DEC1'], decMin))
-        mask=np.logical_and(mask, np.less(bricksTab['DEC2'], decMax))
-        matchTab=bricksTab[np.where(mask)]
-        count=0
-        tractorTabs=[]
-        cacheFileNames=[]
-        matchTab=atpy.join(matchTab, DR8Tab, keys = 'BRICKNAME')
-        for mrow in matchTab:
+           
+    # Find matching tractor catalogs and download/cache .fits table files
+    RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
+    mask=np.logical_and(np.greater(bricksTab['RA1'], RAMin), np.less(bricksTab['RA2'], RAMax))
+    mask=np.logical_and(mask, np.greater(bricksTab['DEC1'], decMin))
+    mask=np.logical_and(mask, np.less(bricksTab['DEC2'], decMax))
+    matchTab=bricksTab[np.where(mask)]
+    count=0
+    tractorTabs=[]
+    matchTab=atpy.join(matchTab, DR8Tab, keys = 'BRICKNAME')
+    for mrow in matchTab:
+        url=basePath+"%03d" % np.floor(mrow['RA'])
+        url=url+os.path.sep+"tractor-"+mrow['BRICKNAME']+".fits"
+        fileName=cacheDir+os.path.sep+"tractor-%s.fits" % (mrow['BRICKNAME'])
+        if os.path.exists(fileName) == False:
             print("... retrieving tractor catalog from web ...")
-            url=basePath+"%03d" % np.floor(mrow['RA'])
-            url=url+os.path.sep+"tractor-"+mrow['BRICKNAME']+".fits"
-            fileName=cacheDir+os.path.sep+"tractor-tmp_%s.fits" % (mrow['BRICKNAME'])
-            cacheFileNames.append(fileName)
             urllib.request.urlretrieve(url, filename = fileName)
-            try:
-                tractorTab=atpy.Table.read(fileName)
-                tractorTabs.append(tractorTab)
-            except:
-                print("... probably a 404 error for %s ..." % (fileName))
-        # Stitch catalogs together and write to cache, delete temporary files
-        if len(tractorTabs) > 0:
-            uberTab=atpy.vstack(tractorTabs)
-            uberTab.write(outFileName)
-            for fileName in cacheFileNames:
-                os.remove(fileName)
-    
-    # Load catalog
-    if os.path.exists(outFileName) == True:
-        
-        tab=atpy.Table().read(outFileName)
+        try:
+            tractorTab=atpy.Table.read(fileName)
+            tractorTabs.append(tractorTab)
+        except:
+            print("... probably a 404 error for %s - check if cached file is corrupted ..." % (fileName))
+    # Stitch catalogs together and write to cache, delete temporary files
+    if len(tractorTabs) > 0:
+        tab=atpy.vstack(tractorTabs)
+        #uberTab.write(outFileName)
+        #for fileName in cacheFileNames:
+            #os.remove(fileName)
+        #tab=atpy.Table().read(outFileName)
         
         # Remove stars
         tab=tab[np.where(tab['type'] != 'PSF')]
