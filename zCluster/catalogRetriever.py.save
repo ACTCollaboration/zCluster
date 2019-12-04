@@ -1,0 +1,439 @@
+"""
+    Routines for retrieving photometric catalogs from SDSS, CFHTLenS etc. 
+    and parsing them into a dictionary list format.
+
+    By default, we cache the raw .csv output (or whatever) from each 
+    database under $HOME/.zCluster/cache/, but the zCluster script can 
+    also use a user-specifed cache location.
+
+    Object dictionaries made by routines in here should have photometry 
+    keys defined like 'u', 'uErr' etc., so that routines in 
+    PhotoRedshiftEngine can understand them.
+    
+    ---
+
+    Copyright 2017 Matt Hilton (matt.hilton@mykolab.com)
+    
+    This file is part of zCluster.
+
+    zCluster is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    zCluster is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with zCluster.  If not, see <http://www.gnu.org/licenses/>.
+
+"""
+
+import os
+import sys
+import numpy as np
+from astLib import *
+import astropy.table as atpy
+import astropy.io.fits as pyfits
+import astropy.io.ascii as pyascii
+import re
+import urllib.request, urllib.parse, urllib.error
+import urllib.request, urllib.error, urllib.parse
+import pylab
+import subprocess
+import time
+import zCluster
+import requests 
+from astropy.io.votable import parse_single_table 
+import IPython
+
+#-------------------------------------------------------------------------------------------------------------
+CACHE_DIR=os.environ['HOME']+os.path.sep+".zCluster"+os.path.sep+"cache"
+
+#-------------------------------------------------------------------------------------------------------------
+def makeCacheDir():
+    """Makes the cache dir where we store raw .csv output from the databases we query, if it doesn't already
+    exist.
+    
+    """
+    
+    if os.path.exists(CACHE_DIR) == False:
+        os.makedirs(CACHE_DIR)
+
+#-------------------------------------------------------------------------------------------------------------
+def addWISEPhotometry(RADeg, decDeg, catalog, halfBoxSizeDeg = 36.0/60.):
+    """This is an option that can be enabled in other retriever functions by adding 'addWISE': True in
+    optionsDict. For this to work, the passbandSet used by PhotoRedshiftEngine must also have the WISE bands
+    defined. We can probably tidy this up a bit...
+       
+    """
+    
+    cacheDir="WISECache"
+    if os.path.exists(cacheDir) == False:
+        os.makedirs(cacheDir)
+    
+    # Note that using size= in query below is broken (even though it is on IPAC docs)
+    outFileName=cacheDir+os.path.sep+"unWISE_%.6f_%.6f.vot" % (RADeg, decDeg)
+    gotFileSuccessfully=False
+    while gotFileSuccessfully == False:
+        if os.path.exists(outFileName) == False:        
+            rah, ram, ras=astCoords.decimal2hms(RADeg, ":").split(":")
+            dd, dm, ds=astCoords.decimal2dms(decDeg, ":").split(":")
+            radiusSize=halfBoxSizeDeg*3600.0#np.degrees(4./astCalc.da(1.0))*3600.0
+            # NOTE: URL modified March 2017 as IPAC seems to have changed name from wise_allwise_p3as_psd to allwise_p3as_psd
+            url="http://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query?spatial=cone&catalog=allwise_p3as_psd&objstr=%sh+%sm+%ss+%sd+%sm+%ss&radius=%d&outfmt=3" % (rah, ram, ras, dd, dm, ds, int(round(radiusSize))) 
+            urllib.request.urlretrieve(url, outFileName)
+        
+        try:
+            tab=atpy.Table().read(outFileName)
+            gotFileSuccessfully=True
+        except:
+            print("... error reading WISE catalog: retrying download in 1 min ...")
+            ##return None
+            #IPython.embed()
+            #sys.exit()
+            os.remove(outFileName)
+            time.sleep(60)
+    
+    # Now need to merge tab with catalog
+    matchRadiusDeg=2.0/3600.0
+    bands=[]
+    for key in catalog[0].keys():
+        if key not in ['RADeg', 'decDeg', 'id'] and key.find("Err") == -1:
+            bands.append(key)
+    catRAs=[]
+    catDecs=[]
+    for objDict in catalog:
+        catRAs.append(objDict['RADeg'])
+        catDecs.append(objDict['decDeg'])
+        # Defaults: assume not detected
+        objDict['w1']=99.0
+        objDict['w1Err']=99.0
+        objDict['w2']=99.0
+        objDict['w2Err']=99.0
+    catRAs=np.array(catRAs)
+    catDecs=np.array(catDecs)
+    objsToAdd=[]
+    count=len(catalog)
+    for row in tab:
+        rDeg=astCoords.calcAngSepDeg(row['ra'], row['dec'], catRAs, catDecs)
+        if rDeg.min() < matchRadiusDeg:
+            objDict=catalog[np.argmin(rDeg)]
+            objDict['w1']=row['w1mpro']+2.699   # Vega -> AB http://wise2.ipac.caltech.edu/docs/release/allsky/expsup/sec4_4h.html#conv2ab
+            objDict['w1Err']=row['w1sigmpro']
+            objDict['w2']=row['w2mpro']+3.339
+            objDict['w2Err']=row['w2sigmpro']
+        else:
+            count=count+1
+            objDict={}
+            objDict['id']=count
+            objDict['RADeg']=row['ra']
+            objDict['decDeg']=row['dec']
+            objDict['w1']=row['w1mpro']+2.699
+            objDict['w1Err']=row['w1sigmpro']
+            objDict['w2']=row['w2mpro']+3.339
+            objDict['w2Err']=row['w2sigmpro']
+            for b in bands:
+                objDict[b]=99.0
+                objDict['%sErr' % (b)]=99.0
+            objsToAdd.append(objDict)
+    catalog=catalog+objsToAdd
+
+    return catalog
+
+#-------------------------------------------------------------------------------------------------------------
+def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
+    """Retrieves SDSS Stripe 82 photometry at the given position.
+    
+    """
+
+    makeCacheDir()
+    
+    # We used PhotoObj for slit masks, because Galaxy misses some stuff, particularly at high-z
+    #tableName="PhotoObj"
+    tableName="Galaxy"
+    
+    if 'altCacheDir' in list(optionsDict.keys()):
+        cacheDir=optionsDict['altCacheDir']
+    else:
+        cacheDir=CACHE_DIR
+    
+    if os.path.exists(cacheDir) == False:
+        os.makedirs(cacheDir)
+        
+    url = 'http://cas.sdss.org/stripe82/en/tools/search/x_sql.asp'
+            
+    outFileName=cacheDir+os.path.sep+"S82_%.4f_%.4f_%.4f_%s.csv" % (RADeg, decDeg, halfBoxSizeDeg, tableName)
+    print("... getting SDSS Stripe82 photometry (file: %s) ..." % (outFileName))
+            
+    if os.path.exists(outFileName) == False:
+    
+        print("... fetching from the internet ...")
+
+        # Clean galaxy photometry query - note flags for r-band only, may want to change
+        # Assuming for limits here on equator, so don't bother with cos(dec)
+        #
+        # We may want to add something that does multiple queries if we want a bigger area from the standard
+        # SDSS query interface
+        
+        # Less conservative query - seems it's actually the galaxy view that's missing S82 objects
+        RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
+        sql="""SELECT ra,dec,dered_u,dered_g,dered_r,dered_i,dered_z,Err_u,Err_g,Err_r,Err_i,Err_z,flags_r,run 
+            FROM %s
+            WHERE 
+            (run=206 OR run=106) AND
+            ra BETWEEN %.6f and %.6f AND dec BETWEEN %.6f and %.6f 
+            """ % (tableName, RAMin, RAMax, decMin, decMax)
+        #print sql
+        #AND Err_g < 0.3 AND Err_r < 0.3 AND Err_i < 0.3 
+        
+        # Old, conservative query that ends up missing a lot of galaxies that we can see in S82 i-band
+        #sql="""SELECT ra,dec,dered_u,dered_g,dered_r,dered_i,dered_z,Err_u,Err_g,Err_r,Err_i,Err_z,flags_r,run 
+            #FROM Galaxy 
+            #WHERE 
+            #(run=206 OR run=106) AND
+            #ra BETWEEN %.6f and %.6f AND dec BETWEEN %.6f and %.6f 
+            #AND ((flags_r & 0x10000000) != 0) 
+            #-- detected in BINNED1 
+            #AND ((flags_r & 0x8100000c00a0) = 0) 
+            #-- not NOPROFILE, PEAKCENTER, NOTCHECKED, PSF_FLUX_INTERP, SATURATED, 
+            #-- or BAD_COUNTS_ERROR. 
+            #-- if you want to accept objects with interpolation problems for PSF mags, 
+            #-- change this to: AND ((flags_r & 0x800a0) = 0) 
+            #AND (((flags_r & 0x400000000000) = 0) or (psfmagerr_r <= 0.2)) 
+            #-- not DEBLEND_NOPEAK or small PSF error 
+            #-- (substitute psfmagerr in other band as appropriate) 
+            #AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0) 
+            #-- not INTERP_CENTER or not COSMIC_RAY - omit this AND clause if you want to 
+            #-- accept objects with interpolation problems for PSF mags.
+            #AND Err_g < 0.2 AND Err_r < 0.2 AND Err_i < 0.2 
+            #""" % (RAMin, RAMax, decMin, decMax)
+        
+        # Bail if no chance this is anywhere near S82
+        if decMin > 2.5 or decMax < -2.5:
+            print("... not close to S82 region ...")
+            return None
+        
+        # Filter SQL so that it'll work
+        fsql = ''
+        for line in sql.split('\n'):
+            fsql += line.split('--')[0] + ' ' + os.linesep;
+        
+        params=urllib.parse.urlencode({'cmd': fsql, 'format': "csv"})
+        response=None
+        while response == None:
+            try:
+                response=urllib.request.urlopen(url+'?%s' % (params))
+            except:
+                print("Network down? Waiting 30 sec...")
+                time.sleep(30)
+            
+        lines=response.read()
+        lines=lines.decode()
+        lines=lines.split("\n")
+
+        outFile=open(outFileName, "w")
+        for line in lines:
+            outFile.write(line+"\n")
+        outFile.close()
+    
+    else:
+        
+        inFile=open(outFileName, "r")
+        lines=inFile.readlines()
+        inFile.close()
+    
+    # Parse .csv into catalog
+    if lines[0].find("No objects have been found") != -1 or len(lines) > 1 and lines[1][:5] == "ERROR":
+        catalog=None
+    elif lines[1] == 'ERROR\n':
+        raise Exception("Error returned by SDSS query - probably too many objects?")
+    else:
+        catalog=[]
+        idCount=0
+        for line in lines[1:]: # first line always heading
+            if len(line) > 3:
+                photDict={}
+                idCount=idCount+1
+                bits=line.replace("\n", "").split(",")
+                photDict['id']=idCount    # just so we have something
+                try:
+                    photDict['RADeg']=float(bits[0])
+                except:
+                    if lines[1][:46] == '"ERROR: Maximum 60 queries allowed per minute.':
+                        print("... exceeded server queries per minute limit - waiting ...")
+                        time.sleep(70)
+                        os.remove(outFileName)
+                        return "retry"
+                    else:
+                        print("what?")
+                        ipshell()
+                        sys.exit()
+                photDict['decDeg']=float(bits[1])
+                photDict['u']=float(bits[2])
+                photDict['g']=float(bits[3])
+                photDict['r']=float(bits[4])
+                photDict['i']=float(bits[5])
+                photDict['z']=float(bits[6])
+                photDict['uErr']=float(bits[7])
+                photDict['gErr']=float(bits[8])
+                photDict['rErr']=float(bits[9])
+                photDict['iErr']=float(bits[10])
+                photDict['zErr']=float(bits[11])
+                photDict['run']=int(bits[13])
+                # Apply mag error cuts if given
+                # We're just making the mag unconstrained here (missing data), rather than applying a limit
+                # If we don't have a minimum of three useful bands, reject
+                if 'maxMagError' in list(optionsDict.keys()):
+                    keep=checkMagErrors(photDict, optionsDict['maxMagError'])
+                else:
+                    keep=True
+                if keep == True:
+                    catalog.append(photDict)
+        
+        # This guards against us letting through an empty catalog -  e.g. if not in Stripe 82, we get a 
+        # different run number, so object doesn't get added to catalog.
+        if catalog == []:
+            catalog=None
+            
+    return catalog
+
+#-------------------------------------------------------------------------------------------------------------
+def checkMagErrors(photDict, maxMagError, minBands = 3, bands = ['u', 'g', 'r', 'i', 'z']):
+    """Checks if the magnitudes in photDict are less than maxMagError, for a minimum number of minBands 
+    photometric bands.
+    
+    Returns True if the photDict passes the test, False if not
+    
+    """
+    
+    keep=True
+    rejectCount=0
+    for band in bands:
+        if photDict['%sErr' % (band)] > maxMagError or photDict['%s' % (band)] < 0:
+            photDict['%s' % (band)]=99.
+            photDict['%sErr' % (band)]=99.
+            rejectCount=rejectCount+1
+    if len(bands) - rejectCount < minBands:
+        keep=False
+    
+    return keep
+
+#-------------------------------------------------------------------------------------------------------------
+def DESY3Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
+    """Retrieves DES Y3 photometry at the given position. This assumes you have easyaccess installed
+    (https://pypi.python.org/pypi/easyaccess/1.0.7) and access rights for the non-public tables
+    in the DES Oracle database.
+    
+    """
+    
+    return DESRetriever(RADeg, decDeg, DR = 'Y3', halfBoxSizeDeg = halfBoxSizeDeg, optionsDict = optionsDict)
+
+#-------------------------------------------------------------------------------------------------------------
+def DESY3WISERetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
+    """Retrieves DES Y3 photometry joined to AllWISE at the given position. This assumes you have easyaccess 
+    installed (https://pypi.python.org/pypi/easyaccess/1.0.7) and access rights for the non-public tables
+    in the DES Oracle database.
+    
+    """
+    
+    return DESRetriever(RADeg, decDeg, DR = 'Y3+WISE', halfBoxSizeDeg = halfBoxSizeDeg, optionsDict = optionsDict)
+
+#-------------------------------------------------------------------------------------------------------------
+def DESDR1Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
+    """Retrieves DES DR1 photometry at the given position. This assumes you have easyaccess installed
+    (https://pypi.python.org/pypi/easyaccess/1.0.7) and have registered for a login to access the DES
+    Oracle database
+    
+    """
+    
+    return DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = halfBoxSizeDeg, optionsDict = optionsDict)
+
+#-------------------------------------------------------------------------------------------------------------
+def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
+    """Retrieves DES photometry. Assumes you have easyaccess installed
+    (https://pypi.python.org/pypi/easyaccess/1.0.7) and the necessary login to access either public or
+    proprietary tables in the DES Oracle database.
+    
+    Use DR = 'DR1' to access the public photometry, DR = 'Y3' to access the current 'Gold' photometry
+    
+    """
+
+    if 'altCacheDir' in list(optionsDict.keys()):
+        cacheDir=optionsDict['altCacheDir']
+    else:
+        cacheDir=CACHE_DIR
+    
+    if os.path.exists(cacheDir) == False:
+        os.makedirs(cacheDir)
+    
+    try:
+        connection=optionsDict['connection']
+    except:
+        raise Exception("No DES database connection")
+    
+    if decDeg > 5:
+        print("... outside DES area - skipping ...")
+        return None
+    
+    outFileName=cacheDir+os.path.sep+"DES%s_%.4f_%.4f_%.4f.csv" % (DR, RADeg, decDeg, halfBoxSizeDeg)      
+
+    # This bit has to be outside, in case we load data from cache
+    if DR == 'Y3' or DR == 'Y3+WISE':
+        magKey="SOF_CM_MAG_CORRECTED_$BAND"
+        magErrKey="SOF_CM_MAG_ERR_$BAND"
+    elif DR == 'DR1':
+        magKey="MAG_AUTO_$BAND_DERED"
+        magErrKey="MAGERR_AUTO_$BAND"
+    else:
+        raise Exception("didn't recognise requested DES DR")
+
+    if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
+        RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
+        # Y3 Gold v1.0
+        #query="SELECT coadd_object_id, ra, dec, ngmix_cm_mag_g - (3.186 * EBV_SFD98) AS cm_mag_g, ngmix_cm_mag_r - (2.140 * EBV_SFD98) AS cm_mag_r, ngmix_cm_mag_i - (1.569 * EBV_SFD98) AS cm_mag_i, ngmix_cm_mag_z - (1.196 * EBV_SFD98) AS cm_mag_z, ngmix_cm_mag_err_g AS cm_mag_err_g, ngmix_cm_mag_err_r AS cm_mag_err_r, ngmix_cm_mag_err_i AS cm_mag_err_i, ngmix_cm_mag_err_z AS cm_mag_err_z FROM y3_gold_1_0 SAMPLE WHERE ra BETWEEN %.6f and %.6f AND dec BETWEEN %.6f and %.6f AND flag_gold = 0 AND flag_footprint = 1 AND flag_foreground = 0 AND extended_class_mash BETWEEN 3 AND 4" % (RAMin, RAMax, decMin, decMax) 
+        # Y3 Gold v2.2
+        if DR == 'Y3':
+            query="SELECT COADD_OBJECT_ID, RA, DEC, DNF_ZMC_SOF, BPZ_ZMC_SOF, SOF_CM_MAG_CORRECTED_G, SOF_CM_MAG_CORRECTED_R, SOF_CM_MAG_CORRECTED_I, SOF_CM_MAG_CORRECTED_Z, SOF_CM_MAG_ERR_G, SOF_CM_MAG_ERR_R, SOF_CM_MAG_ERR_I, SOF_CM_MAG_ERR_Z FROM Y3_GOLD_2_2 WHERE FLAGS_FOOTPRINT = 1 and FLAGS_FOREGROUND = 0 and bitand(FLAGS_GOLD, 62) = 0 and EXTENDED_CLASS_MASH_SOF = 3 and SOF_CM_MAG_I between 16 and 24 AND RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
+        elif DR == 'DR1':
+            query="SELECT RA, DEC, MAG_AUTO_G_DERED, MAG_AUTO_R_DERED, MAG_AUTO_I_DERED, MAG_AUTO_Z_DERED, MAGERR_AUTO_G, MAGERR_AUTO_R, MAGERR_AUTO_I, MAGERR_AUTO_Z FROM DR1_MAIN WHERE WAVG_SPREAD_MODEL_I + 3.0*WAVG_SPREADERR_MODEL_I > 0.005 and WAVG_SPREAD_MODEL_I + 1.0*WAVG_SPREADERR_MODEL_I > 0.003 and WAVG_SPREAD_MODEL_I - 1.0*WAVG_SPREADERR_MODEL_I > 0.001 and WAVG_SPREAD_MODEL_I > -1 and IMAFLAGS_ISO_I = 0 and MAG_AUTO_I < 24 and RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
+        elif DR == 'Y3+WISE':
+            query="SELECT D.COADD_OBJECT_ID, D.RA, D.DEC, DNF_ZMC_SOF, BPZ_ZMC_SOF, SOF_CM_MAG_CORRECTED_G, SOF_CM_MAG_CORRECTED_R, SOF_CM_MAG_CORRECTED_I, SOF_CM_MAG_CORRECTED_Z, SOF_CM_MAG_ERR_G, SOF_CM_MAG_ERR_R, SOF_CM_MAG_ERR_I, SOF_CM_MAG_ERR_Z, W1MPRO, W1SIGMPRO, W2MPRO, W2SIGMPRO FROM Y3_GOLD_2_2 D LEFT OUTER JOIN DES_ADMIN.Y3A2_WISE_DES W ON D.COADD_OBJECT_ID = W.COADD_OBJECT_ID WHERE FLAGS_FOOTPRINT = 1 and FLAGS_FOREGROUND = 0 and bitand(FLAGS_GOLD, 62) = 0 and EXTENDED_CLASS_MASH_SOF = 3 and SOF_CM_MAG_I between 16 and 24 AND D.RA BETWEEN %.6f AND %.6f AND D.DEC BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
+        else:
+            raise Exception("didn't recognise requested DES DR")
+
+        # This should restart the connection if it drops
+        if connection.ping() == False:
+            print("... DES database connection lost: reconnecting ...")
+            import easyaccess as ea
+            connection=ea.connect()
+        if connection.ping() == True:
+            connection.query_and_save(query, outFileName)
+        else:
+            raise Exception("DES database connection lost")
+
+    # No output is written if the query returns nothing... so we'll write a blank file to save repeating the query next time
+    catalog=[]
+    if os.path.exists(outFileName) == False:
+        outFile=open(outFileName, "w")
+        outFile.write("# No objects returned by query\n")
+        outFile.close()
+    else:
+        
+        tab=atpy.Table().read(outFileName, format = 'csv')
+
+        idCount=0
+        for row in tab:
+            idCount=idCount+1
+            photDict={}
+            photDict['id']=idCount    # just so we have something - we could use COADD_OBJECT_ID but skipping for now
+            photDict['RADeg']=row['RA']
+            photDict['decDeg']=row['DEC']
+            photDict['g']=row[magKey.replace("$BAND", "G")]
+            photDict['r']=row[magKey.replace("$BAND", "R")]
+            photDict['i']=row[magKey.replace("$BAND", "I")]
+            photDict['z']=row[magKey.replace("$BAND", "Z")]
+            photDict['gErr']=row[magErrKey.replace("$BAND", "G")]
+            photDict['rE
