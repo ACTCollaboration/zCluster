@@ -600,9 +600,8 @@ def ATLASDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
     outFileName=cacheDir+os.path.sep+"ATLASDR4_%.4f_%.4f_%.4f.fits" % (RADeg, decDeg, halfBoxSizeDeg)          
     if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
-        print("... downloading catalog %s ..." % (outFileName))
-        query="select sourceID, ra2000, dec2000, uPetroMag, uPetroMagErr, gPetroMag, gPetroMagErr, rPetroMag, rPetroMagErr, iPetroMag, iPetroMagErr, zPetroMag, zPetroMagErr, aU, aG, aR, aI, aZ, pGalaxy, pStar from atlas_er4_ugriz_catMetaData_fits_V3 where ra2000 BETWEEN %.4f AND %.4f AND dec2000 BETWEEN %.4f and %.4f and priOrSec = 0 and pGalaxy > 0.5 and gPetroMagErr < 0.2 and rPetroMagErr < 0.2 and iPetroMagErr < 0.2;" % (RAMin, RAMax, decMin, decMax)      
-        #query="select sourceID, ra2000, dec2000, uAperMagNoAperCorr3, uAperMag3Err, gAperMagNoAperCorr3, gAperMag3Err, rAperMagNoAperCorr3, rAperMag3Err, iAperMagNoAperCorr3, iAperMag3Err, zAperMagNoAperCorr3, zAperMag3Err, aU, aG, aR, aI, aZ, pGalaxy, pStar from atlas_er4_ugriz_catMetaData_fits_V3 where ra2000 BETWEEN %.4f AND %.4f AND dec2000 BETWEEN %.4f and %.4f and priOrSec = 0 and pGalaxy > 0.5 and gPetroMagErr < 0.2 and rPetroMagErr < 0.2 and iPetroMagErr < 0.2;" % (RAMin, RAMax, decMin, decMax)   
+        print("... downloading catalog %s ..." % (outFileName)) 
+        query="select sourceID, ra2000, dec2000, uPetroMag, uPetroMagErr, gPetroMag, gPetroMagErr, rPetroMag, rPetroMagErr, iPetroMag, iPetroMagErr, zPetroMag, zPetroMagErr, uAperMagNoAperCorr3, uAperMag3Err, gAperMagNoAperCorr3, gAperMag3Err, rAperMagNoAperCorr3, rAperMag3Err, iAperMagNoAperCorr3, iAperMag3Err, zAperMagNoAperCorr3, zAperMag3Err, aU, aG, aR, aI, aZ, pGalaxy, pStar, pNoise, pSaturated from atlas_er4_ugriz_catMetaData_fits_V3 where ra2000 BETWEEN %.4f AND %.4f AND dec2000 BETWEEN %.4f and %.4f and priOrSec = 0;" % (RAMin, RAMax, decMin, decMax)   
         r=requests.get('http://archive.eso.org/tap_cat/sync?', 
                         params = {'REQUEST': 'doQuery',
                                   'LANG': 'ADQL',
@@ -627,11 +626,41 @@ def ATLASDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
     #magErrKey="$BANDAPERMAG3ERR"
     
     # First, get rid of nans or nonsensical values
+    # We apply extinction correction in-place here
+    # NOTE: Zapping u (most uncertain with regards photo calib I think) makes no significant difference
     bands=['u', 'g', 'r', 'i', 'z']
     for b in bands:
         tab[magKey.replace("$BAND", b.upper())][np.isnan(tab[magKey.replace("$BAND", b.upper())])]=99.0
         tab[magErrKey.replace("$BAND", b.upper())][np.isnan(tab[magErrKey.replace("$BAND", b.upper())])]=99.0
+        tab[magKey.replace("$BAND", b.upper())]=tab[magKey.replace("$BAND", b.upper())]-tab['A%s' % (b.upper())]
         
+    # Transform to SDSS in-place - maybe this works better?
+    # These transforms are from doing some algebra on the ones in the VST-ATLAS paper and throwing away ~0.00x terms
+    # NOTE: These don't work at all well (much worse than not doing this)
+    #iSDSS=tab[magKey.replace("$BAND", 'I')]-0.025
+    #zSDSS=(tab[magKey.replace("$BAND", 'Z')]-0.04*tab[magKey.replace("$BAND", 'I')]+0.04)/0.96
+    #rSDSS=(tab[magKey.replace("$BAND", 'R')]+0.0316*tab[magKey.replace("$BAND", 'G')])/1.03
+    #gSDSS=(tab[magKey.replace("$BAND", 'G')]/0.95)-0.048*(tab[magKey.replace("$BAND", 'R')]+0.316*tab[magKey.replace("$BAND", 'G')])-0.063
+    #uSDSS=1.01*(tab[magKey.replace("$BAND", 'U')]-0.01*gSDSS+0.27)
+    #tab[magKey.replace("$BAND", 'U')]=uSDSS
+    #tab[magKey.replace("$BAND", 'G')]=gSDSS
+    #tab[magKey.replace("$BAND", 'R')]=rSDSS
+    #tab[magKey.replace("$BAND", 'I')]=iSDSS
+    #tab[magKey.replace("$BAND", 'Z')]=zSDSS
+    
+    # Empirical corrections (based on own comparison with SDSS galaxy photometry for small subsample)
+    # Again, these don't help at all really
+    #tab[magKey.replace("$BAND", 'U')]=tab[magKey.replace("$BAND", 'U')]-0.286
+    #tab[magKey.replace("$BAND", 'G')]=tab[magKey.replace("$BAND", 'G')]-0.080
+    #tab[magKey.replace("$BAND", 'R')]=tab[magKey.replace("$BAND", 'R')]-0.009
+    #tab[magKey.replace("$BAND", 'I')]=tab[magKey.replace("$BAND", 'I')]-0.084
+    #tab[magKey.replace("$BAND", 'Z')]=tab[magKey.replace("$BAND", 'Z')]-0.073
+    
+    # Classification cuts
+    tab=tab[np.where(tab['PGALAXY'] > 0.5)]
+    tab=tab[np.where(tab['PNOISE'] < 0.01)]
+    tab=tab[np.where(tab['PSATURATED'] < 0.01)]
+    
     idCount=0
     catalog=[]
     for row in tab:
@@ -641,8 +670,8 @@ def ATLASDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
         photDict['RADeg']=row['RA2000']
         photDict['decDeg']=row['DEC2000']
         for b in bands:
-            photDict[b]=row[magKey.replace("$BAND", b.upper())]-row['A%s' % (b.upper())]
-            photDict[b+'Err']=row[magErrKey.replace("$BAND", b.upper())]-row['A%s' % (b.upper())]
+            photDict[b]=row[magKey.replace("$BAND", b.upper())]
+            photDict[b+'Err']=row[magErrKey.replace("$BAND", b.upper())]
         if 'maxMagError' in list(optionsDict.keys()):
             keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
         else:
@@ -949,7 +978,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
     outFileName=cacheDir+os.path.sep+"DECaLSDR8_%.4f_%.4f_%.2f.fits" % (RADeg, decDeg,
                                                                             halfBoxSizeDeg)
     
-    print("... getting DECaLS photometry (file: %s) ..." % (outFileName))
+    print("... getting DECaLS photometry ...")
 
     bricksTab=optionsDict['bricksTab']
     DR8Tab=optionsDict['DR8Tab']

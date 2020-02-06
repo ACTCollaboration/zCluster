@@ -27,6 +27,7 @@ import argparse
 import astropy.table as atpy
 from astropy.coordinates import SkyCoord
 from astropy.coordinates import match_coordinates_sky
+import astropy.stats as apyStats
 from zCluster import *
 import pylab as plt
 import numpy as np
@@ -183,6 +184,7 @@ if __name__ == '__main__':
                 maskedDiff_over1plusz=(zIn[mask]-zOut[mask])/(1+zIn[mask])
                 meanMaskedDiff_over1plusz=np.mean(maskedDiff_over1plusz)
                 stdMaskedDiff_over1plusz=np.std(maskedDiff_over1plusz)
+                biweightMaskedDiff_over1plusz=apyStats.biweight_scale(maskedDiff_over1plusz, c = 9.0, modify_sample_size = True)
                 print("... median (zIn - zOut) = %.3f" % (np.median(maskedDiff)))
                 print("... mean (zIn - Zout) = %.3f +/- %.3f" % (meanMaskedDiff, stdMaskedDiff / np.sqrt(mask.sum())))
                 print("... sigma (zIn - zOut) = %.3f" % (stdMaskedDiff))
@@ -190,6 +192,7 @@ if __name__ == '__main__':
                     print("... median (zIn - zOut) / (1 + zIn) = %.3f" % (np.median(maskedDiff_over1plusz)))
                     print("... mean (zIn - Zout) / (1 + zIn)  = %.3f" % (meanMaskedDiff_over1plusz))
                     print("... sigma (zIn - zOut) / (1 + zIn)  = %.3f" % (stdMaskedDiff_over1plusz))
+                    print("... biweight scale (zIn - zOut) / (1 + zIn)  = %.3f" % (biweightMaskedDiff_over1plusz))
 
     # Default mask / stats for plotting
     zMin=zCutsList[0][0]

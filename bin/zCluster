@@ -268,8 +268,14 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                     tab=tab[np.where(tab['rDeg'] < 14./60.0)]
                     tab.table_name="zCluster"
                     tab.write(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_")))
-                    catalogTools.catalog2DS9(galaxyCatalog, objOutDir+os.path.sep+"galaxyCatalog_%s.reg" % (obj['name'].replace(" ", "_")), 
-                                            idKeyToUse = 'id', addInfo = [{'key': 'i', 'fmt': '%.3f'}, {'key': 'zPhot', 'fmt': '%.2f'}]) 
+                    try:
+                        catalogTools.catalog2DS9(galaxyCatalog, 
+                                                 objOutDir+os.path.sep+"galaxyCatalog_%s.reg" % (obj['name'].replace(" ", "_")), 
+                                                 idKeyToUse = 'id', 
+                                                 addInfo = [{'key': 'r', 'fmt': '%.3f'}, {'key': 'zPhot', 'fmt': '%.2f'}]) 
+                    except:
+                        print("... couldn't write .reg file (missing key?) ...")
+                        pass
 
                 if writePlots == True:
                     writePlot(obj['name'], obj['zClusterResult'], zPriorMax, outDir+os.path.sep+"Plots")
