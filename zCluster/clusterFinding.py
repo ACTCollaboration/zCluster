@@ -33,8 +33,32 @@ from astropy.coordinates import SkyCoord
 from astropy.coordinates import match_coordinates_sky
 from PIL import Image
 from PIL import ImageDraw
+import nemoCython
 import pylab as plt
 import IPython
+
+#------------------------------------------------------------------------------------------------------------
+def getPixelAreaDeg2Map(mapData, wcs):
+    """Returns a map of pixel area in square degrees.
+    
+    """
+    
+    # Get pixel size as function of position
+    pixAreasDeg2=[]
+    RACentre, decCentre=wcs.getCentreWCSCoords()
+    x0, y0=wcs.wcs2pix(RACentre, decCentre)
+    x1=x0+1
+    for y0 in range(mapData.shape[0]):
+        y1=y0+1
+        ra0, dec0=wcs.pix2wcs(x0, y0)
+        ra1, dec1=wcs.pix2wcs(x1, y1)
+        xPixScale=astCoords.calcAngSepDeg(ra0, dec0, ra1, dec0)
+        yPixScale=astCoords.calcAngSepDeg(ra0, dec0, ra0, dec1)
+        pixAreasDeg2.append(xPixScale*yPixScale)
+    pixAreasDeg2=np.array(pixAreasDeg2)
+    pixAreasDeg2Map=np.array([pixAreasDeg2]*mapData.shape[1]).transpose()
+    
+    return pixAreasDeg2Map   
 
 #-------------------------------------------------------------------------------------------------------------
 def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMpc = 0.0, maxDistanceMpc = 1.0, 
@@ -152,16 +176,20 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
     if areaMask is None:
         areaMpc2=np.array([np.pi*maxDistanceMpc**2 - np.pi*minDistanceMpc**2]*len(zArray))
     else:
-        cx, cy=wcs.wcs2pix(RADeg, decDeg)
-        cx=int(cx); cy=int(cy)
-        x=np.array([np.arange(0, areaMask.shape[1])-cx]*areaMask.shape[0])
-        y=np.array([np.arange(0, areaMask.shape[0])-cy]*areaMask.shape[1]).transpose()
-        rDeg=np.sqrt(x**2 + y**2)*wcs.getPixelSizeDeg()
+        areaMap=getPixelAreaDeg2Map(areaMask, wcs)
+        rDegMap=np.zeros(areaMask.shape)
+        rDegMap, xRange, yRange=nemoCython.makeDegreesDistanceMap(rDegMap, wcs, RADeg, decDeg, 2.0)
+        rDegMap=rDegMap[yRange[0]:yRange[1], xRange[0]:xRange[1]]
+        areaMap=areaMask[yRange[0]:yRange[1], xRange[0]:xRange[1]]*areaMap[yRange[0]:yRange[1], xRange[0]:xRange[1]]
         areaMpc2=[]
+        count=0
         for DA in DAArray:
-            rMpc=np.tan(np.radians(rDeg))*DA
-            areaMap=(np.power(np.tan(np.radians(wcs.getPixelSizeDeg()))*DA, 2)*areaMask)
-            areaMpc2.append(areaMap[np.logical_and(np.greater(rMpc, minDistanceMpc), np.less(rMpc, maxDistanceMpc))].sum())
+            areaScaling=1/np.power(np.degrees(np.arctan(1.0/DA)), 2)
+            max_rDegCut=np.degrees(np.arctan(maxDistanceMpc/DA))
+            min_rDegCut=np.degrees(np.arctan(minDistanceMpc/DA))
+            areaDeg2=areaMap[np.logical_and(rDegMap >= min_rDegCut, rDegMap < max_rDegCut)].sum()
+            areaMpc2.append(areaScaling*areaDeg2)
+            count=count+1
         areaMpc2=np.array(areaMpc2)
 
     # If we want p(z), we can divide pzWeightedSum by Nz_r_odds
@@ -170,8 +198,8 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
     
 #-------------------------------------------------------------------------------------------------------------
 def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weightsType, maxRMpc, 
-                            zMethod, sanityCheckRadiusArcmin = 1.0, bckCatalog = [], bckAreaDeg2 = None,
-                            zDebias = None):
+                            zMethod, maskMap = None, maskWCS = None, sanityCheckRadiusArcmin = 1.0, 
+                            bckCatalog = [], bckAreaDeg2 = None, zDebias = None):
     """This does the actual work of estimating cluster photo-z from catalog.
     
     Assumes each object has keys 'pz' (p(z), probability distribution), 'pz_z' (corresponding redshifts at 
@@ -199,7 +227,10 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
 
     # Automated area mask calculation, using only catalogs
     # Probably not super accurate but better than nothing - will at least take care of survey boundaries
-    areaMask, wcs=estimateAreaMask(RADeg, decDeg, catalog)
+    if maskMap is None and maskWCS is None:
+        areaMask, wcs=estimateAreaMask(RADeg, decDeg, catalog)
+    else:
+        areaMask, wcs=maskMap, maskWCS
     
     # Here, we do a weighted average of the p(z) distribution
     # The weighting is done according to distance from the cluster position at the z corresponding to a

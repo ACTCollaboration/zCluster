@@ -33,6 +33,7 @@ import pickle
 import numpy as np
 from astLib import *
 from scipy import interpolate
+import astropy.io.fits as pyfits
 import astropy.table as atpy
 import datetime
 import urllib.request
@@ -174,7 +175,7 @@ def writeRedshiftsCatalog(catalog, outFileName):
 #-------------------------------------------------------------------------------------------------------------
 def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir, zPriorMin,
                  zPriorMax, weightsType, maxRMpc, zMethod, bckCatalogFileName, bckAreaDeg2,
-                 writeGalaxyCatalogs = False, writePlots = False, rank = 0, zDebias = None,
+                 maskPath = None, writeGalaxyCatalogs = False, writePlots = False, rank = 0, zDebias = None,
                  fitZPOffsets = False):
     """Runs zCluster algorithm on each object in catalog.
     
@@ -198,6 +199,15 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
     else:
         cGlobal=None
     
+    # Optional area mask
+    if maskPath is not None:
+        with pyfits.open(maskPath) as img:
+            maskMap=img[0].data
+            maskWCS=astWCS.WCS(img[0].header, mode = 'pyfits')
+    else:
+        maskMap=None
+        maskWCS=None
+        
     # Optional background catalog (usually would only be used with proprietary photometric survey, e.g., SOAR)
     if bckCatalogFileName != None and bckAreaDeg2 != None:
         bckTab=atpy.Table().read(bckCatalogFileName)
@@ -232,6 +242,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                     
                 obj['zClusterResult']=clusterFinding.estimateClusterRedshift(obj['RADeg'], obj['decDeg'], galaxyCatalog, zPriorMin, 
                                                                              zPriorMax, weightsType, maxRMpc, zMethod, 
+                                                                             maskMap = maskMap, maskWCS = maskWCS,
                                                                              bckCatalog = bckCatalog, bckAreaDeg2 = bckAreaDeg2,
                                                                              zDebias = zDebias)
 
@@ -359,7 +370,9 @@ if __name__ == '__main__':
     parser.add_argument("-R", "--max-radius-Mpc", dest="maxRMpc", help="""Maximum radius in Mpc within 
                         which to calculate delta statistic for each cluster (default: 0.5).""", 
                         default = 0.5)
-    parser.add_argument("-m", "--method", dest="method", help="""Method to use for the maximum likelihood
+    parser.add_argument("-m", "--mask", dest="mask", help="""Path to mask image (FITS format with WCS)
+                        that defines valid survey area.""", default = None)
+    parser.add_argument("-a", "--algorithm", dest="algorithm", help="""Algorithm to use for the maximum likelihood
                         redshift. Options are 'max' or 'odds' (default: odds).""", 
                         default = 'odds')
     parser.add_argument("-c", "--cachedir", dest="cacheDir", default = None, help="""Cache directory location
@@ -413,13 +426,14 @@ if __name__ == '__main__':
     cacheDir=args.cacheDir
     weightsType=args.weightsType
     maxRMpc=float(args.maxRMpc)
-    method=args.method
+    method=args.algorithm
     MPIEnabled=args.MPIEnabled
     maxMagError=float(args.maxMagError)
     #magsBrighterMStarCut=float(args.magsBrighterMStarCut)
     absMagCut=float(args.absMagCut)
     writeGalaxyCatalogs=args.writeGalaxyCatalogs
     writePlots=args.writePlots
+    maskPath=args.mask
     ZPError=args.ZPError
     
     update_rcParams()
@@ -677,8 +691,8 @@ if __name__ == '__main__':
 
     catalog=runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir,
                          zPriorMin, zPriorMax, weightsType, maxRMpc, method, bckCatalogFileName, bckAreaDeg2,
-                         writeGalaxyCatalogs = writeGalaxyCatalogs, writePlots = writePlots, rank = rank,
-                         zDebias = zDebias, fitZPOffsets = args.fitZPOffsets)
+                         maskPath = maskPath, writeGalaxyCatalogs = writeGalaxyCatalogs, writePlots = writePlots, 
+                         rank = rank, zDebias = zDebias, fitZPOffsets = args.fitZPOffsets)
     
     # If running under MPI, gather everything back together
     # Rank 0 process will continue with plots
