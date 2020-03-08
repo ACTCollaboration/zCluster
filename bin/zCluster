@@ -174,7 +174,8 @@ def writeRedshiftsCatalog(catalog, outFileName):
 #-------------------------------------------------------------------------------------------------------------
 def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir, zPriorMin,
                  zPriorMax, weightsType, maxRMpc, zMethod, bckCatalogFileName, bckAreaDeg2,
-                 writeGalaxyCatalogs = False, writePlots = False, rank = 0, zDebias = None):
+                 writeGalaxyCatalogs = False, writePlots = False, rank = 0, zDebias = None,
+                 fitZPOffsets = False):
     """Runs zCluster algorithm on each object in catalog.
     
     """
@@ -223,8 +224,10 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
             while stuff == "retry":
                 stuff=retriever(obj['RADeg'], obj['decDeg'], optionsDict = retrieverOptions)
             galaxyCatalog=stuff
-            if galaxyCatalog != None:
+            if galaxyCatalog is not None:
                 
+                if fitZPOffsets == True:
+                    photoRedshiftEngine.calcZeroPointOffsets(galaxyCatalog)
                 photoRedshiftEngine.calcPhotoRedshifts(galaxyCatalog, calcMLRedshiftAndOdds = True)                    
                     
                 obj['zClusterResult']=clusterFinding.estimateClusterRedshift(obj['RADeg'], obj['decDeg'], galaxyCatalog, zPriorMin, 
@@ -371,6 +374,11 @@ if __name__ == '__main__':
                         help="""Global photometric zero point uncertainty in magnitudes, applied to all bands 
                         (default: 0). Added in quadrature to the photometric uncertainties in the catalog.""", 
                         default = 0.0)
+    parser.add_argument("-f", "--fit-for-zero-point-offsets", dest="fitZPOffsets", 
+                        help="""If the input catalog contains a z_spec column, use those galaxies to fit
+                        for magnitude zero point offsets. These will then be applied when estimating galaxy
+                        photometric redshifts.""", 
+                        default = False, action = "store_true")
     parser.add_argument("-z", "--z-prior-min", dest="zPriorMin", help="""Set minimum redshift of prior.""", 
                         default = None)
     parser.add_argument("-Z", "--z-prior-max", dest="zPriorMax", help="""Set maximum redshift of prior.""", 
@@ -670,7 +678,7 @@ if __name__ == '__main__':
     catalog=runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir,
                          zPriorMin, zPriorMax, weightsType, maxRMpc, method, bckCatalogFileName, bckAreaDeg2,
                          writeGalaxyCatalogs = writeGalaxyCatalogs, writePlots = writePlots, rank = rank,
-                         zDebias = zDebias)
+                         zDebias = zDebias, fitZPOffsets = args.fitZPOffsets)
     
     # If running under MPI, gather everything back together
     # Rank 0 process will continue with plots

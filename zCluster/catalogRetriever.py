@@ -1310,6 +1310,9 @@ def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
             else:
                 photDict[b]=row['%s_%s' % (b, magKey)][magNumber]
                 photDict[b+"Err"]=row['%s_%s' % (b, magErrKey)][magNumber]
+        # Optional: spec-zs for fitting for zero point offsets
+        if 'z_spec' in tab.keys():
+            photDict['z_spec']=row['z_spec']
         if 'maxMagError' in list(optionsDict.keys()):
             keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = acceptableBands)
         else:

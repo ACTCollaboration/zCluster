@@ -120,8 +120,9 @@ class PhotoRedshiftEngine:
         # to reproduce the colours of galaxies in SDSS.
         self.modelSEDDictList=[]
         self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.0/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")
-        # These models below don't work well for us
-        #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"G15Models/*.sed")
+        #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/uvista_nmf/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.0/*.dat")
+        #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.1_lines/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/uvista_nmf/*.dat")
+        
         self.numModels=len(self.SEDFiles)
         i=0
         t=0
@@ -150,6 +151,7 @@ class PhotoRedshiftEngine:
             modelFlux.append(modelSEDDict['flux'])
         self.modelFlux=np.array(modelFlux)  
         self.modelFlux2=self.modelFlux**2
+        self.ZPOffsets=np.zeros(self.modelFlux.shape[1])
         
         # We might use these...
         dlRange=[]
@@ -173,7 +175,66 @@ class PhotoRedshiftEngine:
         # Less sophisticated mag prior...
         self.magPriorCut=absMagCut
         self.magPriorBand=self.bands.index('r')
-   
+
+    def calcZeroPointOffsets(self, galaxyCatalog, zSpecColumn = 'z_spec'):
+        """If the galaxyCatalog contains zSpecColumn, fit SEDs at given spec-zs to determine
+        zero point offsets. After this is done, they will automatically be applied by calcPhotoRedshifts.
+        
+        """
+        print("... calculating zero point offsets for each band using objects with spec-zs ...")
+        ten23=(10**23.0)
+        diffMags=[]
+        for galaxy in galaxyCatalog:
+            if zSpecColumn in galaxy.keys() and galaxy[zSpecColumn] > 0:
+                # If we don't have a band, include a ridiculous mag with ridiculous error so zero weight in fit
+                magAB=[]
+                magErrAB=[]
+                for k in self.bands:
+                    if k in list(galaxy.keys()):
+                        magAB.append(galaxy[k])
+                        magErrAB.append(galaxy['%sErr' % (k)])
+                    else:
+                        magAB.append(99.0)
+                        magErrAB.append(99.0)
+                magAB=np.array(magAB)
+                magErrAB=np.array(magErrAB)
+            
+                # Incorporate a global photometric calibration error (applied to all bands)
+                # Helps to get catalogs with tiny errors to behave
+                magErrAB=np.sqrt(magErrAB**2+self.ZPError**2)
+                            
+                fluxJy=ten23*np.power(10, (-(magAB+48.6)/2.5)) 
+                sedFlux=3e-13*fluxJy/self.effLMicron2
+                fluxJyErr=ten23*np.power(10, (-(magAB-magErrAB+48.6)/2.5))
+                sedFluxErr=(3e-13*fluxJyErr/self.effLMicron2)-sedFlux
+                sedFluxErr2=sedFluxErr**2
+                # Note we don't actually need to make sedFlux same shape as modelFlux, big speed up, same result
+                norm=np.sum((self.modelFlux*sedFlux)/(sedFluxErr2), axis=1)/np.sum(self.modelFlux2/sedFluxErr2, axis=1)
+                chiSq=np.sum(((sedFlux-norm.reshape([norm.shape[0], 1])*self.modelFlux)**2)/sedFluxErr2, axis=1)
+                chiSq[np.isnan(chiSq)]=1e6   # throw these out, should check this out and handle more gracefully
+
+                chiSqProb=np.exp(-chiSq/2)#stats.chisqprob(chiSq, len(self.bands)-2)
+                chiSqProb=chiSqProb.reshape([self.numModels, self.zRange.shape[0]])
+                zi=np.argmin(abs(galaxy[zSpecColumn]-self.zRange))
+                
+                chiSqProb=chiSqProb[:, zi]
+                modFlux=(norm.reshape([norm.shape[0], 1])*self.modelFlux)
+                modFlux=modFlux.reshape([self.numModels, self.zRange.shape[0], len(magAB)]) 
+                modFlux=modFlux[:, zi, :]
+                
+                modFlux=np.average(modFlux, axis = 0, weights = chiSqProb)
+                modFluxJy=(modFlux*self.effLMicron2)/3e-13 
+                modMags=-2.5*np.log10(modFluxJy/1e23)-48.6
+                diffMags.append(magAB-modMags)
+        # Average after taking out differenced 99 values for missing data
+        diffMags=np.array(diffMags)
+        ZPOffsets=[]
+        for i in range(diffMags.shape[1]):
+            d=diffMags[:, i]
+            ZPOffsets.append(np.median(d[np.less(d, 1)]))
+        self.ZPOffsets=np.array(ZPOffsets)
+        print("... offsets found: %s mag." % (str(self.ZPOffsets)))
+
     
     def calcPhotoRedshifts(self, galaxyCatalog, calcMLRedshiftAndOdds = False):
         """Calculates photometric redshifts and adds to the galaxy catalog in place.
@@ -206,6 +267,8 @@ class PhotoRedshiftEngine:
                     magErrAB.append(99.0)
             magAB=np.array(magAB)
             magErrAB=np.array(magErrAB)
+            
+            magAB=magAB-self.ZPOffsets
             
             # Incorporate a global photometric calibration error (applied to all bands)
             # Helps to get catalogs with tiny errors to behave
