@@ -40,13 +40,13 @@ class PhotoRedshiftEngine:
     
     """
     
-    def __init__(self, absMagCut, passbandSet = 'SDSS+Ks', zMin = 0.01, zMax = 3.0, zStep = 0.01):
+    def __init__(self, absMagCut, passbandSet = 'SDSS+Ks', zMin = 0.01, zMax = 3.0, zStep = 0.01, ZPError = 0.0):
         """Sets up the stuff we would otherwise calculate every time, i.e., the templates.
         
         """
                                 
         # Redshift grid on which to calculate p(z)
-        self.zRange=np.linspace(zMin, zMax, ((zMax+zStep)-zMin)/zStep)
+        self.zRange=np.linspace(zMin, zMax, int(((zMax+zStep)-zMin)/zStep))
 
         # Set up passbands
         passbandsDir=zCluster.__path__[0]+os.path.sep+"passbands"+os.path.sep
@@ -62,6 +62,14 @@ class PhotoRedshiftEngine:
             self.bands=['u', 'g', 'r', 'i', 'Z', 'Y', 'J', 'H', 'Ks']
             for band in self.bands:
                 if band in ['Z', 'Y', 'J', 'H', 'Ks']:
+                    self.passbandsList.append(astSED.Passband(passbandsDir+"VISTA_Filters_at80K_forETC_%s.dat" % (band), 
+                                                              inputUnits = 'nanometres'))
+                else:
+                    self.passbandsList.append(astSED.Passband(passbandsDir+band+"_SDSS.res"))
+        elif passbandSet == 'WIRDS':
+            self.bands=['u', 'g', 'r', 'i', 'z', 'J', 'H', 'Ks']
+            for band in self.bands:
+                if band in ['J', 'H', 'Ks']:
                     self.passbandsList.append(astSED.Passband(passbandsDir+"VISTA_Filters_at80K_forETC_%s.dat" % (band), 
                                                               inputUnits = 'nanometres'))
                 else:
@@ -92,7 +100,12 @@ class PhotoRedshiftEngine:
                     self.passbandsList.append(astSED.Passband(passbandsDir+"RSR-%s.EE.txt" % (band.upper()), inputUnits = "microns"))
         else:
             raise Exception("Unknown passbandSet '%s'" % (passbandSet))
-            
+        
+        # Allow a global photometric calibration error, in magnitudes, (across all bands)
+        # This gets added to photometric errors in catalog in quadrature
+        # This helps to get catalogs with extremely small photometric errors to behave
+        self.ZPError=ZPError
+        
         # This probably doesn't gain us much
         self.effectiveWavelength=[]
         for p in self.passbandsList:
@@ -111,9 +124,12 @@ class PhotoRedshiftEngine:
         #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"G15Models/*.sed")
         self.numModels=len(self.SEDFiles)
         i=0
+        t=0
+        self.templateIndex=[]
         for f in self.SEDFiles:
             s=astSED.SED()
             s.loadFromFile(f)
+            t=t+1
             for z in self.zRange:
                 s.redshift(z)
                 modelSEDDict=s.getSEDDict(self.passbandsList)
@@ -124,7 +140,9 @@ class PhotoRedshiftEngine:
                 modelSEDDict['modelListIndex']=i
                 modelSEDDict['SED']=s.copy()
                 self.modelSEDDictList.append(modelSEDDict)       
+                self.templateIndex.append(t)
             i=i+1
+        self.templateIndex=np.array(self.templateIndex)
             
         # We may as well do this here...
         modelFlux=[]
@@ -188,11 +206,11 @@ class PhotoRedshiftEngine:
                     magErrAB.append(99.0)
             magAB=np.array(magAB)
             magErrAB=np.array(magErrAB)
-
-            # Previously...
-            #magAB=np.array([galaxy['u'], galaxy['g'], galaxy['r'], galaxy['i'], galaxy['z']])
-            #magErrAB=np.array([galaxy['uErr'], galaxy['gErr'], galaxy['rErr'], galaxy['iErr'], galaxy['zErr']])
-
+            
+            # Incorporate a global photometric calibration error (applied to all bands)
+            # Helps to get catalogs with tiny errors to behave
+            magErrAB=np.sqrt(magErrAB**2+self.ZPError**2)
+                        
             fluxJy=ten23*np.power(10, (-(magAB+48.6)/2.5)) 
             sedFlux=3e-13*fluxJy/self.effLMicron2
             fluxJyErr=ten23*np.power(10, (-(magAB-magErrAB+48.6)/2.5))
@@ -202,10 +220,14 @@ class PhotoRedshiftEngine:
             norm=np.sum((self.modelFlux*sedFlux)/(sedFluxErr2), axis=1)/np.sum(self.modelFlux2/sedFluxErr2, axis=1)
             chiSq=np.sum(((sedFlux-norm.reshape([norm.shape[0], 1])*self.modelFlux)**2)/sedFluxErr2, axis=1)
             chiSq[np.isnan(chiSq)]=1e6   # throw these out, should check this out and handle more gracefully
-            minChiSq=chiSq.min()
+            
+            # This extracts chiSq as function of redshift for the best-fit template only, if we wanted it
+            #chiSq=chiSq[self.templateIndex == self.templateIndex[np.argmin(chiSq)]]
+            #pz=np.exp(-chiSq/2)
+            # This uses all templates at once
             chiSqProb=np.exp(-chiSq/2)#stats.chisqprob(chiSq, len(self.bands)-2)
             chiSqProb=chiSqProb.reshape([self.numModels, self.zRange.shape[0]])
-            pz=np.sum(chiSqProb, axis = 0)            
+            pz=np.sum(chiSqProb, axis = 0) 
             # Mag prior
             absMag=magAB[self.magPriorBand]-5.0*np.log10(1e5*self.dlRange)
             pPrior=np.array(np.greater(absMag, self.magPriorCut), dtype = float)

@@ -1261,20 +1261,21 @@ def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
     #magNumber=2
         
     # Dust correction setup
-    corrDict={'u': 5.155, 'g': 3.793, 'r': 2.751, 'i': 2.086, 'z': 1.479, 'Ks': 0.367}  
-    EBMinusVList=[]
-    if fieldIDKey == None:
-        EBMinusV=getEBMinusV(np.mean(tab['RADeg']), np.mean(tab['decDeg']), optionsDict = optionsDict)
-        EBMinusVList.append({'RADeg': np.mean(tab['RADeg']), 'decDeg': np.mean(tab['decDeg']), 'EBMinusV': EBMinusV})
-    else:
-        fieldNames=np.unique(tab['field'])
-        for f in fieldNames:
-            mask=np.where(tab['field'] == f)
-            EBMinusV=getEBMinusV(np.mean(tab['RADeg'][mask]), np.mean(tab['decDeg'][mask]), optionsDict = optionsDict)
-            EBMinusVList.append({'RADeg': np.mean(tab['RADeg'][mask]), 'decDeg': np.mean(tab['decDeg'][mask]), 'EBMinusV': EBMinusV})
+    #corrDict={'u': 5.155, 'g': 3.793, 'r': 2.751, 'i': 2.086, 'z': 1.479, 'Ks': 0.367}  
+    #corrDict={'u': 5.155, 'g': 3.793, 'r': 2.751, 'i': 2.086, 'z': 1.479, 'Ks': 0.367}  
+    #EBMinusVList=[]
+    #if fieldIDKey == None:
+        #EBMinusV=getEBMinusV(np.mean(tab['RADeg']), np.mean(tab['decDeg']), optionsDict = optionsDict)
+        #EBMinusVList.append({'RADeg': np.mean(tab['RADeg']), 'decDeg': np.mean(tab['decDeg']), 'EBMinusV': EBMinusV})
+    #else:
+        #fieldNames=np.unique(tab['field'])
+        #for f in fieldNames:
+            #mask=np.where(tab['field'] == f)
+            #EBMinusV=getEBMinusV(np.mean(tab['RADeg'][mask]), np.mean(tab['decDeg'][mask]), optionsDict = optionsDict)
+            #EBMinusVList.append({'RADeg': np.mean(tab['RADeg'][mask]), 'decDeg': np.mean(tab['decDeg'][mask]), 'EBMinusV': EBMinusV})
 
     # Work out available bands
-    acceptableBands=['u', 'g', 'r', 'i', 'z', 'Ks']
+    acceptableBands=['u', 'g', 'r', 'i', 'z', 'J', 'H', 'Ks']
     tabBands=[]
     for key in list(tab.keys()):
         bits=key.split("_")
@@ -1289,19 +1290,30 @@ def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
         photDict['RADeg']=row['RADeg']
         photDict['decDeg']=row['decDeg']
         rMin=1e6
-        for EBMinusVDict in EBMinusVList:
-            rDeg=astCoords.calcAngSepDeg(photDict['RADeg'], photDict['decDeg'], EBMinusVDict['RADeg'], EBMinusVDict['decDeg'])
-            if rDeg < rMin:
-                rMin=rDeg
-                EBMinusV=EBMinusVDict['EBMinusV']
+        #for EBMinusVDict in EBMinusVList:
+            #rDeg=astCoords.calcAngSepDeg(photDict['RADeg'], photDict['decDeg'], EBMinusVDict['RADeg'], EBMinusVDict['decDeg'])
+            #if rDeg < rMin:
+                #rMin=rDeg
+                #EBMinusV=EBMinusVDict['EBMinusV']
+        #for b in tabBands:
+            #dustCorrMag=EBMinusV*corrDict[b]
+            #if magNumber == None:
+                #photDict[b]=row['%s_%s' % (b, magKey)]-dustCorrMag
+                #photDict[b+"Err"]=row['%s_%s' % (b, magErrKey)]
+            #else:
+                #photDict[b]=row['%s_%s' % (b, magKey)][magNumber]-dustCorrMag
+                #photDict[b+"Err"]=row['%s_%s' % (b, magErrKey)][magNumber]
         for b in tabBands:
-            dustCorrMag=EBMinusV*corrDict[b]
             if magNumber == None:
-                photDict[b]=row['%s_%s' % (b, magKey)]-dustCorrMag
+                photDict[b]=row['%s_%s' % (b, magKey)]
                 photDict[b+"Err"]=row['%s_%s' % (b, magErrKey)]
             else:
-                photDict[b]=row['%s_%s' % (b, magKey)][magNumber]-dustCorrMag
+                photDict[b]=row['%s_%s' % (b, magKey)][magNumber]
                 photDict[b+"Err"]=row['%s_%s' % (b, magErrKey)][magNumber]
+        if 'maxMagError' in list(optionsDict.keys()):
+            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = acceptableBands)
+        else:
+            keep=True
         catalog.append(photDict)
 
     # Get SDSS catalog, if we want to include missing bands
@@ -1335,11 +1347,11 @@ def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
         
     if catalog == []:
         catalog=None
-    
+
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
-def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
+def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
     """Parses a FITS catalog made by e.g., soi_makecatalogs.py.
     
     NOTE: No star-galaxy separation is applied in this currently.

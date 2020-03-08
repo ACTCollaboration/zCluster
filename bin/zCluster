@@ -265,7 +265,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                     # Chosen one is just over 1.5 Mpc at z = 0.1
                     tab.add_column(atpy.Column(astCoords.calcAngSepDeg(obj['RADeg'], obj['decDeg'], 
                                                                     np.array(tab['RADeg']), np.array(tab['decDeg'])), "rDeg"))
-                    tab=tab[np.where(tab['rDeg'] < 14./60.0)]
+                    #tab=tab[np.where(tab['rDeg'] < 14./60.0)]
                     tab.table_name="zCluster"
                     tab.write(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_")))
                     try:
@@ -367,6 +367,10 @@ if __name__ == '__main__':
                         default = False)
     parser.add_argument("-e", "--max-mag-error", dest="maxMagError", help="""Maximum acceptable 
                         photometric error (in magnitudes; default: 0.25).""", default = 0.25)
+    parser.add_argument("-E", "--photometric-zero-point-error", dest="ZPError", type = float, 
+                        help="""Global photometric zero point uncertainty in magnitudes, applied to all bands 
+                        (default: 0). Added in quadrature to the photometric uncertainties in the catalog.""", 
+                        default = 0.0)
     parser.add_argument("-z", "--z-prior-min", dest="zPriorMin", help="""Set minimum redshift of prior.""", 
                         default = None)
     parser.add_argument("-Z", "--z-prior-max", dest="zPriorMax", help="""Set maximum redshift of prior.""", 
@@ -408,6 +412,7 @@ if __name__ == '__main__':
     absMagCut=float(args.absMagCut)
     writeGalaxyCatalogs=args.writeGalaxyCatalogs
     writePlots=args.writePlots
+    ZPError=args.ZPError
     
     update_rcParams()
 
@@ -563,10 +568,11 @@ if __name__ == '__main__':
         # Assume this is a FITS file in format of ACAM or SOI photometric pipelines
         # NOTE: SOI has 5' field of view, and targets have no z from SDSS anyway, so zPriorMin = 0.5 
         # 'addSDSS' option here queries SDSS, cross matches, and adds e.g. g-band mags if we don't have them
-        zPriorMin=0.5 
+        zPriorMin=0.01
         zPriorMax=2.0
+        passbandSet='WIRDS'
         retriever=catalogRetriever.FITSRetriever
-        retrieverOptions={'fileName': database, 'addSDSS': args.addSDSS}
+        retrieverOptions={'fileName': database, 'addSDSS': args.addSDSS, 'maxMagError': maxMagError}
 
     # Allow prior overrides from command line
     if args.zPriorMax != None:
@@ -597,7 +603,8 @@ if __name__ == '__main__':
     if cacheDir != None:
         retrieverOptions['altCacheDir']=cacheDir
             
-    photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, passbandSet = passbandSet)
+    photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, passbandSet = passbandSet, 
+                                                                ZPError = ZPError)
         
     # Either make a null test catalog, or parse the one we asked for
     runningNullTest=False
