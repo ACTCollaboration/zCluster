@@ -268,6 +268,9 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
         bckNzDict=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, 'flat', minDistanceMpc = 3.0, maxDistanceMpc = 4.0,
                                  areaMask = areaMask, wcs = wcs)
     # Both
+    if max(bckNzDict['areaMpc2']) > (np.pi*(4**2-3**2)): 
+        raise Exception("Mask resolution is too coarse - area from mask > area of circular annulus") 
+
     bckAreaNorm=clusterNzDictForSNR['areaMpc2'][zIndex]/bckNzDict['areaMpc2'][zIndex]
     bckSubtractedCount=clusterNzDictForSNR['NzWeightedSum'][zIndex]-bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex]
     delta=bckSubtractedCount/(bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex])
