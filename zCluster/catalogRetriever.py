@@ -958,8 +958,8 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
 
 #-------------------------------------------------------------------------------------------------------------
 def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
-    """Retrieves DECaLS DR8 tractor catalogs (if they exist) at the given position. Note that regardless of
-    halfBoxSizeDeg, this will return a catalog covering at least one brick (if the location is in DECaLS).
+    """Retrieves DECaLS DR8 tractor catalogs (if they exist) at the given position. Cuts the catalog to the
+    radius specified by halfBoxSizeDeg.
 
     """
 
@@ -1013,14 +1013,15 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
     # Stitch catalogs together and write to cache, delete temporary files
     if len(tractorTabs) > 0:
         tab=atpy.vstack(tractorTabs)
-        #uberTab.write(outFileName)
-        #for fileName in cacheFileNames:
-            #os.remove(fileName)
-        #tab=atpy.Table().read(outFileName)
         
         # Remove stars
         tab=tab[np.where(tab['type'] != 'PSF')]
         
+        # Cut to asked for size
+        rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, tab['ra'], tab['dec'])
+        mask=np.less(rDeg, halfBoxSizeDeg)
+        tab=tab[mask]
+                
         # WISE fluxes are available...
         bands=['g', 'r', 'z', "w1", "w2"]# , 'Y']
 
