@@ -958,7 +958,8 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
 
 #-------------------------------------------------------------------------------------------------------------
 def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
-    """Retrieves DECaLS DR7 tractor catalogs (if they exist) at the given position.
+    """Retrieves DECaLS DR8 tractor catalogs (if they exist) at the given position. Note that regardless of
+    halfBoxSizeDeg, this will return a catalog covering at least one brick (if the location is in DECaLS).
 
     """
 
@@ -982,12 +983,17 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
 
     bricksTab=optionsDict['bricksTab']
     DR8Tab=optionsDict['DR8Tab']
-           
+
     # Find matching tractor catalogs and download/cache .fits table files
+    # Previously this would fail for very small search areas - hence added centre coords search
+    RAMask=np.logical_and(np.greater(RADeg, bricksTab['RA1']), np.less(RADeg, bricksTab['RA2']))
+    decMask=np.logical_and(np.greater(decDeg, bricksTab['DEC1']), np.less(decDeg, bricksTab['DEC2']))
+    centreMask=np.logical_and(RAMask, decMask)
     RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
     mask=np.logical_and(np.greater(bricksTab['RA1'], RAMin), np.less(bricksTab['RA2'], RAMax))
     mask=np.logical_and(mask, np.greater(bricksTab['DEC1'], decMin))
     mask=np.logical_and(mask, np.less(bricksTab['DEC2'], decMax))
+    mask=np.logical_or(mask, centreMask)
     matchTab=bricksTab[np.where(mask)]
     count=0
     tractorTabs=[]
