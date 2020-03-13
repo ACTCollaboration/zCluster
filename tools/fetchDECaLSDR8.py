@@ -5,6 +5,8 @@ Fetches all of the DECaLS catalogs and stores under DECaLSCache.
 This can then be used to run zCluster on DECaLS on an HPC facility that doesn't have internet
 access on the individual compute nodes (like hippo).
 
+This should clock in at ~2.6 TB, so probably you want to use fetchDECaLSDR8_forCatalog.py instead...
+
 """
 
 import os

@@ -1010,7 +1010,10 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
             tractorTabs.append(tractorTab)
         except:
             print("... probably a 404 error for %s - check if cached file is corrupted ..." % (fileName))
-    # Stitch catalogs together and write to cache, delete temporary files
+    if 'downloadOnly' in optionsDict.keys() and optionsDict['downloadOnly'] == True:
+        return None
+    
+    # Stitch catalogs together
     if len(tractorTabs) > 0:
         tab=atpy.vstack(tractorTabs)
         
