@@ -997,7 +997,12 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
     matchTab=bricksTab[np.where(mask)]
     count=0
     tractorTabs=[]
-    matchTab=atpy.join(matchTab, DR8Tab, keys = 'BRICKNAME')
+    try:
+        matchTab=atpy.join(matchTab, DR8Tab, keys = 'BRICKNAME')
+    except:
+        # Not in DECaLS?
+        print("... no match between bricks and DR8 tables - %s ..." % (outFileName))
+        return None
     for mrow in matchTab:
         url=basePath+"%03d" % np.floor(mrow['RA'])
         url=url+os.path.sep+"tractor-"+mrow['BRICKNAME']+".fits"
