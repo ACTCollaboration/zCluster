@@ -486,6 +486,7 @@ if __name__ == '__main__':
     retrieverOptions={}
     passbandSet='SDSS+Ks'
     zDebias=None    # A fudge used to correct output zs for some surveys (final z = z + zDebias*(1+z))
+    ZPOffsets=None
     if database == 'S82':
         retriever=catalogRetriever.S82Retriever
         zPriorMin=0.20
@@ -578,6 +579,8 @@ if __name__ == '__main__':
         zPriorMin=0.05
         zPriorMax=1.5
         passbandSet='DECaLS'
+        # Zero point offsets had no effect on correcting the bias
+        #ZPOffsets=np.array([-0.00878495, -0.019883, 0.01998477, -0.03047624, 0.00860256])
         zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
         retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab, 'DR8Tab': DR8Tab}
     elif database == 'CFHTDeep':
@@ -626,7 +629,7 @@ if __name__ == '__main__':
         retrieverOptions['altCacheDir']=cacheDir
             
     photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, passbandSet = passbandSet, 
-                                                                ZPError = ZPError)
+                                                                ZPError = ZPError, ZPOffsets = ZPOffsets)
         
     # Either make a null test catalog, or parse the one we asked for
     runningNullTest=False

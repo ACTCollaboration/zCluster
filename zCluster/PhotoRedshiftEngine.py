@@ -40,7 +40,8 @@ class PhotoRedshiftEngine:
     
     """
     
-    def __init__(self, absMagCut, passbandSet = 'SDSS+Ks', zMin = 0.01, zMax = 3.0, zStep = 0.01, ZPError = 0.0):
+    def __init__(self, absMagCut, passbandSet = 'SDSS+Ks', zMin = 0.01, zMax = 3.0, zStep = 0.01, 
+                 ZPError = 0.0, ZPOffsets = None):
         """Sets up the stuff we would otherwise calculate every time, i.e., the templates.
         
         """
@@ -105,7 +106,7 @@ class PhotoRedshiftEngine:
         # This gets added to photometric errors in catalog in quadrature
         # This helps to get catalogs with extremely small photometric errors to behave
         self.ZPError=ZPError
-        
+                
         # This probably doesn't gain us much
         self.effectiveWavelength=[]
         for p in self.passbandsList:
@@ -151,8 +152,12 @@ class PhotoRedshiftEngine:
             modelFlux.append(modelSEDDict['flux'])
         self.modelFlux=np.array(modelFlux)  
         self.modelFlux2=self.modelFlux**2
-        self.ZPOffsets=np.zeros(self.modelFlux.shape[1])
         
+        # These can be fitted for on the fly or just specified as an argument
+        self.ZPOffsets=np.zeros(self.modelFlux.shape[1])
+        if ZPOffsets is not None:
+            self.ZPOffsets=ZPOffsets
+            
         # We might use these...
         dlRange=[]
         for z in self.zRange:
@@ -253,6 +258,8 @@ class PhotoRedshiftEngine:
         # Equivalent to special.gammaincc((len(self.bands)-2)/2.0, chiSq/2.0)
         # Not found a faster implementation
         ten23=(10**23.0)
+        if self.ZPOffsets.sum() != 0:
+            print("... applying zero-point offsets:", self.ZPOffsets, "...")
         for galaxy in galaxyCatalog:
 
             # If we don't have a band, include a ridiculous mag with ridiculous error so zero weight in fit
