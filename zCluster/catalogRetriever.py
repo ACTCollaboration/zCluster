@@ -1012,7 +1012,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
             try:
                 urllib.request.urlretrieve(url, filename = fileName)
             except:
-                with open("wget_failed.sh", "wa") as outFile:
+                with open("wget_failed.sh", "a") as outFile:
                     outFile.write("wget %s\n" % (url))
                 print("... WARNING: failed to fetch from %s" % (url))
                 return None
