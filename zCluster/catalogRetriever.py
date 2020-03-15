@@ -1008,7 +1008,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
         url=url+os.path.sep+"tractor-"+mrow['BRICKNAME']+".fits"
         fileName=cacheDir+os.path.sep+"tractor-%s.fits" % (mrow['BRICKNAME'])
         if os.path.exists(fileName) == False:
-            print("... retrieving tractor catalog from web ...")
+            print("... retrieving tractor catalog from web: %s ..." % (fileName))
             urllib.request.urlretrieve(url, filename = fileName)
         try:
             tractorTab=atpy.Table.read(fileName)
