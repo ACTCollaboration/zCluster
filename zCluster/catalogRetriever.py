@@ -1009,7 +1009,13 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
         fileName=cacheDir+os.path.sep+"tractor-%s.fits" % (mrow['BRICKNAME'])
         if os.path.exists(fileName) == False:
             print("... retrieving tractor catalog from web: %s ..." % (fileName))
-            urllib.request.urlretrieve(url, filename = fileName)
+            try:
+                urllib.request.urlretrieve(url, filename = fileName)
+            except:
+                with open("wget_failed.sh", "wa") as outFile:
+                    outFile.write("wget %s\n" % (url))
+                print("... WARNING: failed to fetch from %s" % (url))
+                return None
         try:
             tractorTab=atpy.Table.read(fileName)
             tractorTabs.append(tractorTab)
