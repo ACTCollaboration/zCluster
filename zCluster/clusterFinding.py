@@ -269,7 +269,8 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
                                  areaMask = areaMask, wcs = wcs)
     # Both
     if max(bckNzDict['areaMpc2']) > (np.pi*(4**2-3**2)): 
-        raise Exception("Mask resolution is too coarse - area from mask > area of circular annulus") 
+        print("... WARNING: max(areaMpc2) = %.3f > %.3f at (RADeg, decDeg) = (%.6f, %.6f)" % (max(bckNzDict['areaMpc2']), np.pi*(4**2-3**2), RADeg, decDeg))        
+        #raise Exception("Mask resolution is too coarse - area from mask > area of circular annulus") 
 
     bckAreaNorm=clusterNzDictForSNR['areaMpc2'][zIndex]/bckNzDict['areaMpc2'][zIndex]
     bckSubtractedCount=clusterNzDictForSNR['NzWeightedSum'][zIndex]-bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex]
@@ -279,9 +280,9 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     if np.isnan(delta) == True or np.isnan(errDelta) == True:
         print("... delta is nan - i.e., no background galaxies - skipping ...")
         return None
-    if errDelta > delta:
-        print("... delta highly uncertain (deltaErr > delta) - skipping ...")
-        return None
+    #if errDelta > delta:
+        #print("... delta highly uncertain (deltaErr > delta) - skipping ...")
+        #return None
     
     # Optional: de-bias right here (use with caution)
     if zDebias is not None:
