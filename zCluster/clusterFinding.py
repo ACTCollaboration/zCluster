@@ -280,9 +280,9 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     if np.isnan(delta) == True or np.isnan(errDelta) == True:
         print("... delta is nan - i.e., no background galaxies - skipping ...")
         return None
-    #if errDelta > delta:
-        #print("... delta highly uncertain (deltaErr > delta) - skipping ...")
-        #return None
+    if errDelta > delta/3:
+        print("... delta highly uncertain (deltaErr > delta/3) - skipping ...")
+        return None
     
     # Optional: de-bias right here (use with caution)
     if zDebias is not None:
