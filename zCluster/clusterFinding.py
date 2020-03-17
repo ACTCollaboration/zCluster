@@ -28,6 +28,7 @@ import numpy as np
 from astLib import *
 from scipy import interpolate
 from scipy import stats
+from scipy import ndimage
 import astropy.io.fits as pyfits
 from astropy.coordinates import SkyCoord
 from astropy.coordinates import match_coordinates_sky
@@ -60,6 +61,85 @@ def getPixelAreaDeg2Map(mapData, wcs):
     
     return pixAreasDeg2Map   
 
+#------------------------------------------------------------------------------------------------------------
+def makeBlankMap(RADeg, decDeg, sizePix, sizeDeg):
+    """Makes a square blank map with a WCS.
+    
+    Returns:
+        - mapData (2d array)
+        - wcs (astWCS.WCS object)
+    
+    """
+    CRVAL1, CRVAL2=RADeg, decDeg
+    xSizeDeg, ySizeDeg=sizeDeg, sizeDeg
+    xSizePix=float(sizePix)
+    ySizePix=float(sizePix)
+    xRefPix=xSizePix/2.0
+    yRefPix=ySizePix/2.0
+    xOutPixScale=xSizeDeg/xSizePix
+    yOutPixScale=ySizeDeg/ySizePix
+    newHead=pyfits.Header()
+    newHead['NAXIS']=2
+    newHead['NAXIS1']=xSizePix
+    newHead['NAXIS2']=ySizePix
+    newHead['CTYPE1']='RA---TAN'
+    newHead['CTYPE2']='DEC--TAN'
+    newHead['CRVAL1']=CRVAL1
+    newHead['CRVAL2']=CRVAL2
+    newHead['CRPIX1']=xRefPix+1
+    newHead['CRPIX2']=yRefPix+1
+    newHead['CDELT1']=-xOutPixScale
+    newHead['CDELT2']=xOutPixScale    # Makes more sense to use same pix scale
+    newHead['CUNIT1']='DEG'
+    newHead['CUNIT2']='DEG'
+    wcs=astWCS.WCS(newHead, mode='pyfits')
+    
+    return np.zeros([int(sizePix), int(sizePix)], dtype = float), wcs
+
+#-------------------------------------------------------------------------------------------------------------
+def makeDensityMap(RADeg, decDeg, catalog, z, dz = 0.1, rMaxMpc = 1.5):
+    """Make a projected density map within +/- dz of the given redshift. The map covers 8 Mpc on a side,
+    projected at the given redshift, with 0.1 Mpc binning. The map is smoothed with a Gaussian kernel with
+    sigma = 0.2 Mpc.
+    
+    While we're at it, we find the peak of the density map within rMaxMpc radius of the target position.
+    
+    Returns a dictionary.
+    
+    """
+    
+    # We go out to 4 Mpc for delta
+    DA=astCalc.da(z)
+    sizeDeg=np.degrees(4/DA)*2
+    sizePix=int(4/0.1)
+    d, wcs=makeBlankMap(RADeg, decDeg, sizePix, sizeDeg)
+    for g in catalog:
+        x, y=wcs.wcs2pix(g['RADeg'], g['decDeg'])
+        x=int(round(x))
+        y=int(round(y))
+        mask=np.logical_and(g['pz_z'] > z-dz, g['pz_z'] < z+dz)
+        v=np.trapz(g['pz'][mask], g['pz_z'][mask])
+        if x >= 0 and x < d.shape[1] and y >= 0 and y < d.shape[0]:
+            d[y, x]=d[y, x]+v
+    d=ndimage.gaussian_filter(d, 2)
+    
+    # We restrict centre finding to within 1.5 Mpc radius
+    ys=np.array([np.arange(d.shape[0])]*d.shape[1]).transpose()
+    xs=np.array([np.arange(d.shape[1])]*d.shape[0])
+    coords=np.array(wcs.pix2wcs(xs.flatten(), ys.flatten()))
+    ras=coords[:, 0]
+    decs=coords[:, 1]
+    rDegMap=astCoords.calcAngSepDeg(RADeg, decDeg, ras, decs).reshape(d.shape)
+    rMpcMap=np.radians(rDegMap)*DA
+    rMask=np.less(rMpcMap, rMaxMpc)
+    y, x=np.where((d*rMask) == (d*rMask).max())
+    cRADeg, cDecDeg=wcs.pix2wcs(y[0], x[0])
+    offsetArcmin=astCoords.calcAngSepDeg(cRADeg, cDecDeg, RADeg, decDeg)*60
+    offsetMpc=np.radians(offsetArcmin/60.)*DA
+        
+    return {'map': d, 'wcs': wcs, 'cRADeg': cRADeg, 'cDecDeg': cDecDeg, 
+            'offsetArcmin': offsetArcmin, 'offsetMpc': offsetMpc}
+        
 #-------------------------------------------------------------------------------------------------------------
 def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMpc = 0.0, maxDistanceMpc = 1.0, 
                    applySanityCheckRadius = True, sanityCheckRadiusArcmin = 1.0, areaMask = None, wcs = None):
@@ -272,11 +352,38 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
         print("... WARNING: max(areaMpc2) = %.3f > %.3f at (RADeg, decDeg) = (%.6f, %.6f)" % (max(bckNzDict['areaMpc2']), np.pi*(4**2-3**2), RADeg, decDeg))        
         #raise Exception("Mask resolution is too coarse - area from mask > area of circular annulus") 
 
-    bckAreaNorm=clusterNzDictForSNR['areaMpc2'][zIndex]/bckNzDict['areaMpc2'][zIndex]
-    bckSubtractedCount=clusterNzDictForSNR['NzWeightedSum'][zIndex]-bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex]
-    delta=bckSubtractedCount/(bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex])
-    errDelta=np.sqrt(bckSubtractedCount/bckSubtractedCount**2 + 
-                     bckNzDict['NzWeightedSum'][zIndex]/bckNzDict['NzWeightedSum'][zIndex]**2)*delta
+    # Delta calc - if we want to look at delta(z)
+    valid=np.greater(bckNzDict['areaMpc2'], 0)
+    bckAreaNorm=np.zeros(len(clusterNzDictForSNR['areaMpc2']))
+    bckAreaNorm[valid]=clusterNzDictForSNR['areaMpc2'][valid]/bckNzDict['areaMpc2'][valid]
+    bckSubtractedCount=clusterNzDictForSNR['NzWeightedSum']-bckAreaNorm*bckNzDict['NzWeightedSum']
+    delta=np.zeros(len(clusterNzDictForSNR['areaMpc2']))
+    valid=np.logical_and(bckAreaNorm > 0, bckNzDict['NzWeightedSum'] > 0)
+    delta[valid]=bckSubtractedCount[valid]/(bckAreaNorm[valid]*bckNzDict['NzWeightedSum'][valid])
+    delta[delta < 0] = 0
+    # Bootstrap error
+    nc=clusterNzDictForSNR['NzWeightedSum'][zIndex]
+    err_nc=np.sqrt(nc)
+    nb=bckNzDict['NzWeightedSum'][zIndex]
+    err_nb=np.sqrt(nb)
+    A=bckAreaNorm[zIndex]
+    delta=(nc/(A*nb))-1
+    bs_delta=[]
+    for i in range(1000):
+        bs_nc=np.random.poisson(nc)
+        bs_nb=np.random.poisson(nb)
+        bs_delta.append((bs_nc/(A*bs_nb))-1)
+    errDelta=np.std(bs_delta)
+    
+    #---
+    # Old
+    #bckAreaNorm=clusterNzDictForSNR['areaMpc2'][zIndex]/bckNzDict['areaMpc2'][zIndex]
+    #bckSubtractedCount=clusterNzDictForSNR['NzWeightedSum'][zIndex]-bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex]
+    #delta=bckSubtractedCount/(bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex])
+    #errDelta=np.sqrt(bckSubtractedCount/bckSubtractedCount**2 + 
+                     #bckNzDict['NzWeightedSum'][zIndex]/bckNzDict['NzWeightedSum'][zIndex]**2)*delta
+    
+    #---
     if np.isnan(delta) == True or np.isnan(errDelta) == True:
         print("... delta is nan - i.e., no background galaxies - skipping ...")
         return None
@@ -290,7 +397,8 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     
     print("... zCluster = %.2f, delta = %.1f, errDelta = %.1f (RADeg = %.6f, decDeg = %.6f) ..." % (z, delta, errDelta, RADeg, decDeg))
 
-    return {'z': z, 'pz': pzWeightedMean, 'zOdds': zOdds, 'pz_z': zArray, 'delta': delta, 'errDelta': errDelta}
+    return {'z': z, 'pz': pzWeightedMean, 'zOdds': zOdds, 'pz_z': zArray, 'delta': delta, 'errDelta': errDelta,
+            'areaMask': areaMask, 'wcs': wcs}
 
 #-------------------------------------------------------------------------------------------------------------
 def estimateAreaMask(RADeg, decDeg, catalog):

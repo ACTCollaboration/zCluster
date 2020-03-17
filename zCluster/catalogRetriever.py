@@ -986,10 +986,12 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
 
     # Find matching tractor catalogs and download/cache .fits table files
     # Previously this would fail for very small search areas - hence added centre coords search
+    # NOTE: We've doubled asked for halfBoxSizeDeg here to get all the matching tiles
+    # Otherwise we tend to miss...
     RAMask=np.logical_and(np.greater(RADeg, bricksTab['RA1']), np.less(RADeg, bricksTab['RA2']))
     decMask=np.logical_and(np.greater(decDeg, bricksTab['DEC1']), np.less(decDeg, bricksTab['DEC2']))
     centreMask=np.logical_and(RAMask, decMask)
-    RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
+    RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, 2*halfBoxSizeDeg)
     mask=np.logical_and(np.greater(bricksTab['RA1'], RAMin), np.less(bricksTab['RA2'], RAMax))
     mask=np.logical_and(mask, np.greater(bricksTab['DEC1'], decMin))
     mask=np.logical_and(mask, np.less(bricksTab['DEC2'], decMax))
@@ -1020,7 +1022,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
             tractorTab=atpy.Table.read(fileName)
             tractorTabs.append(tractorTab)
         except:
-            print("... probably a 404 error for %s - check if cached file is corrupted ..." % (fileName))
+            print("... possibly a 404 error for %s - check if cached file is corrupted ..." % (fileName))
     if 'downloadOnly' in optionsDict.keys() and optionsDict['downloadOnly'] == True:
         return None
     

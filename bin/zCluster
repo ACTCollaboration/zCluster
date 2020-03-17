@@ -152,10 +152,8 @@ def writeRedshiftsCatalog(catalog, outFileName):
     """Writes a .fits table with cluster photo-zs in it
     
     """
-        
     tab=atpy.Table()
-    keys=['name', 'RADeg', 'decDeg', 'z', 'delta', 'errDelta']
-    
+    keys=['name', 'RADeg', 'decDeg', 'zcRADeg', 'zcDecDeg', 'offsetArcmin', 'offsetMpc', 'z', 'delta', 'errDelta']
     for key in keys:
         arr=[]
         for obj in catalog:
@@ -175,8 +173,8 @@ def writeRedshiftsCatalog(catalog, outFileName):
 #-------------------------------------------------------------------------------------------------------------
 def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir, zPriorMin,
                  zPriorMax, weightsType, maxRMpc, zMethod, bckCatalogFileName, bckAreaDeg2,
-                 maskPath = None, writeGalaxyCatalogs = False, writePlots = False, rank = 0, zDebias = None,
-                 fitZPOffsets = False):
+                 maskPath = None, writeGalaxyCatalogs = False, writeDensityMaps = False, writePlots = False, 
+                 rank = 0, zDebias = None, fitZPOffsets = False):
     """Runs zCluster algorithm on each object in catalog.
     
     """
@@ -190,7 +188,8 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='redshifts'")
     matches=c.fetchall()
     if len(matches) == 0:
-        c.execute("CREATE TABLE redshifts (name text, RADeg real, decDeg real, z real, delta real, errDelta real)")
+        c.execute("""CREATE TABLE redshifts (name text, RADeg real, decDeg real, zcRADeg real, zcDecDeg real, 
+                  offsetArcmin real, offsetMpc real, z real, delta real, errDelta real)""")
     
     # The global database for checking if we've already measured a redshift - read only
     if os.path.exists(outDir+os.path.sep+"redshifts_global.db") == True:
@@ -220,6 +219,8 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
     for obj in catalog:
         count=count+1
         print(">>> %s (%d/%d):" % (obj['name'], count, len(catalog)))
+        objOutDir=outDir+os.path.sep+obj['name']
+        os.makedirs(objOutDir, exist_ok = True)
         
         # We actually query both the process database AND the global database
         c.execute("SELECT name FROM redshifts where name=?", (obj['name'],))
@@ -245,14 +246,37 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                                                                              maskMap = maskMap, maskWCS = maskWCS,
                                                                              bckCatalog = bckCatalog, bckAreaDeg2 = bckAreaDeg2,
                                                                              zDebias = zDebias)
+                
+                if obj['zClusterResult'] is not None:
+                    dMapDict=clusterFinding.makeDensityMap(obj['RADeg'], obj['decDeg'], galaxyCatalog, 
+                                                              obj['zClusterResult']['z'], dz = 0.1)
+                    obj['zcRADeg']=dMapDict['cRADeg']
+                    obj['zcDecDeg']=dMapDict['cDecDeg']
+                    obj['offsetArcmin']=dMapDict['offsetArcmin']
+                    obj['offsetMpc']=dMapDict['offsetMpc']
+                    if writeDensityMaps == True:
+                        astImages.saveFITS(objOutDir+os.path.sep+"densityMap_%s.fits" % (obj['name'].replace(" ", "_")), 
+                                           dMapDict['map'], dMapDict['wcs']) 
+                        # Useful for debugging, but NOT if we specified a pre-made mask
+                        if maskPath is None:    
+                            astImages.saveFITS(objOutDir+os.path.sep+"areaMap_%s.fits" % (obj['name'].replace(" ", "_")), 
+                                               obj['zClusterResult']['areaMask'], obj['zClusterResult']['wcs'])
+                else:
+                    obj['zcRADeg']=-99
+                    obj['zcDecDeg']=-99
+                    obj['offsetArcmin']=-99
+                    obj['offsetMpc']=-99
+                
+                # This is just to stop pickle-related fail if under MPI
+                # Really we should tidy up the area mask making stuff and call before estimateClusterRedshift
+                if obj['zClusterResult'] is not None:
+                    if 'wcs' in obj['zClusterResult'].keys():
+                        del obj['zClusterResult']['wcs']
+                    if 'areaMask' in obj['zClusterResult'].keys():
+                        del obj['zClusterResult']['areaMask']
 
                 # Write out galaxy catalog with photo-zs in both FITS and DS9 .reg format
                 if writeGalaxyCatalogs == True:
-                    
-                    objOutDir=outDir+os.path.sep+obj['name']
-                    if os.path.exists(objOutDir) == False:
-                        os.makedirs(objOutDir, exist_ok = True)
-            
                     # Also r-i colour, useful for sanity checking of BCGs
                     for gobj in galaxyCatalog:
                         if 'r' in list(gobj.keys()) and 'i' in list(gobj.keys()):
@@ -298,15 +322,17 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                 obj['zClusterResult']=None
 
             # Insert a row of data
-            if obj['zClusterResult'] != None:
-                c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?)", 
-                      (obj['name'], obj['RADeg'], obj['decDeg'], obj['zClusterResult']['z'], obj['zClusterResult']['delta'], obj['zClusterResult']['errDelta']))
+            if obj['zClusterResult'] is not None:
+                c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+                      (obj['name'], obj['RADeg'], obj['decDeg'], obj['zcRADeg'], obj['zcDecDeg'], obj['offsetArcmin'],
+                       obj['offsetMpc'], obj['zClusterResult']['z'], obj['zClusterResult']['delta'], 
+                       obj['zClusterResult']['errDelta']))
                 obj['z']=obj['zClusterResult']['z']
                 obj['delta']=obj['zClusterResult']['delta']
                 obj['errDelta']=obj['zClusterResult']['errDelta']
             else:
-                c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?)", 
-                      (obj['name'], obj['RADeg'], obj['decDeg'], -99, 0, -99))
+                c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+                      (obj['name'], obj['RADeg'], obj['decDeg'], -99, -99, -99, -99, -99, 0, -99))
                 obj['z']=-99
                 obj['delta']=0
                 obj['errDelta']=0
@@ -319,11 +345,15 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                 thisCursor=c
             if len(globalMatches) > 0:
                 thisCursor=cGlobal
-            thisCursor.execute("SELECT z, delta, errDelta FROM redshifts WHERE name = ?", (obj['name'],))
+            thisCursor.execute("SELECT z, delta, errDelta, RADeg, decDeg, offsetArcmin, offsetMpc FROM redshifts WHERE name = ?", (obj['name'],))
             match=thisCursor.fetchone()
             obj['z']=match[0]
             obj['delta']=match[1]
             obj['errDelta']=match[2]
+            obj['zcRADeg']=match[3]
+            obj['zcDecDeg']=match[4]
+            obj['offsetArcmin']=match[5]
+            obj['offsetMpc']=match[6]
  
     return catalog
 
@@ -399,6 +429,10 @@ if __name__ == '__main__':
     parser.add_argument("-b", "--brighter-absmag-cut", dest="absMagCut", help="""Set bright absolute magnitude cut.""", 
                         default = -24.)
     parser.add_argument("-n", "--name", dest="name", help="Find photo-z of only the named cluster in the catalog.")
+    parser.add_argument("-d", "--write-density-maps", dest="writeDensityMaps", action="store_true", 
+                        help="""Write out a .fits image projected density map (within delta z = +/- 0.1 of the best 
+                        fit redshift) for each cluster.""",
+                        default = False)
     parser.add_argument("-W", "--write-galaxy-catalogs", dest="writeGalaxyCatalogs", action="store_true", 
                         help="""Write out a .fits format galaxy catalog and DS9 .reg file for each cluster.""", 
                         default = False)
@@ -694,7 +728,8 @@ if __name__ == '__main__':
 
     catalog=runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir,
                          zPriorMin, zPriorMax, weightsType, maxRMpc, method, bckCatalogFileName, bckAreaDeg2,
-                         maskPath = maskPath, writeGalaxyCatalogs = writeGalaxyCatalogs, writePlots = writePlots, 
+                         maskPath = maskPath, writeGalaxyCatalogs = writeGalaxyCatalogs, 
+                         writeDensityMaps = args.writeDensityMaps, writePlots = writePlots, 
                          rank = rank, zDebias = zDebias, fitZPOffsets = args.fitZPOffsets)
     
     # If running under MPI, gather everything back together
@@ -709,7 +744,7 @@ if __name__ == '__main__':
         else:
             comm.send(catalog, dest = 0, tag = 11)
             sys.exit()
-    
+                
     # Makes a global .db file (might be useful) after run complete
     if os.path.exists(outDir+os.path.sep+"redshifts_global.db") == True:
         os.remove(outDir+os.path.sep+"redshifts_global.db")
@@ -719,10 +754,12 @@ if __name__ == '__main__':
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='redshifts'")
     matches=c.fetchall()
     if len(matches) == 0:
-        c.execute("CREATE TABLE redshifts (name text, RADeg real, decDeg real, z real, delta real, errDelta real)")
+        c.execute("""CREATE TABLE redshifts (name text, RADeg real, decDeg real, zcRADeg real, zcDecDeg real,
+                  offsetArcmin real, offsetMpc real, z real, delta real, errDelta real)""")
     for obj in catalog:
-        c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?)", 
-                    (obj['name'], obj['RADeg'], obj['decDeg'], obj['z'], obj['delta'], obj['errDelta']))
+        c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+                    (obj['name'], obj['RADeg'], obj['decDeg'], obj['zcRADeg'], obj['zcDecDeg'], obj['offsetArcmin'],
+                     obj['offsetMpc'], obj['z'], obj['delta'], obj['errDelta']))
     conn.commit()
     conn.close()
         
