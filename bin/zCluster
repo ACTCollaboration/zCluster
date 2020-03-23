@@ -757,9 +757,12 @@ if __name__ == '__main__':
         c.execute("""CREATE TABLE redshifts (name text, RADeg real, decDeg real, zcRADeg real, zcDecDeg real,
                   offsetArcmin real, offsetMpc real, z real, delta real, errDelta real)""")
     for obj in catalog:
-        c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-                    (obj['name'], obj['RADeg'], obj['decDeg'], obj['zcRADeg'], obj['zcDecDeg'], obj['offsetArcmin'],
-                     obj['offsetMpc'], obj['z'], obj['delta'], obj['errDelta']))
+        try:
+            c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+                      (obj['name'], obj['RADeg'], obj['decDeg'], obj['zcRADeg'], obj['zcDecDeg'], obj['offsetArcmin'],
+                       obj['offsetMpc'], obj['z'], obj['delta'], obj['errDelta']))
+        except:
+            raise Exception("Failed to insert %s (keys: %s)" % (obj['name'], obj.keys()))
     conn.commit()
     conn.close()
         
