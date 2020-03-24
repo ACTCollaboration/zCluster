@@ -369,11 +369,12 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     A=bckAreaNorm[zIndex]
     delta=(nc/(A*nb))-1
     bs_delta=[]
-    for i in range(1000):
+    for i in range(5000):   # Needed for this to converge at 2 decimal places after rounding
         bs_nc=np.random.poisson(nc)
         bs_nb=np.random.poisson(nb)
         bs_delta.append((bs_nc/(A*bs_nb))-1)
     errDelta=np.std(bs_delta)
+    errDelta=np.round(errDelta, 2)
     
     #---
     # Old
@@ -387,9 +388,9 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     if np.isnan(delta) == True or np.isnan(errDelta) == True:
         print("... delta is nan - i.e., no background galaxies - skipping ...")
         return None
-    if errDelta > delta/3:
-        print("... delta highly uncertain (deltaErr > delta/3) - skipping ...")
-        return None
+    #if errDelta > delta/3:
+        #print("... delta highly uncertain (deltaErr > delta/3) - skipping ...")
+        #return None
     
     # Optional: de-bias right here (use with caution)
     if zDebias is not None:
