@@ -121,15 +121,15 @@ class PhotoRedshiftEngine:
         # to reproduce the colours of galaxies in SDSS.
         self.modelSEDDictList=[]
         if templatesDir is None:
+            pickleFileName=None
             self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.0/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")
             #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/uvista_nmf/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.0/*.dat")
             #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.1_lines/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/uvista_nmf/*.dat")
             #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/BC03Templates/*.res")#+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")
-            pickleFileName=None
         else:
             # We'll try a few different extensions
             print(">>> Using custom template set from %s" % (templatesDir))
-            pickleFileName=templatesDir+os.path.sep+"template.pkl"
+            pickleFileName=templatesDir+os.path.sep+"templates_%s.pkl" % (passbandSet)
             self.SEDFiles=glob.glob(templatesDir+os.path.sep+"*.res")
             self.SEDFiles=self.SEDFiles+glob.glob(templatesDir+os.path.sep+"*.dat")
             self.SEDFiles=self.SEDFiles+glob.glob(templatesDir+os.path.sep+"*.sed")
