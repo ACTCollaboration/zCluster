@@ -125,41 +125,58 @@ class PhotoRedshiftEngine:
             #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/uvista_nmf/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.0/*.dat")
             #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.1_lines/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/uvista_nmf/*.dat")
             #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/BC03Templates/*.res")#+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")
+            pickleFileName=None
         else:
             # We'll try a few different extensions
-            print(">>> Using custom template set from %s" % (templatesDir)) 
+            print(">>> Using custom template set from %s" % (templatesDir))
+            pickleFileName=templatesDir+os.path.sep+"template.pkl"
             self.SEDFiles=glob.glob(templatesDir+os.path.sep+"*.res")
             self.SEDFiles=self.SEDFiles+glob.glob(templatesDir+os.path.sep+"*.dat")
             self.SEDFiles=self.SEDFiles+glob.glob(templatesDir+os.path.sep+"*.sed")
 
-        self.numModels=len(self.SEDFiles)
-        i=0
-        t=0
-        self.templateIndex=[]
-        for f in self.SEDFiles:
-            s=astSED.SED()
-            s.loadFromFile(f)
-            t=t+1
-            for z in self.zRange:
-                s.redshift(z)
-                modelSEDDict=s.getSEDDict(self.passbandsList)
-                modelSEDDict['E(B-V)']=None
-                modelSEDDict['ageGyr']=0.0
-                modelSEDDict['z']=z
-                modelSEDDict['fileName']=f 
-                modelSEDDict['modelListIndex']=i
-                modelSEDDict['SED']=s.copy()
-                self.modelSEDDictList.append(modelSEDDict)       
-                self.templateIndex.append(t)
-            i=i+1
-        self.templateIndex=np.array(self.templateIndex)
-            
-        # We may as well do this here...
-        modelFlux=[]
-        for modelSEDDict in self.modelSEDDictList:
-            modelFlux.append(modelSEDDict['flux'])
-        self.modelFlux=np.array(modelFlux)  
-        self.modelFlux2=self.modelFlux**2
+        if pickleFileName is not None and os.path.exists(pickleFileName):
+            with open(pickleFileName, "rb") as pickleFile:
+                unpickler=pickle.Unpickler(pickleFile)
+                self.numModels=unpickler.load()
+                self.modelFlux=unpickler.load()
+                self.templateIndex=unpickler.load()
+                self.modelFlux2=self.modelFlux**2
+        else:
+            self.numModels=len(self.SEDFiles)
+            i=0
+            t=0
+            self.templateIndex=[]
+            for f in self.SEDFiles:
+                s=astSED.SED()
+                s.loadFromFile(f)
+                t=t+1
+                for z in self.zRange:
+                    s.redshift(z)
+                    modelSEDDict=s.getSEDDict(self.passbandsList)
+                    modelSEDDict['E(B-V)']=None
+                    modelSEDDict['ageGyr']=0.0
+                    modelSEDDict['z']=z
+                    modelSEDDict['fileName']=f 
+                    modelSEDDict['modelListIndex']=i
+                    modelSEDDict['SED']=s.copy()
+                    self.modelSEDDictList.append(modelSEDDict)       
+                    self.templateIndex.append(t)
+                i=i+1
+                del s
+            self.templateIndex=np.array(self.templateIndex)                
+            modelFlux=[]
+            for modelSEDDict in self.modelSEDDictList:
+                modelFlux.append(modelSEDDict['flux'])
+            self.modelFlux=np.array(modelFlux)  
+            self.modelFlux2=self.modelFlux**2
+        
+        # We can pickle if give a custom templates dir
+        if templatesDir is not None:
+            with open(pickleFileName, "wb") as pickleFile:
+                pickler=pickle.Pickler(pickleFile)
+                pickler.dump(self.numModels)
+                pickler.dump(self.modelFlux)
+                pickler.dump(self.templateIndex)
         
         # These can be fitted for on the fly or just specified as an argument
         self.ZPOffsets=np.zeros(self.modelFlux.shape[1])
