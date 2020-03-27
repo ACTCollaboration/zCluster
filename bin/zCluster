@@ -429,6 +429,9 @@ if __name__ == '__main__':
     parser.add_argument("-b", "--brighter-absmag-cut", dest="absMagCut", help="""Set bright absolute magnitude cut.""", 
                         default = -24.)
     parser.add_argument("-n", "--name", dest="name", help="Find photo-z of only the named cluster in the catalog.")
+    parser.add_argument("-t", "--templates-directory", dest="templatesDir", help="""Specify a directory containing
+                        a custom set of spectral templates.""", 
+                        default = None)
     parser.add_argument("-d", "--write-density-maps", dest="writeDensityMaps", action="store_true", 
                         help="""Write out a .fits image projected density map (within delta z = +/- 0.1 of the best 
                         fit redshift) for each cluster.""",
@@ -615,6 +618,7 @@ if __name__ == '__main__':
         passbandSet='DECaLS'
         # Zero point offsets had no effect on correcting the bias
         #ZPOffsets=np.array([-0.00878495, -0.019883, 0.01998477, -0.03047624, 0.00860256])
+        #ZPOffsets=np.array([-0.00380799, -0.01845335, 0.01706214, -0.0291939, 0.01454793])
         zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
         retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab, 'DR8Tab': DR8Tab}
     elif database == 'CFHTDeep':
@@ -663,7 +667,8 @@ if __name__ == '__main__':
         retrieverOptions['altCacheDir']=cacheDir
             
     photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, passbandSet = passbandSet, 
-                                                                ZPError = ZPError, ZPOffsets = ZPOffsets)
+                                                                ZPError = ZPError, ZPOffsets = ZPOffsets,
+                                                                templatesDir = args.templatesDir)
         
     # Either make a null test catalog, or parse the one we asked for
     runningNullTest=False

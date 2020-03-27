@@ -41,7 +41,7 @@ class PhotoRedshiftEngine:
     """
     
     def __init__(self, absMagCut, passbandSet = 'SDSS+Ks', zMin = 0.01, zMax = 3.0, zStep = 0.01, 
-                 ZPError = 0.0, ZPOffsets = None):
+                 ZPError = 0.0, ZPOffsets = None, templatesDir = None):
         """Sets up the stuff we would otherwise calculate every time, i.e., the templates.
         
         """
@@ -120,10 +120,18 @@ class PhotoRedshiftEngine:
         # BR07 is a NMF derived (basically a PCA) minimal template set derived from a load of BC03 models, designed
         # to reproduce the colours of galaxies in SDSS.
         self.modelSEDDictList=[]
-        self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.0/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")
-        #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/uvista_nmf/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.0/*.dat")
-        #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.1_lines/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/uvista_nmf/*.dat")
-        
+        if templatesDir is None:
+            self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.0/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")
+            #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/uvista_nmf/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.0/*.dat")
+            #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.1_lines/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/uvista_nmf/*.dat")
+            #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/BC03Templates/*.res")#+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")
+        else:
+            # We'll try a few different extensions
+            print(">>> Using custom template set from %s" % (templatesDir)) 
+            self.SEDFiles=glob.glob(templatesDir+os.path.sep+"*.res")
+            self.SEDFiles=self.SEDFiles+glob.glob(templatesDir+os.path.sep+"*.dat")
+            self.SEDFiles=self.SEDFiles+glob.glob(templatesDir+os.path.sep+"*.sed")
+
         self.numModels=len(self.SEDFiles)
         i=0
         t=0
@@ -291,6 +299,14 @@ class PhotoRedshiftEngine:
             chiSq=np.sum(((sedFlux-norm.reshape([norm.shape[0], 1])*self.modelFlux)**2)/sedFluxErr2, axis=1)
             chiSq[np.isnan(chiSq)]=1e6   # throw these out, should check this out and handle more gracefully
             
+            #---
+            ## Organise model fluxes by z, template number so a[0, 0] == self.modelFlux[0] is template 0 at z = 0
+            #a=self.modelFlux.reshape([self.zRange.shape[0], self.numModels, 8]) 
+            #print("improve photo-zs: linear combinations?")
+            #IPython.embed()
+            #sys.exit()
+            
+            #---
             # This extracts chiSq as function of redshift for the best-fit template only, if we wanted it
             #chiSq=chiSq[self.templateIndex == self.templateIndex[np.argmin(chiSq)]]
             #pz=np.exp(-chiSq/2)
