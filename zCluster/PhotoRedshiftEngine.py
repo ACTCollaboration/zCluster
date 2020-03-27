@@ -330,7 +330,8 @@ class PhotoRedshiftEngine:
             # This uses all templates at once
             chiSqProb=np.exp(-chiSq/2)#stats.chisqprob(chiSq, len(self.bands)-2)
             chiSqProb=chiSqProb.reshape([self.numModels, self.zRange.shape[0]])
-            pz=np.sum(chiSqProb, axis = 0) 
+            #pz=np.sum(chiSqProb, axis = 0)
+            pz=np.max(chiSqProb, axis = 0)
             # Mag prior
             absMag=magAB[self.magPriorBand]-5.0*np.log10(1e5*self.dlRange)
             pPrior=np.array(np.greater(absMag, self.magPriorCut), dtype = float)
