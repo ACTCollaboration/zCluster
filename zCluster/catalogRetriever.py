@@ -1030,10 +1030,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
     # Stitch catalogs together
     if len(tractorTabs) > 0:
         tab=atpy.vstack(tractorTabs)
-        
-        # Remove stars
-        tab=tab[np.where(tab['type'] != 'PSF')]
-        
+                
         # Cut to asked for size
         rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, tab['ra'], tab['dec'])
         mask=np.less(rDeg, halfBoxSizeDeg)
@@ -1042,6 +1039,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
         # DECaLS redshifts go very wrong when there are stars bright in W1, W2 in the vicinity
         # This should fix - we'll also throw out PSF-shaped sources too
         tab=tab[np.where(tab['brightblob'] == 0)]
+        tab=tab[np.where(tab['maskbits'] == 0)] # Or possibly < 2
         tab=tab[np.where(tab['type'] != 'PSF')]
         tab=tab[np.where(tab['type'] != 'PSF ')] # Trailing space
 
