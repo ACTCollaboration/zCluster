@@ -133,6 +133,7 @@ class PhotoRedshiftEngine:
             self.SEDFiles=glob.glob(templatesDir+os.path.sep+"*.res")
             self.SEDFiles=self.SEDFiles+glob.glob(templatesDir+os.path.sep+"*.dat")
             self.SEDFiles=self.SEDFiles+glob.glob(templatesDir+os.path.sep+"*.sed")
+            self.SEDFiles=self.SEDFiles+glob.glob(templatesDir+os.path.sep+"*spec.txt")
 
         if pickleFileName is not None and os.path.exists(pickleFileName):
             with open(pickleFileName, "rb") as pickleFile:
@@ -252,10 +253,14 @@ class PhotoRedshiftEngine:
                 modFlux=modFlux.reshape([self.numModels, self.zRange.shape[0], len(magAB)]) 
                 modFlux=modFlux[:, zi, :]
                 
-                modFlux=np.average(modFlux, axis = 0, weights = chiSqProb)
-                modFluxJy=(modFlux*self.effLMicron2)/3e-13 
-                modMags=-2.5*np.log10(modFluxJy/1e23)-48.6
-                diffMags.append(magAB-modMags)
+                try:
+                    modFlux=np.average(modFlux, axis = 0, weights = chiSqProb)
+                    modFluxJy=(modFlux*self.effLMicron2)/3e-13 
+                    modMags=-2.5*np.log10(modFluxJy/1e23)-48.6
+                    diffMags.append(magAB-modMags)
+                except:
+                    continue
+            
         # Average after taking out differenced 99 values for missing data
         diffMags=np.array(diffMags)
         ZPOffsets=[]
@@ -316,14 +321,6 @@ class PhotoRedshiftEngine:
             chiSq=np.sum(((sedFlux-norm.reshape([norm.shape[0], 1])*self.modelFlux)**2)/sedFluxErr2, axis=1)
             chiSq[np.isnan(chiSq)]=1e6   # throw these out, should check this out and handle more gracefully
             
-            #---
-            ## Organise model fluxes by z, template number so a[0, 0] == self.modelFlux[0] is template 0 at z = 0
-            #a=self.modelFlux.reshape([self.zRange.shape[0], self.numModels, 8]) 
-            #print("improve photo-zs: linear combinations?")
-            #IPython.embed()
-            #sys.exit()
-            
-            #---
             # This extracts chiSq as function of redshift for the best-fit template only, if we wanted it
             #chiSq=chiSq[self.templateIndex == self.templateIndex[np.argmin(chiSq)]]
             #pz=np.exp(-chiSq/2)
@@ -374,9 +371,9 @@ class PhotoRedshiftEngine:
         
         elif method == 'odds':
             zOdds=[]
-            for z in zArray:
-                zMin=z-dzOdds
-                zMax=z+dzOdds
+            for zi in self.zRange:
+                zMin=zi-dzOdds
+                zMax=zi+dzOdds
                 indexMin, indexMax=interpolate.splev([zMin, zMax], zToIndex_tck)
                 indexMin=int(round(indexMin))
                 indexMax=int(round(indexMax))
