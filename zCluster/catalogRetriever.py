@@ -1037,7 +1037,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
         try:
             tab=tab[mask]
         except:
-            raise Exception("Complaint about bool type probably - %s" % (str(tractorTabs)))
+            raise Exception("Complaint about bool type probably - %s" % (fileName))
         
         # DECaLS redshifts go very wrong when there are stars bright in W1, W2 in the vicinity
         # This should fix - we'll also throw out PSF-shaped sources too
