@@ -1032,12 +1032,12 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
         tab=atpy.vstack(tractorTabs)
                 
         # Cut to asked for size
-        rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, tab['ra'], tab['dec'])
+        rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, tab['ra'].data, tab['dec'].data)
         mask=np.less(rDeg, halfBoxSizeDeg)
         try:
             tab=tab[mask]
         except:
-            raise Exception("Complaint about bool type probably - %s, RADeg = %.6f, dec = %.6f" % (fileName, RADeg, decDeg))
+            raise Exception("Check if rDeg is not an array - %s, RADeg = %.6f, dec = %.6f" % (fileName, RADeg, decDeg))
         
         # DECaLS redshifts go very wrong when there are stars bright in W1, W2 in the vicinity
         # This should fix - we'll also throw out PSF-shaped sources too
@@ -1095,7 +1095,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
     
     else:
         catalog=None
-                
+    
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
@@ -1404,7 +1404,7 @@ def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
         raise Exception("assumed database is a FITS table file, but failed to read")
     
     # If the position isn't actually in our galaxy catalog, we give up now
-    rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, tab['RADeg'], tab['decDeg'])
+    rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, tab['RADeg'].data, tab['decDeg'].data)
     if rDeg.min() > halfBoxSizeDeg:
         print("... no galaxies found in FITS catalog near RA, dec = (%.6f, %.6f) ..." % (RADeg, decDeg))
         return None

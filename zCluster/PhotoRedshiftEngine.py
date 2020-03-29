@@ -192,9 +192,9 @@ class PhotoRedshiftEngine:
         
         # More sophisticated mag prior... doesn't seem to help
         # Using m* in i-band at z = 0.1 from Popesso et al. and BC03 tau = 0.1 Gyr, solar metallicity, zf = 3
-        # Cut is m*-3, i.e., should leave in BCGs
-        #MStar=-21.8
-        #MStarBand='i'
+        #MStar=-21.5
+        #MStarBand='r'
+        #magsBrighterMStarCut=3  # Needs to be a little brighter to leave in BCGs
         #bc03=astSED.BC03Model(zCluster.__path__[0]+os.path.sep+"data"+os.path.sep+"tau0p1Gyr_m62.20")
         #passband=self.passbandsList[self.bands.index(MStarBand)]
         #m=MStar+5.*np.log10(astCalc.dl(0.1)*1e5)
@@ -206,6 +206,7 @@ class PhotoRedshiftEngine:
         # Less sophisticated mag prior...
         self.magPriorCut=absMagCut
         self.magPriorBand=self.bands.index('r')
+
 
     def calcZeroPointOffsets(self, galaxyCatalog, zSpecColumn = 'z_spec'):
         """If the galaxyCatalog contains zSpecColumn, fit SEDs at given spec-zs to determine
