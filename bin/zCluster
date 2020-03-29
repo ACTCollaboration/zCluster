@@ -619,7 +619,8 @@ if __name__ == '__main__':
         # Zero point offsets had no effect on correcting the bias
         #ZPOffsets=np.array([-0.00878495, -0.019883, 0.01998477, -0.03047624, 0.00860256])
         #ZPOffsets=np.array([-0.00380799, -0.01845335, 0.01706214, -0.0291939, 0.01454793])
-        ZPOffsets=np.array([-0.07441184, -0.04284442, 0.01009525, 0.01008043, 0.05755784]) 
+        #ZPOffsets=np.array([-0.07441184, -0.04284442, 0.01009525, 0.01008043, 0.05755784]) 
+        ZPOffsets=np.array([0.02271222, -0.05051711, -0.02465597, -0.00406835, 0.05406105])
         zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
         retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab, 'DR8Tab': DR8Tab}
     elif database == 'CFHTDeep':
