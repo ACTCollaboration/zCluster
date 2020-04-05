@@ -118,10 +118,10 @@ if __name__ == '__main__':
         
     outTab=atpy.Table().read(outCatalogFileName)
 
-    if args.outLabel == None:
+    if args.outLabel is None:
         outFileName="comparison_"+os.path.split(inCatalogFileName)[-1].replace(".fits", "").replace(".csv", "")+"_vs_"+outCatalogFileName
     else:
-        outFileName=outLabel+".fits"
+        outFileName=args.outLabel+".fits"
     plotFileName=outFileName.replace(".fits", "")
     plotFileName=plotFileName.replace(".", "p")+".pdf"
 
@@ -206,11 +206,14 @@ if __name__ == '__main__':
     mask=np.logical_and(zMask, deltaMask)
     maskedDiff=zIn[mask]-zOut[mask]
     meanMaskedDiff=np.mean(maskedDiff)
+    medianMaskedDiff=np.median(maskedDiff)
     stdMaskedDiff=np.std(maskedDiff)
     maskedDiff_over1plusz=(zIn[mask]-zOut[mask])/(1+zIn[mask])
     meanMaskedDiff_over1plusz=np.mean(maskedDiff_over1plusz)
+    medianMaskedDiff_over1plusz=np.median(maskedDiff_over1plusz)
     stdMaskedDiff_over1plusz=np.std(maskedDiff_over1plusz)
-    
+    biweightMaskedDiff_over1plusz=apyStats.biweight_scale(maskedDiff_over1plusz, c = 9.0, modify_sample_size = True)
+
     # Plot                
     update_rcParams()
     
@@ -224,9 +227,9 @@ if __name__ == '__main__':
     yPlotRange=np.linspace(-1, 1, 10)
     xPlotRange=np.linspace(0, zIn.max()*1.1, 10)
     plt.plot(xPlotRange, [meanMaskedDiff]*len(xPlotRange), 'k--', 
-             label = '$\langle \, (z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}) \, \\rangle$ = %.3f' % (inLabel, inLabel, meanMaskedDiff_over1plusz))
+             label = '$\langle \, (z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}) \, \\rangle$ = %.3f' % (inLabel, inLabel, medianMaskedDiff_over1plusz))
     plt.plot(xPlotRange, [meanMaskedDiff-stdMaskedDiff]*len(xPlotRange), 'k:', 
-             label = '$\sigma$ [($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}$)] = %.3f' % (inLabel, inLabel, stdMaskedDiff_over1plusz))
+             label = '$\sigma_{\\rm bw}$ [($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}$)] = %.3f' % (inLabel, inLabel, biweightMaskedDiff_over1plusz))
     plt.plot(xPlotRange, [meanMaskedDiff+stdMaskedDiff]*len(xPlotRange), 'k:')
     plt.plot(np.linspace(0, zIn.max()*1.1, 3), [0]*3, 'k-')
     plt.xlim(0, zIn.max()*1.1)
@@ -251,7 +254,7 @@ if __name__ == '__main__':
     plt.plot(xPlotRange, [meanMaskedDiff]*len(xPlotRange), 'k--', 
              label = 'mean($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, meanMaskedDiff_over1plusz))
     plt.plot(xPlotRange, [meanMaskedDiff-stdMaskedDiff]*len(xPlotRange), 'k:', 
-             label = '$\sigma$($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, stdMaskedDiff_over1plusz))
+             label = '$\sigma_{\\rm bw}$($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, biweightMaskedDiff_over1plusz))
     plt.plot(xPlotRange, [meanMaskedDiff+stdMaskedDiff]*len(xPlotRange), 'k:')
     plt.plot(np.linspace(0, delta.max()*1.1, 3), [0]*3, 'k-')
     plt.xlim(0, delta.max()*1.1)
