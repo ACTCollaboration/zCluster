@@ -134,7 +134,8 @@ class PhotoRedshiftEngine:
             self.SEDFiles=self.SEDFiles+glob.glob(templatesDir+os.path.sep+"*.dat")
             self.SEDFiles=self.SEDFiles+glob.glob(templatesDir+os.path.sep+"*.sed")
             self.SEDFiles=self.SEDFiles+glob.glob(templatesDir+os.path.sep+"*spec.txt")
-
+        # Because getting EOF errors under MPI
+        pickleFileName=None
         if pickleFileName is not None and os.path.exists(pickleFileName):
             with open(pickleFileName, "rb") as pickleFile:
                 unpickler=pickle.Unpickler(pickleFile)
@@ -172,7 +173,7 @@ class PhotoRedshiftEngine:
             self.modelFlux2=self.modelFlux**2
         
         # We can pickle if give a custom templates dir
-        if templatesDir is not None:
+        if templatesDir is not None and pickleFileName is not None:
             with open(pickleFileName, "wb") as pickleFile:
                 pickler=pickle.Pickler(pickleFile)
                 pickler.dump(self.numModels)
