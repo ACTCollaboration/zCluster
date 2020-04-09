@@ -371,9 +371,13 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
         
         # This uses the old delta method (effectively)
         zDelta=zArray[validMask]
-        deltaIndex=np.where(zDelta == z)[0][0]
-        delta_at_z=delta[deltaIndex]
-        errDelta_at_z=errDelta[deltaIndex]
+        if len(zDelta) > 0:
+            deltaIndex=np.where(zDelta == z)[0][0]
+            delta_at_z=delta[deltaIndex]
+            errDelta_at_z=errDelta[deltaIndex]
+        else:
+            print("... no valid delta value ...")
+            return None
         
         # Optionally filter zOdds according to whether delta is > 3 sigma
         # NOTE: If used, this makes the zMethod = 'max' option invalid
