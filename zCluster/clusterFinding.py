@@ -371,11 +371,11 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
         
         # This uses the old delta method (effectively)
         zDelta=zArray[validMask]
-        if len(zDelta) > 0:
+        try:
             deltaIndex=np.where(zDelta == z)[0][0]
             delta_at_z=delta[deltaIndex]
             errDelta_at_z=errDelta[deltaIndex]
-        else:
+        except:
             print("... no valid delta value ...")
             return None
         
