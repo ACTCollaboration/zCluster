@@ -279,7 +279,7 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
 #-------------------------------------------------------------------------------------------------------------
 def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weightsType, maxRMpc, 
                             zMethod, maskMap = None, maskWCS = None, sanityCheckRadiusArcmin = 1.0, 
-                            bckCatalog = [], bckAreaDeg2 = None, zDebias = None):
+                            bckCatalog = [], bckAreaDeg2 = None, zDebias = None, filterDeltaValues = True):
     """This does the actual work of estimating cluster photo-z from catalog.
     
     Assumes each object has keys 'pz' (p(z), probability distribution), 'pz_z' (corresponding redshifts at 
@@ -328,16 +328,12 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     pzWeightedMean[np.isnan(pzWeightedMean)]=0.0
     normFactor=np.trapz(pzWeightedMean, clusterNzDict['zArray'])
     pzWeightedMean=pzWeightedMean/normFactor
-    try:
-        z, odds, zOdds=calculateRedshiftAndOdds(pzWeightedMean, clusterNzDict['zArray'], dzOdds = 0.05, method = zMethod, zPriorMax = zPriorMax, zPriorMin = zPriorMin)
-    except:
-        print("Hmm - failed in z, odds calc: what happened?")
-        IPython.embed()
-        sys.exit()
-        
-    # Background - delta (density contrast) measurement
+    z, odds, zOdds=calculateRedshiftAndOdds(pzWeightedMean, clusterNzDict['zArray'], dzOdds = 0.05, method = zMethod, 
+                                            zPriorMax = zPriorMax, zPriorMin = zPriorMin)
+
+    # Background used in delta (density contrast) measurement
+    # We also re-do the N(z) measurement in the cluster region so that this makes sense
     clusterNzDictForSNR=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, 'flat', maxDistanceMpc = maxRMpc)
-    zIndex=np.where(zArray == z)[0][0]
     if len(bckCatalog) > 0:
         # Global
         bckNzDict=makeWeightedNz(RADeg, decDeg, bckCatalog, zPriorMax, 'flat', minDistanceMpc = 3.0, maxDistanceMpc = 1e9, 
@@ -347,58 +343,59 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
         # Local background - 0.6 deg radius gives us out to 4 Mpc radius at z = 0.1
         bckNzDict=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, 'flat', minDistanceMpc = 3.0, maxDistanceMpc = 4.0,
                                  areaMask = areaMask, wcs = wcs)
-    # Both
+    # Masking sanity check that isn't fully implemented (in some cases would just need to bump up mask resolution)
     if max(bckNzDict['areaMpc2']) > (np.pi*(4**2-3**2)): 
         print("... WARNING: max(areaMpc2) = %.3f > %.3f at (RADeg, decDeg) = (%.6f, %.6f)" % (max(bckNzDict['areaMpc2']), np.pi*(4**2-3**2), RADeg, decDeg))        
         #raise Exception("Mask resolution is too coarse - area from mask > area of circular annulus") 
 
-    # Delta calc - if we want to look at delta(z)
-    valid=np.greater(bckNzDict['areaMpc2'], 0)
+    # Delta calculation with bootstrap error over the whole z range
+    validMask=np.greater(bckNzDict['areaMpc2'], 0)
     bckAreaNorm=np.zeros(len(clusterNzDictForSNR['areaMpc2']))
-    bckAreaNorm[valid]=clusterNzDictForSNR['areaMpc2'][valid]/bckNzDict['areaMpc2'][valid]
-    bckSubtractedCount=clusterNzDictForSNR['NzWeightedSum']-bckAreaNorm*bckNzDict['NzWeightedSum']
-    delta=np.zeros(len(clusterNzDictForSNR['areaMpc2']))
-    valid=np.logical_and(bckAreaNorm > 0, bckNzDict['NzWeightedSum'] > 0)
-    delta[valid]=bckSubtractedCount[valid]/(bckAreaNorm[valid]*bckNzDict['NzWeightedSum'][valid])
-    delta[delta < 0] = 0
-    # Bootstrap error
-    nc=clusterNzDictForSNR['NzWeightedSum'][zIndex]
-    err_nc=np.sqrt(nc)
-    nb=bckNzDict['NzWeightedSum'][zIndex]
-    err_nb=np.sqrt(nb)
-    A=bckAreaNorm[zIndex]
-    delta=(nc/(A*nb))-1
-    bs_delta=[]
-    for i in range(5000):   # Needed for this to converge at 2 decimal places after rounding
-        bs_nc=np.random.poisson(nc)
-        bs_nb=np.random.poisson(nb)
-        bs_delta.append((bs_nc/(A*bs_nb))-1)
-    errDelta=np.std(bs_delta)
-    errDelta=np.round(errDelta, 2)
-    
-    #---
-    # Old
-    #bckAreaNorm=clusterNzDictForSNR['areaMpc2'][zIndex]/bckNzDict['areaMpc2'][zIndex]
-    #bckSubtractedCount=clusterNzDictForSNR['NzWeightedSum'][zIndex]-bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex]
-    #delta=bckSubtractedCount/(bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex])
-    #errDelta=np.sqrt(bckSubtractedCount/bckSubtractedCount**2 + 
-                     #bckNzDict['NzWeightedSum'][zIndex]/bckNzDict['NzWeightedSum'][zIndex]**2)*delta
-    
-    #---
-    if np.isnan(delta) == True or np.isnan(errDelta) == True:
-        print("... delta is nan - i.e., no background galaxies - skipping ...")
+    bckAreaNorm[validMask]=clusterNzDictForSNR['areaMpc2'][validMask]/bckNzDict['areaMpc2'][validMask]
+    validMask=np.logical_and(clusterNzDictForSNR['NzWeightedSum'] > 0, bckNzDict['NzWeightedSum'] > 0)
+    if validMask.sum() > 0:
+        nc=clusterNzDictForSNR['NzWeightedSum'][validMask]
+        nb=bckNzDict['NzWeightedSum'][validMask]
+        err_nc=np.sqrt(nc)
+        err_nb=np.sqrt(nb)
+        A=bckAreaNorm[validMask]
+        delta=(nc/(A*nb))-1
+        bs_delta=[]
+        for i in range(5000):   # Needed for this to converge at 2 decimal places after rounding
+            bs_nc=np.random.poisson(nc)
+            bs_nb=np.random.poisson(nb)
+            bs_nb[bs_nb == 0]=1 # Just to avoid div 0 warnings... background should never be 0 anyway
+            bs_delta.append((bs_nc/(A*bs_nb))-1)
+        errDelta=np.std(bs_delta, axis = 0)
+        errDelta=np.round(errDelta, 2)
+        
+        # This uses the old delta method (effectively)
+        zDelta=zArray[validMask]
+        deltaIndex=np.where(zDelta == z)[0][0]
+        delta_at_z=delta[deltaIndex]
+        errDelta_at_z=errDelta[deltaIndex]
+        
+        # Optionally filter zOdds according to whether delta is > 3 sigma
+        # NOTE: If used, this makes the zMethod = 'max' option invalid
+        if filterDeltaValues == True and zMethod == 'odds':
+            print("... filtering delta values such that delta/errDelta > 3 ...")
+            zOdds_validDelta=np.greater(delta/errDelta, 3)*zOdds[validMask]
+            zIndex=np.argmax(zOdds_validDelta)
+            z=zDelta[zIndex]
+            delta_at_z=delta[zIndex]
+            errDelta_at_z=errDelta[zIndex]
+            
+    else:
+        print("... no background galaxies - skipping ...")
         return None
-    #if errDelta > delta/3:
-        #print("... delta highly uncertain (deltaErr > delta/3) - skipping ...")
-        #return None
     
     # Optional: de-bias right here (use with caution)
     if zDebias is not None:
         z=z+zDebias*(1+z)
     
-    print("... zCluster = %.2f, delta = %.1f, errDelta = %.1f (RADeg = %.6f, decDeg = %.6f) ..." % (z, delta, errDelta, RADeg, decDeg))
+    print("... zCluster = %.2f, delta = %.1f, errDelta = %.1f (RADeg = %.6f, decDeg = %.6f) ..." % (z, delta_at_z, errDelta_at_z, RADeg, decDeg))
 
-    return {'z': z, 'pz': pzWeightedMean, 'zOdds': zOdds, 'pz_z': zArray, 'delta': delta, 'errDelta': errDelta,
+    return {'z': z, 'pz': pzWeightedMean, 'zOdds': zOdds, 'pz_z': zArray, 'delta': delta_at_z, 'errDelta': errDelta_at_z,
             'areaMask': areaMask, 'wcs': wcs}
 
 #-------------------------------------------------------------------------------------------------------------
@@ -549,8 +546,8 @@ def calculateRedshiftAndOdds(pz, zArray, dzOdds = 0.2, method = 'max', zPriorMax
             odds=np.trapz(pz[indexMin:indexMax], zArray[indexMin:indexMax])
             zOdds.append(odds)
         zOdds=np.array(zOdds)
-        z=zArray[zOdds.tolist().index(zOdds.max())]
-        odds=zOdds[zOdds.tolist().index(zOdds.max())]    
+        z=zArray[np.argmax(zOdds)]
+        odds=zOdds[np.argmax(zOdds)]
     
     return [z, odds, zOdds]
     

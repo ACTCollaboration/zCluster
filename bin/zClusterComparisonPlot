@@ -214,7 +214,12 @@ if __name__ == '__main__':
     stdMaskedDiff_over1plusz=np.std(maskedDiff_over1plusz)
     biweightMaskedDiff_over1plusz=apyStats.biweight_scale(maskedDiff_over1plusz, c = 9.0, modify_sample_size = True)
 
-    # Plot                
+    # Plot
+    zMin=zIn.min()-0.1
+    if zMin < 0: 
+        zMin=0
+    zMax=zIn.max()+0.1
+    
     update_rcParams()
     
     plt.figure(figsize=(18, 6.5))
@@ -225,14 +230,14 @@ if __name__ == '__main__':
     plt.plot(zIn[notMask], diff_over1plusz[notMask], 'wD', mec = 'k', ms = 8, label = '$\delta < %.0f$' % (deltaMin))
     plt.plot(zIn[deltaMask], diff_over1plusz[deltaMask], 'D', ms = 8, label = '$\delta > %.0f$' % (deltaMin))
     yPlotRange=np.linspace(-1, 1, 10)
-    xPlotRange=np.linspace(0, zIn.max()*1.1, 10)
+    xPlotRange=np.linspace(zMin, zMax, 10)
     plt.plot(xPlotRange, [meanMaskedDiff]*len(xPlotRange), 'k--', 
              label = '$\langle \, (z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}) \, \\rangle$ = %.3f' % (inLabel, inLabel, medianMaskedDiff_over1plusz))
     plt.plot(xPlotRange, [meanMaskedDiff-stdMaskedDiff]*len(xPlotRange), 'k:', 
              label = '$\sigma_{\\rm bw}$ [($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}$)] = %.3f' % (inLabel, inLabel, biweightMaskedDiff_over1plusz))
     plt.plot(xPlotRange, [meanMaskedDiff+stdMaskedDiff]*len(xPlotRange), 'k:')
     plt.plot(np.linspace(0, zIn.max()*1.1, 3), [0]*3, 'k-')
-    plt.xlim(0, zIn.max()*1.1)
+    plt.xlim(zMin, zMax)
     if yRangeStr != None:
         yMin, yMax=yRangeStr.split(":")
         yMin=float(yMin)

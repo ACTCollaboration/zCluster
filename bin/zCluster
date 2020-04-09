@@ -152,6 +152,7 @@ def writeRedshiftsCatalog(catalog, outFileName):
     """Writes a .fits table with cluster photo-zs in it
     
     """
+    
     tab=atpy.Table()
     keys=['name', 'RADeg', 'decDeg', 'zcRADeg', 'zcDecDeg', 'offsetArcmin', 'offsetMpc', 'z', 'delta', 'errDelta']
     for key in keys:
