@@ -136,7 +136,7 @@ def makeDensityMap(RADeg, decDeg, catalog, z, dz = 0.1, rMaxMpc = 1.5):
     cRADeg, cDecDeg=wcs.pix2wcs(y[0], x[0])
     offsetArcmin=astCoords.calcAngSepDeg(cRADeg, cDecDeg, RADeg, decDeg)*60
     offsetMpc=np.radians(offsetArcmin/60.)*DA
-        
+
     return {'map': d, 'wcs': wcs, 'cRADeg': cRADeg, 'cDecDeg': cDecDeg, 
             'offsetArcmin': offsetArcmin, 'offsetMpc': offsetMpc}
         
@@ -192,7 +192,7 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
         fx=np.zeros(x.shape)
         mask=np.greater(x, 1)
         fx[mask]=1-(2.0/np.sqrt(x[mask]**2-1))*np.arctan(np.sqrt((x[mask]-1)/(x[mask]+1)))
-        mask=np.less(x, 1)
+        mask=np.logical_and(np.greater(x, 0), np.less(x, 1))
         fx[mask]=1-(2.0/np.sqrt(1-x[mask]**2))*np.arctanh(np.sqrt((1-x[mask])/(x[mask]+1)))
         mask=np.equal(x, 1)
         fx[mask]=0
@@ -279,7 +279,7 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
 #-------------------------------------------------------------------------------------------------------------
 def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weightsType, maxRMpc, 
                             zMethod, maskMap = None, maskWCS = None, sanityCheckRadiusArcmin = 1.0, 
-                            bckCatalog = [], bckAreaDeg2 = None, zDebias = None, filterDeltaValues = True):
+                            bckCatalog = [], bckAreaDeg2 = None, filterDeltaValues = True):
     """This does the actual work of estimating cluster photo-z from catalog.
     
     Assumes each object has keys 'pz' (p(z), probability distribution), 'pz_z' (corresponding redshifts at 
@@ -295,14 +295,11 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     This is obviously a fudge, so use with caution (only used for some surveys - see bin/zCluster).
             
     """
-    
-    print("... estimating cluster photo-z ...")
-    
+       
     # Initial sanity check: if we didn't find a decent number of galaxies close to the cluster centre, 
     # the cluster is probably not actually in the optical catalog footprint (e.g., just outside edge of S82)
     gOdds, gRedshifts, angSepArray, tanArray=extractArraysFromGalaxyCatalog(catalog, RADeg, decDeg)
     if np.sum(np.less(np.degrees(tanArray), sanityCheckRadiusArcmin/60.0)) == 0:
-        print("... no galaxies within %.1f' of cluster position ..." % (sanityCheckRadiusArcmin))
         return None
 
     # Automated area mask calculation, using only catalogs
@@ -319,7 +316,6 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
                                  areaMask = areaMask, wcs = wcs)
     zArray=clusterNzDict['zArray']
     if clusterNzDict['NzWeightedSum'].sum() == 0:
-        print("... no galaxies in n(z) - skipping...")
         return None
     
     # This is how we have been calculating redshifts
@@ -381,7 +377,6 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
         
         # Optionally filter zOdds according to whether delta is > 3 sigma
         if filterDeltaValues == True:
-            print("... filtering delta values such that delta/errDelta > 3 ...")
             if zMethod == 'odds':
                 pzToCheck=zOdds
             elif zMethod == 'max':
@@ -396,13 +391,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     else:
         print("... no background galaxies - skipping ...")
         return None
-    
-    # Optional: de-bias right here (use with caution)
-    if zDebias is not None:
-        z=z+zDebias*(1+z)
-    
-    print("... zCluster = %.2f, delta = %.1f, errDelta = %.1f (RADeg = %.6f, decDeg = %.6f) ..." % (z, delta_at_z, errDelta_at_z, RADeg, decDeg))
-
+        
     return {'z': z, 'pz': pzWeightedMean, 'zOdds': zOdds, 'pz_z': zArray, 'delta': delta_at_z, 'errDelta': errDelta_at_z,
             'areaMask': areaMask, 'wcs': wcs}
 

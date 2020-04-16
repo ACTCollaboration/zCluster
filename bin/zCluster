@@ -154,7 +154,7 @@ def writeRedshiftsCatalog(catalog, outFileName):
     """
     
     tab=atpy.Table()
-    keys=['name', 'RADeg', 'decDeg', 'zcRADeg', 'zcDecDeg', 'offsetArcmin', 'offsetMpc', 'z', 'delta', 'errDelta']
+    keys=['name', 'RADeg', 'decDeg', 'origRADeg', 'origDecDeg', 'offsetArcmin', 'offsetMpc', 'z', 'delta', 'errDelta']
     for key in keys:
         arr=[]
         for obj in catalog:
@@ -175,7 +175,7 @@ def writeRedshiftsCatalog(catalog, outFileName):
 def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir, zPriorMin,
                  zPriorMax, weightsType, maxRMpc, zMethod, bckCatalogFileName, bckAreaDeg2,
                  maskPath = None, writeGalaxyCatalogs = False, writeDensityMaps = False, writePlots = False, 
-                 rank = 0, zDebias = None, fitZPOffsets = False):
+                 rank = 0, zDebias = None, fitZPOffsets = False, maxIter = 5):
     """Runs zCluster algorithm on each object in catalog.
     
     """
@@ -189,7 +189,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='redshifts'")
     matches=c.fetchall()
     if len(matches) == 0:
-        c.execute("""CREATE TABLE redshifts (name text, RADeg real, decDeg real, zcRADeg real, zcDecDeg real, 
+        c.execute("""CREATE TABLE redshifts (name text, RADeg real, decDeg real, origRADeg real, origDecDeg real, 
                   offsetArcmin real, offsetMpc real, z real, delta real, errDelta real)""")
     
     # The global database for checking if we've already measured a redshift - read only
@@ -222,7 +222,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
         print(">>> %s (%d/%d):" % (obj['name'], count, len(catalog)))
         objOutDir=outDir+os.path.sep+obj['name']
         os.makedirs(objOutDir, exist_ok = True)
-        
+                            
         # We actually query both the process database AND the global database
         c.execute("SELECT name FROM redshifts where name=?", (obj['name'],))
         matches=c.fetchall()
@@ -236,45 +236,77 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
             while stuff == "retry":
                 stuff=retriever(obj['RADeg'], obj['decDeg'], optionsDict = retrieverOptions)
             galaxyCatalog=stuff
+            # Default values... will get filled if sucessful
+            obj['offsetArcmin']=-99
+            obj['offsetMpc']=-99
+            obj['z']=-99
+            obj['delta']=0
+            obj['errDelta']=0
             if galaxyCatalog is not None:
                 
                 if fitZPOffsets == True:
                     photoRedshiftEngine.calcZeroPointOffsets(galaxyCatalog)
                 photoRedshiftEngine.calcPhotoRedshifts(galaxyCatalog, calcMLRedshiftAndOdds = True)                    
-                    
-                obj['zClusterResult']=clusterFinding.estimateClusterRedshift(obj['RADeg'], obj['decDeg'], galaxyCatalog, zPriorMin, 
-                                                                             zPriorMax, weightsType, maxRMpc, zMethod, 
-                                                                             maskMap = maskMap, maskWCS = maskWCS,
-                                                                             bckCatalog = bckCatalog, bckAreaDeg2 = bckAreaDeg2,
-                                                                             zDebias = zDebias)
                 
-                if obj['zClusterResult'] is not None:
-                    dMapDict=clusterFinding.makeDensityMap(obj['RADeg'], obj['decDeg'], galaxyCatalog, 
-                                                              obj['zClusterResult']['z'], dz = 0.1)
-                    obj['zcRADeg']=dMapDict['cRADeg']
-                    obj['zcDecDeg']=dMapDict['cDecDeg']
-                    obj['offsetArcmin']=dMapDict['offsetArcmin']
-                    obj['offsetMpc']=dMapDict['offsetMpc']
+                # Iterate on position of optical peak - estimate z, find centre, estimate z again...
+                converged=False
+                obj['origRADeg'], obj['origDecDeg']=obj['RADeg'], obj['decDeg']
+                RADeg, decDeg=obj['RADeg'], obj['decDeg']
+                numIter=0
+                while converged == False and numIter < maxIter:
+                    numIter=numIter+1
+                    result=clusterFinding.estimateClusterRedshift(RADeg, decDeg, galaxyCatalog, zPriorMin, 
+                                                                  zPriorMax, weightsType, maxRMpc, zMethod, 
+                                                                  maskMap = maskMap, maskWCS = maskWCS,
+                                                                  bckCatalog = bckCatalog, bckAreaDeg2 = bckAreaDeg2)
+                    if result is None:
+                        break
+                    else:
+                        # We want the offset relative to the original position, not the last iteration
+                        dMapDict=clusterFinding.makeDensityMap(obj['origRADeg'], obj['origDecDeg'], galaxyCatalog, 
+                                                               result['z'], dz = 0.05)
+                        result['offsetArcmin']=dMapDict['offsetArcmin']
+                        result['offsetMpc']=dMapDict['offsetMpc']
+                        newRADeg=dMapDict['cRADeg']
+                        newDecDeg=dMapDict['cDecDeg']
+                        if newRADeg == RADeg and newDecDeg == decDeg:
+                            converged=True
+                        RADeg=newRADeg
+                        decDeg=newDecDeg
+
+                # We're now updating object coords in-place to whatever we think the peak is
+                # NOTE: On-the-fly z-debias gets applied here now, if active
+                if result is not None:
+                    obj['RADeg']=RADeg
+                    obj['decDeg']=decDeg
+                    obj['offsetArcmin']=result['offsetArcmin']
+                    obj['offsetMpc']=result['offsetMpc']
+                    obj['z']=result['z']
+                    # Optional: de-bias right here (use with caution)
+                    if zDebias is not None:
+                        obj['z']=obj['z']+zDebias*(1+obj['z'])
+                    obj['delta']=result['delta']
+                    obj['errDelta']=result['errDelta']
+                    print("... %s: z = %.2f; delta = %.1f; errDelta = %.1f; offsetArcmin = %.1f; offsetMpc = %.1f ..." 
+                          % (obj['name'], obj['z'], obj['delta'], obj['errDelta'], obj['offsetArcmin'], obj['offsetMpc']))
                     if writeDensityMaps == True:
                         astImages.saveFITS(objOutDir+os.path.sep+"densityMap_%s.fits" % (obj['name'].replace(" ", "_")), 
                                            dMapDict['map'], dMapDict['wcs']) 
                         # Useful for debugging, but NOT if we specified a pre-made mask
                         if maskPath is None:    
                             astImages.saveFITS(objOutDir+os.path.sep+"areaMap_%s.fits" % (obj['name'].replace(" ", "_")), 
-                                               obj['zClusterResult']['areaMask'], obj['zClusterResult']['wcs'])
+                                               result['areaMask'], result['wcs'])
                 else:
-                    obj['zcRADeg']=-99
-                    obj['zcDecDeg']=-99
-                    obj['offsetArcmin']=-99
-                    obj['offsetMpc']=-99
-                
-                # This is just to stop pickle-related fail if under MPI
-                # Really we should tidy up the area mask making stuff and call before estimateClusterRedshift
-                if obj['zClusterResult'] is not None:
-                    if 'wcs' in obj['zClusterResult'].keys():
-                        del obj['zClusterResult']['wcs']
-                    if 'areaMask' in obj['zClusterResult'].keys():
-                        del obj['zClusterResult']['areaMask']
+                    obj['RADeg']=obj['origRADeg']
+                    obj['decDeg']=obj['origDecDeg']
+                    
+                ## This is just to stop pickle-related fail if under MPI
+                ## Really we should tidy up the area mask making stuff and call before estimateClusterRedshift
+                #if obj['zClusterResult'] is not None:
+                    #if 'wcs' in obj['zClusterResult'].keys():
+                        #del obj['zClusterResult']['wcs']
+                    #if 'areaMask' in obj['zClusterResult'].keys():
+                        #del obj['zClusterResult']['areaMask']
 
                 # Write out galaxy catalog with photo-zs in both FITS and DS9 .reg format
                 if writeGalaxyCatalogs == True:
@@ -285,7 +317,8 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                         if 'r' in list(gobj.keys()) and 'z' in list(gobj.keys()):
                             gobj['r-z']=gobj['r']-gobj['z']
 
-                    wantedKeys=['id', 'RADeg', 'decDeg', 'u', 'uErr', 'g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'z', 'zErr', 'Ks', 'KsErr', 'zPhot', 'odds', 'r-i', 'r-z']
+                    wantedKeys=['id', 'RADeg', 'decDeg', 'u', 'uErr', 'g', 'gErr', 'r', 'rErr', 'i', 
+                                'iErr', 'z', 'zErr', 'Ks', 'KsErr', 'zPhot', 'odds', 'r-i', 'r-z']
                     if os.path.exists(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_"))) == True:
                         os.remove(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_")))
                     tab=atpy.Table()
@@ -296,9 +329,6 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                                 arr.append(gobj[key])
                             except:
                                 arr.append(99)
-                                #print "missing key, eh?"
-                                #IPython.embed()
-                                #sys.exit()
                         tab.add_column(atpy.Column(np.array(arr), key))
                     # NOTE: to cut down on disk space this takes, include only galaxies within some radius
                     # Chosen one is just over 1.5 Mpc at z = 0.1
@@ -318,43 +348,34 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
 
                 if writePlots == True:
                     writePlot(obj['name'], obj['zClusterResult'], zPriorMax, outDir+os.path.sep+"Plots")
-                
-            else:
-                obj['zClusterResult']=None
+
 
             # Insert a row of data
-            if obj['zClusterResult'] is not None:
-                c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-                      (obj['name'], obj['RADeg'], obj['decDeg'], obj['zcRADeg'], obj['zcDecDeg'], obj['offsetArcmin'],
-                       obj['offsetMpc'], obj['zClusterResult']['z'], obj['zClusterResult']['delta'], 
-                       obj['zClusterResult']['errDelta']))
-                obj['z']=obj['zClusterResult']['z']
-                obj['delta']=obj['zClusterResult']['delta']
-                obj['errDelta']=obj['zClusterResult']['errDelta']
-            else:
-                c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-                      (obj['name'], obj['RADeg'], obj['decDeg'], -99, -99, -99, -99, -99, 0, -99))
-                obj['z']=-99
-                obj['delta']=0
-                obj['errDelta']=0
+            c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+                      (obj['name'], obj['RADeg'], obj['decDeg'], obj['origRADeg'], obj['origDecDeg'], 
+                       obj['offsetArcmin'], obj['offsetMpc'], obj['z'], obj['delta'], obj['errDelta']))
             conn.commit() # May want to think about how often we do this...
             
         else:
             print("... already measured photo-z ...")
             # Prefer the global result, if it exists
+            # NOTE: This is dumb if multiple objects have the same name but slightly different coords!
             if len(matches) > 0:
                 thisCursor=c
             if len(globalMatches) > 0:
                 thisCursor=cGlobal
-            thisCursor.execute("SELECT z, delta, errDelta, RADeg, decDeg, offsetArcmin, offsetMpc FROM redshifts WHERE name = ?", (obj['name'],))
+            thisCursor.execute("""SELECT z, delta, errDelta, RADeg, decDeg, origRADeg, origDecDeg, offsetArcmin, 
+                                offsetMpc FROM redshifts WHERE name = ?""", (obj['name'],))
             match=thisCursor.fetchone()
             obj['z']=match[0]
             obj['delta']=match[1]
             obj['errDelta']=match[2]
-            obj['zcRADeg']=match[3]
-            obj['zcDecDeg']=match[4]
-            obj['offsetArcmin']=match[5]
-            obj['offsetMpc']=match[6]
+            obj['RADeg']=match[3]
+            obj['origRADeg']=match[4]
+            obj['origDecDeg']=match[5]
+            obj['decDeg']=match[6]
+            obj['offsetArcmin']=match[7]
+            obj['offsetMpc']=match[8]
  
     return catalog
 
@@ -406,6 +427,9 @@ if __name__ == '__main__':
     parser.add_argument("-a", "--algorithm", dest="algorithm", help="""Algorithm to use for the maximum likelihood
                         redshift. Options are 'max' or 'odds' (default: odds).""", 
                         default = 'odds')
+    parser.add_argument("-i", "--max-iter", dest="maxIter", help="""Maximum number of iterations for finding
+                        the cluster redshift and optical position based on projected density map (default: 5).""", 
+                        default = 5, type = int)
     parser.add_argument("-c", "--cachedir", dest="cacheDir", default = None, help="""Cache directory location
                         (default: $HOME/.zCluster/cache). Downloaded photometric catalogs will be stored 
                         here.""")
@@ -473,6 +497,7 @@ if __name__ == '__main__':
     writePlots=args.writePlots
     maskPath=args.mask
     ZPError=args.ZPError
+    maxIter=args.maxIter
     
     update_rcParams()
 
@@ -739,7 +764,8 @@ if __name__ == '__main__':
                          zPriorMin, zPriorMax, weightsType, maxRMpc, method, bckCatalogFileName, bckAreaDeg2,
                          maskPath = maskPath, writeGalaxyCatalogs = writeGalaxyCatalogs, 
                          writeDensityMaps = args.writeDensityMaps, writePlots = writePlots, 
-                         rank = rank, zDebias = zDebias, fitZPOffsets = args.fitZPOffsets)
+                         rank = rank, zDebias = zDebias, fitZPOffsets = args.fitZPOffsets,
+                         maxIter = maxIter)
     
     # If running under MPI, gather everything back together
     # Rank 0 process will continue with plots
@@ -763,12 +789,12 @@ if __name__ == '__main__':
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='redshifts'")
     matches=c.fetchall()
     if len(matches) == 0:
-        c.execute("""CREATE TABLE redshifts (name text, RADeg real, decDeg real, zcRADeg real, zcDecDeg real,
+        c.execute("""CREATE TABLE redshifts (name text, RADeg real, decDeg real, origRADeg real, origDecDeg real,
                   offsetArcmin real, offsetMpc real, z real, delta real, errDelta real)""")
     for obj in catalog:
         try:
             c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-                      (obj['name'], obj['RADeg'], obj['decDeg'], obj['zcRADeg'], obj['zcDecDeg'], obj['offsetArcmin'],
+                      (obj['name'], obj['RADeg'], obj['decDeg'], obj['origRADeg'], obj['origDecDeg'], obj['offsetArcmin'],
                        obj['offsetMpc'], obj['z'], obj['delta'], obj['errDelta']))
         except:
             raise Exception("Failed to insert %s (keys: %s)" % (obj['name'], obj.keys()))
