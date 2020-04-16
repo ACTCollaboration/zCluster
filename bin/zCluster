@@ -237,6 +237,8 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                 stuff=retriever(obj['RADeg'], obj['decDeg'], optionsDict = retrieverOptions)
             galaxyCatalog=stuff
             # Default values... will get filled if sucessful
+            obj['origRADeg']=obj['RADeg']
+            obj['origDecDeg']=obj['decDeg']
             obj['offsetArcmin']=-99
             obj['offsetMpc']=-99
             obj['z']=-99

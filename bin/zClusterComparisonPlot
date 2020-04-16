@@ -155,13 +155,14 @@ if __name__ == '__main__':
     tab.add_column(atpy.Column(tab['zIn']-tab['z'], 'zDiff'))
     tab.add_column(cutTab['delta'])
     tab.add_column(cutTab['errDelta'])
+    tab.add_column(cutTab['offsetArcmin'])
+    tab.add_column(cutTab['offsetMpc'])
     tab=tab[np.where(tab['z'] > 0)] # because filled in -99 for fails/missing clusters (e.g., not in S82)
     tab=tab[np.where(tab['delta'] != np.inf)]
     
     zIn=tab['zIn']
     zOut=tab['z']
     delta=tab['delta']
-    deltaSNR=tab['delta']/tab['errDelta']
     diff=tab['zDiff']
     diff_over1plusz=diff/(1+tab['zIn'])
             
@@ -173,9 +174,6 @@ if __name__ == '__main__':
             zMin=zCuts[0]
             zMax=zCuts[1]
             deltaMask=np.greater(delta, deltaMin)
-            # Another delta cut: uncertain deltas
-            deltaSNRMask=np.greater(deltaSNR, 3.0)
-            deltaMask=np.logical_and(deltaSNRMask, deltaMask)
             notMask=np.less(delta, deltaMin)
             zMask=np.logical_and(np.greater(zIn, zMin), np.less(zIn, zMax))
             mask=np.logical_and(zMask, deltaMask)
@@ -201,9 +199,6 @@ if __name__ == '__main__':
     zMin=zCutsList[0][0]
     zMax=zCutsList[0][1]
     deltaMask=np.greater(delta, deltaMin)
-    # Another delta cut: uncertain deltas
-    deltaSNRMask=np.greater(deltaSNR, 3.0)
-    deltaMask=np.logical_and(deltaSNRMask, deltaMask)
     notMask=np.equal(deltaMask, False)
     zMask=np.logical_and(np.greater(zIn, zMin), np.less(zIn, zMax))
     mask=np.logical_and(zMask, deltaMask)
