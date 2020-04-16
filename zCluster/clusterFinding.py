@@ -380,11 +380,15 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
             return None
         
         # Optionally filter zOdds according to whether delta is > 3 sigma
-        # NOTE: If used, this makes the zMethod = 'max' option invalid
-        if filterDeltaValues == True and zMethod == 'odds':
+        if filterDeltaValues == True:
             print("... filtering delta values such that delta/errDelta > 3 ...")
-            zOdds_validDelta=np.greater(delta/errDelta, 3)*zOdds[validMask]
-            zIndex=np.argmax(zOdds_validDelta)
+            if zMethod == 'odds':
+                pzToCheck=zOdds
+            elif zMethod == 'max':
+                pzToCheck=pzWeightedMean
+            pzToCheck=applyUniformPrior(pzToCheck, zArray, zPriorMax = zPriorMax, zPriorMin = zPriorMin) 
+            pzToCheck_validDelta=np.greater(delta/errDelta, 3)*pzToCheck[validMask]
+            zIndex=np.argmax(pzToCheck_validDelta)
             z=zDelta[zIndex]
             delta_at_z=delta[zIndex]
             errDelta_at_z=errDelta[zIndex]
@@ -497,7 +501,24 @@ def extractArraysFromGalaxyCatalog(catalog, RADeg, decDeg):
     gRedshifts=np.array(gRedshifts)
     
     return gOdds, gRedshifts, angSepArray, tanArray
-        
+
+#-------------------------------------------------------------------------------------------------------------
+def applyUniformPrior(pz, zArray, zPriorMin = None, zPriorMax = None):
+    """Applies uniform redshift prior to pz between zPriorMin and zPriorMax.
+    
+    """
+    
+    prior=np.ones(pz.shape)
+    if zPriorMax is not None:
+        prior[np.greater(zArray, zPriorMax)]=0.0
+    if zPriorMin is not None:
+        prior[np.less(zArray, zPriorMin)]=0.0
+    pz=pz*prior
+    norm=np.trapz(pz, zArray)
+    pz=pz/norm
+    
+    return pz
+    
 #-------------------------------------------------------------------------------------------------------------
 def calculateRedshiftAndOdds(pz, zArray, dzOdds = 0.2, method = 'max', zPriorMax = None, zPriorMin = None):
     """Calculates z and BPZ/EAZY style odds for given pz, zArray
@@ -508,15 +529,7 @@ def calculateRedshiftAndOdds(pz, zArray, dzOdds = 0.2, method = 'max', zPriorMax
     """
     
     # Prior: to avoid worst cases of overestimating z
-    # Prior: low-z cut, set by 1 Mpc radius requirement and 9' radius input catalogues (np.radians(9.0/60)*astCalc.da(0.1))
-    prior=np.ones(pz.shape)
-    if zPriorMax is not None:
-        prior[np.greater(zArray, zPriorMax)]=0.0
-    if zPriorMin is not None:
-        prior[np.less(zArray, zPriorMin)]=0.0
-    pz=pz*prior
-    norm=np.trapz(pz, zArray)
-    pz=pz/norm    
+    pz=applyUniformPrior(pz, zArray, zPriorMax = zPriorMax, zPriorMin = zPriorMin) 
         
     zToIndex_tck=interpolate.splrep(zArray, np.arange(zArray.shape[0]))
     z=zArray[pz.tolist().index(pz.max())]
@@ -534,7 +547,7 @@ def calculateRedshiftAndOdds(pz, zArray, dzOdds = 0.2, method = 'max', zPriorMax
         if indexMax > pz.shape[0]-1:
             indexMax=pz.shape[0]-1
         odds=np.trapz(pz[indexMin:indexMax], zArray[indexMin:indexMax])
-    
+        
     elif method == 'odds':
         zOdds=[]
         for z in zArray:
@@ -552,6 +565,9 @@ def calculateRedshiftAndOdds(pz, zArray, dzOdds = 0.2, method = 'max', zPriorMax
         zOdds=np.array(zOdds)
         z=zArray[np.argmax(zOdds)]
         odds=zOdds[np.argmax(zOdds)]
+        #--
+        norm=np.trapz(zOdds, zArray)
+        zOdds=zOdds/norm  
     
     return [z, odds, zOdds]
     
