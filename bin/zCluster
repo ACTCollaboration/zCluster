@@ -430,8 +430,8 @@ if __name__ == '__main__':
                         redshift. Options are 'max' or 'odds' (default: odds).""", 
                         default = 'odds')
     parser.add_argument("-i", "--max-iter", dest="maxIter", help="""Maximum number of iterations for finding
-                        the cluster redshift and optical position based on projected density map (default: 5).""", 
-                        default = 5, type = int)
+                        the cluster redshift and optical position based on projected density map (default: 1).""", 
+                        default = 1, type = int)
     parser.add_argument("-c", "--cachedir", dest="cacheDir", default = None, help="""Cache directory location
                         (default: $HOME/.zCluster/cache). Downloaded photometric catalogs will be stored 
                         here.""")

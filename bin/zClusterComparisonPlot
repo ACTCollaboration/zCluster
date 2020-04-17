@@ -242,7 +242,7 @@ if __name__ == '__main__':
     plt.plot(xPlotRange, [meanMaskedDiff-stdMaskedDiff]*len(xPlotRange), 'k:', 
              label = '$\sigma_{\\rm bw}$ [($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}$)] = %.3f' % (inLabel, inLabel, biweightMaskedDiff_over1plusz))
     plt.plot(xPlotRange, [meanMaskedDiff+stdMaskedDiff]*len(xPlotRange), 'k:')
-    plt.plot(np.linspace(0, zIn.max()*1.1, 3), [0]*3, 'k-')
+    plt.plot(np.linspace(zMin, zMax, 3), [0]*3, 'k-')
     plt.xlim(zMin, zMax)
     if yRangeStr is not None:
         yMin, yMax=yRangeStr.split(":")
