@@ -701,7 +701,7 @@ def fixcolnames(tab):
     return tab
 
 #-------------------------------------------------------------------------------------------------------------
-def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
+def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 24.0/60.0, optionsDict = {}):
     """Retrieves PS1 photometry at the given position.
         
     """
@@ -725,11 +725,20 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
     
     if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
         print("... fetching from the internet ...")
-        query="""select o.objID, o.raMean, o.decMean,
-        m.gMeanKronMag, m.rMeanKronMag, m.iMeanKronMag, m.zMeanKronMag, m.yMeanKronMag, m.gMeanKronMagErr, m.rMeanKronMagErr, m.iMeanKronMagErr, m.zMeanKronMagErr, m.yMeanKronMagErr
-        from fGetNearbyObjEq(%.6f, %.6f, %.6f) nb
-        inner join ObjectThin o on o.objid=nb.objid and o.nDetections > 3
-        inner join MeanObject m on o.objid=m.objid and o.uniquePspsOBid=m.uniquePspsOBid""" % (RADeg, decDeg, halfBoxSizeDeg*60)
+        #query="""select o.objID, o.raMean, o.decMean,
+        #m.gMeanKronMag, m.rMeanKronMag, m.iMeanKronMag, m.zMeanKronMag, m.yMeanKronMag, m.gMeanKronMagErr, m.rMeanKronMagErr, m.iMeanKronMagErr, m.zMeanKronMagErr, m.yMeanKronMagErr, m.iMeanPSFMag
+        #from fGetNearbyObjEq(%.6f, %.6f, %.6f) nb
+        #inner join ObjectThin o on o.objid=nb.objid and o.nDetections > 3
+        #inner join MeanObject m on o.objid=m.objid and o.uniquePspsOBid=m.uniquePspsOBid""" % (RADeg, decDeg, halfBoxSizeDeg*60)
+        RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
+        #query="""select m.objID, m.raMean, m.decMean, m.gKronMag, m.rKronMag, m.iKronMag, m.zKronMag, m.yKronMag, m.gKronMagErr, m.rKronMagErr, m.iKronMagErr, m.zKronMagErr, m.yKronMagErr, m.iPSFMag from StackObjectView m where m.raMean > %.6f and m.raMean < %.6f and m.decMean > %.6f and m.decMean < %.6f""" % (RAMin, RAMax, decMin, decMax)
+        #query="""select objID, raMean, decMean, gKronMag, rKronMag, iKronMag, zKronMag, yKronMag, gKronMagErr, rKronMagErr, iKronMagErr, zKronMagErr, yKronMagErr, iPSFMag, primaryDetection from StackObjectView where raMean > %.6f and raMean < %.6f and decMean > %.6f and decMean < %.6f""" % (RAMin, RAMax, decMin, decMax)
+        query="""select objID, raMean, decMean, gAperMag, rAperMag, iAperMag, zAperMag, yAperMag, gAperMagErr, rAperMagErr, iAperMagErr, zAperMagErr, yAperMagErr, iPSFMag, primaryDetection from StackObjectView where raMean > %.6f and raMean < %.6f and decMean > %.6f and decMean < %.6f""" % (RAMin, RAMax, decMin, decMax)
+        #query="""select o.objID, o.raMean, o.decMean,
+        #m.gKronMag, m.rKronMag, m.iKronMag, m.zKronMag, m.yKronMag, m.gKronMagErr, m.rKronMagErr, m.iKronMagErr, m.zKronMagErr, m.yKronMagErr, m.iPSFMag
+        #from fGetNearbyObjEq(%.6f, %.6f, %.6f) nb
+        #inner join ObjectThin o on o.objid=nb.objid and o.nDetections > 3
+        #inner join StackObject m on o.objid=m.objid and o.uniquePspsOBid=m.uniquePspsOBid""" % (RADeg, decDeg, halfBoxSizeDeg*60)
         jobs=optionsDict['jobs']
         #jobs=mastcasjobs.MastCasJobs(context="PanSTARRS_DR2")
         results=jobs.quick(query, task_name="python cone search")
@@ -742,6 +751,9 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
     if len(tab) == 0:
         catalog=None
     else:
+        # Star-galaxy cut (see: https://outerspace.stsci.edu/display/PANSTARRS/How+to+separate+stars+and+galaxies)
+        #tab=tab[(tab['iPSFMag']-tab['iKronMag']) > 0.05]
+        tab=tab[tab['primaryDetection'] == 1]
         EBMinusV=getEBMinusV(RADeg, decDeg, optionsDict = optionsDict) # assume same across field
         catalog=[]
         idCount=0
@@ -753,8 +765,8 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
             photDict['RADeg']=row['raMean']
             photDict['decDeg']=row['decMean']
             for b in bands:
-                photDict[b]=row['%sMeanKronMag' % (b)]
-                photDict['%sErr' % (b)]=row['%sMeanKronMagErr' %  (b)]
+                photDict[b]=row['%sAperMag' % (b)]
+                photDict['%sErr' % (b)]=row['%sAperMagErr' %  (b)]
 
             # Correct for dust extinction
             # Taken from: http://www.mso.anu.edu.au/~brad/filters.html
@@ -769,7 +781,7 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
             # We're just making the mag unconstrained here (missing data), rather than applying a limit
             # If we don't have a minimum of three useful bands, reject
             if 'maxMagError' in list(optionsDict.keys()):
-                keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['g', 'r', 'i', 'z'], minBands = 4)
+                keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['g', 'r', 'i', 'z', 'y'], minBands = 3)
             else:
                 keep=True
                 

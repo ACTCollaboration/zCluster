@@ -345,7 +345,9 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
         #raise Exception("Mask resolution is too coarse - area from mask > area of circular annulus") 
 
     # Delta calculation with bootstrap error over the whole z range
-    validMask=np.greater(bckNzDict['areaMpc2'], 20) # WARNING: This needs changing if we ever change the 3-4 Mpc ring
+    # For the first part of the mask, we allow background area == 1/2 of the 3-4 Mpc ring (previous min value was 20)
+    # This allows us to get out to survey boundaries but will have large delta error bars
+    validMask=np.greater(bckNzDict['areaMpc2'], 11) 
     bckAreaNorm=np.zeros(len(clusterNzDictForSNR['areaMpc2']))
     bckAreaNorm[validMask]=clusterNzDictForSNR['areaMpc2'][validMask]/bckNzDict['areaMpc2'][validMask]
     validMask=np.logical_and(validMask, clusterNzDictForSNR['NzWeightedSum'] > 0)
@@ -391,7 +393,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
         assert(np.isinf(delta_at_z) == False)
             
     else:
-        print("... no background galaxies - skipping ...")
+        print("... background area too small - skipping ...")
         return None
         
     return {'z': z, 'pz': pzWeightedMean, 'zOdds': zOdds, 'pz_z': zArray, 'delta': delta_at_z, 'errDelta': errDelta_at_z,
