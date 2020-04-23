@@ -701,7 +701,7 @@ def fixcolnames(tab):
     return tab
 
 #-------------------------------------------------------------------------------------------------------------
-def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 24.0/60.0, optionsDict = {}):
+def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
     """Retrieves PS1 photometry at the given position.
         
     """

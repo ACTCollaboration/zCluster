@@ -84,6 +84,9 @@ if __name__ == '__main__':
                         file name in order to be latex friendly.""", default = None)
     parser.add_argument("-s", "--marker-size", dest="markerSize", help="Size of markers in the plot.",
                         default = 5, type = float)
+    parser.add_argument("-S", "--spec-z-only", dest="specRedshiftsOnly", help="""If inCatalog contains a 
+                        column named redshiftType, selects only objects with redshiftType = 'spec'.""",
+                        default = False, action = "store_true")
     parser.add_argument("-t", "--title", dest="plotTitle", help="Plot title.", default = None)
     parser.add_argument("-z", "--z-min", dest="zMin", help="""Minimum redshift for plotting and overall
                         statistics (default: 0.0).""", default = 0.0, type = float)
@@ -139,7 +142,14 @@ if __name__ == '__main__':
         zKey='redshift'
     else:
         raise Exception("didn't find 'z' or 'redshift' column in input table %s" % (inCatalogFileName))
-    
+
+    # Optionally cut down to spec-zs only (if we can)
+    if args.specRedshiftsOnly == True:
+        if 'redshiftType' not in inTab.keys():
+            raise Exception("inCatalog should contain 'redshiftType' column if you want to use the -S switch.")
+        inTab=inTab[inTab['redshiftType'] == 'spec']
+        print(">>> Using only objects with spectroscopic redshifts ...")
+        
     # Now cross matching against spec-zs table by nearest match in zCluster results file by coords
     # Because zCluster now estimates its own RADeg, decDeg postion
     # (though we could just match on origRADeg, origDecDeg)
@@ -149,7 +159,7 @@ if __name__ == '__main__':
     mask=np.less(rDeg.value, xMatchRadiusDeg)
     cutTab=outTab[xIndices[mask]]
     inTab=inTab[mask]
-    
+        
     tab=atpy.Table()
     tab.add_column(inTab['name'])
     tab.add_column(cutTab['RADeg'])
