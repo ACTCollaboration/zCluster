@@ -1,3 +1,4 @@
 * linguist-vendored
 *.py linguist-vendored=false
 
+zCluster/_version.py export-subst

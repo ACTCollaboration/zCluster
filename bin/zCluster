@@ -175,7 +175,7 @@ def writeRedshiftsCatalog(catalog, outFileName):
 def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir, zPriorMin,
                  zPriorMax, weightsType, maxRMpc, zMethod, bckCatalogFileName, bckAreaDeg2,
                  maskPath = None, writeGalaxyCatalogs = False, writeDensityMaps = False, writePlots = False, 
-                 rank = 0, zDebias = None, fitZPOffsets = False, maxIter = 5):
+                 rank = 0, zDebias = None, fitZPOffsets = False, maxIter = 5, minBackgroundAreaMpc2 = 11):
     """Runs zCluster algorithm on each object in catalog.
     
     """
@@ -260,7 +260,8 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                     result=clusterFinding.estimateClusterRedshift(RADeg, decDeg, galaxyCatalog, zPriorMin, 
                                                                   zPriorMax, weightsType, maxRMpc, zMethod, 
                                                                   maskMap = maskMap, maskWCS = maskWCS,
-                                                                  bckCatalog = bckCatalog, bckAreaDeg2 = bckAreaDeg2)
+                                                                  bckCatalog = bckCatalog, bckAreaDeg2 = bckAreaDeg2,
+                                                                  minBackgroundAreaMpc2 = minBackgroundAreaMpc2)
                     if result is None:
                         break
                     else:
@@ -471,6 +472,10 @@ if __name__ == '__main__':
     parser.add_argument("-s", "--add-SDSS", dest="addSDSS", action="store_true", help="""If using 
                         a user-supplied FITS galaxy photometic catalog, add in additional SDSS 
                         photometry if available.""", default = False)
+    parser.add_argument("--min-background-area-Mpc2", dest="minBackgroundAreaMpc2", default = 11, type = float,
+                        help="""The minimum area of the background region in square Mpc. Candidate redshifts that have
+                        less than this minimum background area will be filtered out of the output catalog (default: 11, 
+                        which corresponds to 50% of the background area for the standard 3-4 Mpc annulus used).""")
     parser.add_argument("-B", "--background-catalog", dest="bckCatalogFileName", help="""A .fits table with columns 
                         in the appropriate format ('ID', 'RADeg', 'decDeg', and magnitude column names in the form 
                         'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.) to be used as the background sample for delta estimates.
@@ -767,7 +772,7 @@ if __name__ == '__main__':
                          maskPath = maskPath, writeGalaxyCatalogs = writeGalaxyCatalogs, 
                          writeDensityMaps = args.writeDensityMaps, writePlots = writePlots, 
                          rank = rank, zDebias = zDebias, fitZPOffsets = args.fitZPOffsets,
-                         maxIter = maxIter)
+                         maxIter = maxIter, minBackgroundAreaMpc2 = args.minBackgroundAreaMpc2)
     
     # If running under MPI, gather everything back together
     # Rank 0 process will continue with plots

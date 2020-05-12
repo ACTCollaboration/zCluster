@@ -34,7 +34,7 @@ from astropy.coordinates import SkyCoord
 from astropy.coordinates import match_coordinates_sky
 from PIL import Image
 from PIL import ImageDraw
-import nemoCython
+import zClusterCython
 import pylab as plt
 import IPython
 
@@ -258,7 +258,7 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
     else:
         areaMap=getPixelAreaDeg2Map(areaMask, wcs)
         rDegMap=np.zeros(areaMask.shape)
-        rDegMap, xRange, yRange=nemoCython.makeDegreesDistanceMap(rDegMap, wcs, RADeg, decDeg, 2.0)
+        rDegMap, xRange, yRange=zClusterCython.makeDegreesDistanceMap(rDegMap, wcs, RADeg, decDeg, 2.0)
         rDegMap=rDegMap[yRange[0]:yRange[1], xRange[0]:xRange[1]]
         areaMap=areaMask[yRange[0]:yRange[1], xRange[0]:xRange[1]]*areaMap[yRange[0]:yRange[1], xRange[0]:xRange[1]]
         areaMpc2=[]
@@ -279,7 +279,8 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
 #-------------------------------------------------------------------------------------------------------------
 def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weightsType, maxRMpc, 
                             zMethod, maskMap = None, maskWCS = None, sanityCheckRadiusArcmin = 1.0, 
-                            bckCatalog = [], bckAreaDeg2 = None, filterDeltaValues = True):
+                            bckCatalog = [], bckAreaDeg2 = None, filterDeltaValues = True,
+                            minBackgroundAreaMpc2 = 11.0):
     """This does the actual work of estimating cluster photo-z from catalog.
     
     Assumes each object has keys 'pz' (p(z), probability distribution), 'pz_z' (corresponding redshifts at 
@@ -347,7 +348,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     # Delta calculation with bootstrap error over the whole z range
     # For the first part of the mask, we allow background area == 1/2 of the 3-4 Mpc ring (previous min value was 20)
     # This allows us to get out to survey boundaries but will have large delta error bars
-    validMask=np.greater(bckNzDict['areaMpc2'], 11) 
+    validMask=np.greater(bckNzDict['areaMpc2'], minBackgroundAreaMpc2) 
     bckAreaNorm=np.zeros(len(clusterNzDictForSNR['areaMpc2']))
     bckAreaNorm[validMask]=clusterNzDictForSNR['areaMpc2'][validMask]/bckNzDict['areaMpc2'][validMask]
     validMask=np.logical_and(validMask, clusterNzDictForSNR['NzWeightedSum'] > 0)

@@ -2,15 +2,34 @@
 
 import os
 import glob
-from distutils.core import setup
-#from distutils.extension import Extension
-#from Cython.Distutils import build_ext
-#import popen2
-#import numpy
+from setuptools import setup
+from setuptools import Extension
+from setuptools.command.install import install
+import stat
+from Cython.Distutils import build_ext
+import numpy
+import versioneer
+
+class OverrideInstall(install):
+    """Possibly versioneer-related, but without this class, package data files are getting installed such 
+    that only root can read them. This fixes the permissions so that anyone can read them.
+    
+    """    
+    def run(self):
+        mode=stat.S_IROTH
+        install.run(self) 
+        for filepath in self.get_outputs():
+            if filepath.find("zCluster"+os.path.sep+"SED") != -1:
+                os.chmod(filepath, mode)
+
+cmdclass=versioneer.get_cmdclass()
+cmdclass['build_ext']=build_ext
+cmdclass['install']=OverrideInstall
 
 setup(name='zCluster',
-      version="git",
-      url=None,
+      version=versioneer.get_version(),
+      cmdclass=cmdclass,
+      url="https://github.com/ACTCollaboration/zCluster",
       author='Matt Hilton',
       author_email='matt.hilton@mykolab.com',
       classifiers=[],
@@ -21,7 +40,5 @@ setup(name='zCluster',
       package_data={'zCluster': ['data/*', 'SED/CWW/*', 'SED/BR07/*', 'SED/EAZY_v1.0/*', 
                                  'passbands/*']},
       scripts=['bin/zCluster', 'bin/zClusterBCG', 'bin/zClusterComparisonPlot'],
-      #cmdclass={'build_ext': build_ext},
-      #ext_modules=[Extension("filtersCython", ["zCluster/filtersCython.pyx"], extra_compile_args=['-fopenmp'], extra_link_args=['-fopenmp'], include_dirs=[numpy.get_include()])]
-
+      ext_modules=[Extension("zClusterCython", ["zCluster/zClusterCython.pyx"], include_dirs=[numpy.get_include()])],
 )

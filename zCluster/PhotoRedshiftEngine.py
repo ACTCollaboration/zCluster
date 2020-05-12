@@ -28,6 +28,7 @@ import zCluster
 from astLib import *
 from scipy import stats
 from scipy import interpolate
+from pkg_resources import resource_filename
 import string
 import glob
 import pickle
@@ -122,7 +123,9 @@ class PhotoRedshiftEngine:
         self.modelSEDDictList=[]
         if templatesDir is None:
             pickleFileName=None
-            self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.0/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")
+            SEDDir=resource_filename('zCluster', 'SED/')
+            self.SEDFiles=glob.glob(SEDDir+os.path.sep+"EAZY_v1.0"+os.path.sep+"*.dat")+ \
+                          glob.glob(SEDDir+os.path.sep+"CWW"+os.path.sep+"*.sed")
             #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/uvista_nmf/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.0/*.dat")
             #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.1_lines/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/uvista_nmf/*.dat")
             #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/BC03Templates/*.res")#+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")
@@ -150,7 +153,11 @@ class PhotoRedshiftEngine:
             self.templateIndex=[]
             for f in self.SEDFiles:
                 s=astSED.SED()
-                s.loadFromFile(f)
+                try:
+                    s.loadFromFile(f)
+                except:
+                    IPython.embed()
+                    sys.exit()
                 t=t+1
                 for z in self.zRange:
                     s.redshift(z)
