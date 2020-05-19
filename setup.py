@@ -39,6 +39,6 @@ setup(name='zCluster',
       packages=['zCluster'],
       package_data={'zCluster': ['data/*', 'SED/CWW/*', 'SED/BR07/*', 'SED/EAZY_v1.0/*', 
                                  'passbands/*']},
-      scripts=['bin/zCluster', 'bin/zClusterBCG', 'bin/zClusterComparisonPlot'],
+      scripts=['bin/zCluster', 'bin/zField', 'bin/zClusterBCG', 'bin/zClusterComparisonPlot'],
       ext_modules=[Extension("zClusterCython", ["zCluster/zClusterCython.pyx"], include_dirs=[numpy.get_include()])],
 )
