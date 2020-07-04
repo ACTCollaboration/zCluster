@@ -61,6 +61,10 @@ if __name__ == '__main__':
                         help="""Write out a .fits image projected density map (within delta z = +/- 0.1 of the best 
                         fit redshift) for each cluster.""",
                         default = False)
+    parser.add_argument("-z", "--redshift", dest="z", help="""Galaxy redshift at which to make a density map""", type = float,
+                        default = 0.2)
+    parser.add_argument("-delta_z", "--delta-z", dest="dz", help="""Make a projected density map within +/- dz of the
+                        given redshift.""", type = float, default = 0.1)
 
     args = parser.parse_args()
 
@@ -205,19 +209,19 @@ if __name__ == '__main__':
         zPriorMax=1.5
         
     if passbandSet == 'SDSS+Ks':
-        bands=['u', 'g', 'r', 'i', 'z', 'Ks']
+        bands=['u','uErr', 'g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'z', 'zErr', 'Ks', 'KsErr']
     elif passbandSet == 'KiDS-VIKING':
-        bands=['u', 'g', 'r', 'i', 'Z', 'Y', 'J', 'H', 'Ks']
+        bands=['u', 'uErr', 'g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'Z', 'ZErr', 'Y', 'YErr', 'J', 'JErr', 'H', 'HErr', 'Ks', 'KsErr']
     elif passbandSet == 'WIRDS':
-        bands=['u', 'g', 'r', 'i', 'z', 'J', 'H', 'Ks']
+        bands=['u', 'uErr', 'g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'z',  'zErr', 'J', 'JErr', 'H', 'HErr', 'Ks', 'KsErr']
     elif passbandSet == 'PS1':
-        bands=['g', 'r', 'i', 'z']
+        bands=['g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'z',  'zErr']
     elif passbandSet == 'DES':
-        bands=['g', 'r', 'i', 'z']
+        bands=['g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'z',  'zErr']
     elif passbandSet == 'DES+WISE':
-        bands=['g', 'r', 'z', "w1", "w2"]
+        bands=['g', 'gErr', 'r', 'rErr', 'z', 'zErr', "w1", 'w1Err', "w2", 'w2Err']
     elif passbandSet == 'DECaLS':
-        bands=['g', 'r', 'z', "w1", "w2"]
+        bands=['g', 'gErr', 'r', 'rErr', 'z', 'zErr', "w1", 'w1Err', "w2", 'w2Err']
  
     galaxyCatalog=retriever(RADeg, decDeg, halfBoxSizeDeg = maxRDeg, optionsDict = retrieverOptions)
 
@@ -237,8 +241,11 @@ if __name__ == '__main__':
             gobj['r-i']=gobj['r']-gobj['i']
         if 'r' in list(gobj.keys()) and 'z' in list(gobj.keys()):
             gobj['r-z']=gobj['r']-gobj['z']
+       
+            
+
     #wantedKeys=['id', 'RADeg', 'decDeg', 'g', 'gErr', 'r', 'rErr','z' , 'zErr', 'zPhot', 'w1', 'w2']
-    wantedKeys=['id', 'RADeg', 'decDeg', 'zPhot']
+    wantedKeys=['id', 'RADeg', 'decDeg', 'zPhot', 'odds']
     wantedKeys=np.concatenate((wantedKeys,bands))
     tab=atpy.Table()
     for key in wantedKeys:
@@ -250,11 +257,15 @@ if __name__ == '__main__':
                 arr.append(99)
         tab.add_column(atpy.Column(np.array(arr), key))
     tab.write(outFileName, overwrite = True)
-    end=time.time()
+        
+    if writeDensityMaps == True:
+        dMapDict = clusterFinding.makeDensityMap(RADeg, decDeg, galaxyCatalog, args.z, args.dz, rMaxMpc = 1.5)
+        astImages.saveFITS(args.outDir+os.path.sep+"densityMap_%s.fits" % (database.replace(" ", "_")),
+                           dMapDict['map'], dMapDict['wcs'])s
     
     # We may as well print some stats
     print(">>> Summary:")
     print("    N = %d" %  (len(tab['zPhot'])))
     print("    ")
     print(">>> Catalog fetching is complete.")
-    print(">>> Total time: {:.1g} minutes".format((end-start)/60.))
+    print(">>> Total time: {:.1g} minutes".format((time.time()-start)/60.))
