@@ -62,9 +62,9 @@ if __name__ == '__main__':
                         fit redshift) for each cluster.""",
                         default = False)
     parser.add_argument("-z", "--redshift", dest="z", help="""Galaxy redshift at which to make a density map""", type = float,
-                        default = 0.2)
+                        default = None)
     parser.add_argument("-delta_z", "--delta-z", dest="dz", help="""Make a projected density map within +/- dz of the
-                        given redshift.""", type = float, default = 0.1)
+                        given redshift.""", type = float, default = None)
 
     args = parser.parse_args()
 
@@ -79,6 +79,8 @@ if __name__ == '__main__':
     fitZPOffsets=args.fitZPOffsets
     cacheDir=args.cacheDir
     writeDensityMaps=args.writeDensityMaps
+    z=args.z
+    dz=args.dz
 
     # Set-up cache
     if cacheDir is not None:
@@ -97,7 +99,6 @@ if __name__ == '__main__':
     retrieverOptions={}
     passbandSet='SDSS+Ks'
     
-    #passbandSet=None
     zDebias=None    # A fudge used to correct output zs for some surveys (final z = z + zDebias*(1+z))
     ZPOffsets=None
     if database == 'S82':
@@ -208,21 +209,6 @@ if __name__ == '__main__':
         zPriorMin=0.05
         zPriorMax=1.5
         
-    if passbandSet == 'SDSS+Ks':
-        bands=['u','uErr', 'g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'z', 'zErr', 'Ks', 'KsErr']
-    elif passbandSet == 'KiDS-VIKING':
-        bands=['u', 'uErr', 'g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'Z', 'ZErr', 'Y', 'YErr', 'J', 'JErr', 'H', 'HErr', 'Ks', 'KsErr']
-    elif passbandSet == 'WIRDS':
-        bands=['u', 'uErr', 'g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'z',  'zErr', 'J', 'JErr', 'H', 'HErr', 'Ks', 'KsErr']
-    elif passbandSet == 'PS1':
-        bands=['g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'z',  'zErr']
-    elif passbandSet == 'DES':
-        bands=['g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'z',  'zErr']
-    elif passbandSet == 'DES+WISE':
-        bands=['g', 'gErr', 'r', 'rErr', 'z', 'zErr', "w1", 'w1Err', "w2", 'w2Err']
-    elif passbandSet == 'DECaLS':
-        bands=['g', 'gErr', 'r', 'rErr', 'z', 'zErr', "w1", 'w1Err', "w2", 'w2Err']
- 
     galaxyCatalog=retriever(RADeg, decDeg, halfBoxSizeDeg = maxRDeg, optionsDict = retrieverOptions)
 
     if galaxyCatalog is None:
@@ -231,6 +217,11 @@ if __name__ == '__main__':
     
     photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, ZPError = ZPError, passbandSet = passbandSet,
                                                                 templatesDir = templatesDir, ZPOffsets = ZPOffsets)
+    bands=photoRedshiftEngine.bands
+    bandErrs=[]
+    for b in bands:
+        bandErrs.append(b+"Err")
+    bands=bands+bandErrs
 
     if fitZPOffsets == True:
         photoRedshiftEngine.calcZeroPointOffsets(galaxyCatalog)
@@ -243,8 +234,6 @@ if __name__ == '__main__':
             gobj['r-z']=gobj['r']-gobj['z']
        
             
-
-    #wantedKeys=['id', 'RADeg', 'decDeg', 'g', 'gErr', 'r', 'rErr','z' , 'zErr', 'zPhot', 'w1', 'w2']
     wantedKeys=['id', 'RADeg', 'decDeg', 'zPhot', 'odds']
     wantedKeys=np.concatenate((wantedKeys,bands))
     tab=atpy.Table()
@@ -259,9 +248,12 @@ if __name__ == '__main__':
     tab.write(outFileName, overwrite = True)
         
     if writeDensityMaps == True:
-        dMapDict = clusterFinding.makeDensityMap(RADeg, decDeg, galaxyCatalog, args.z, args.dz, rMaxMpc = 1.5)
-        astImages.saveFITS(args.outDir+os.path.sep+"densityMap_%s.fits" % (database.replace(" ", "_")),
-                           dMapDict['map'], dMapDict['wcs'])s
+        if z == None and dz == None:
+            raise Exception("-z and -delta_z need to be given when using the -d option")
+        else:
+            dMapDict = clusterFinding.makeDensityMap(RADeg, decDeg, galaxyCatalog, z, dz, rMaxMpc = 1.5)
+            astImages.saveFITS(args.outDir+os.path.sep+"densityMap_z%s_%.3f_%.3f.fits" % (z, RADeg, decDeg),
+                               dMapDict['map'], dMapDict['wcs'])
     
     # We may as well print some stats
     print(">>> Summary:")
