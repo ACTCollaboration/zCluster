@@ -28,13 +28,121 @@ import numpy as np
 from astLib import *
 from scipy import interpolate
 from scipy import stats
+from scipy import ndimage
+import astropy.io.fits as pyfits
+from astropy.coordinates import SkyCoord
+from astropy.coordinates import match_coordinates_sky
+from PIL import Image
+from PIL import ImageDraw
+import zClusterCython
 import pylab as plt
 import IPython
-plt.matplotlib.interactive(True)
+
+#------------------------------------------------------------------------------------------------------------
+def getPixelAreaDeg2Map(mapData, wcs):
+    """Returns a map of pixel area in square degrees.
+    
+    """
+    
+    # Get pixel size as function of position
+    pixAreasDeg2=[]
+    RACentre, decCentre=wcs.getCentreWCSCoords()
+    x0, y0=wcs.wcs2pix(RACentre, decCentre)
+    x1=x0+1
+    for y0 in range(mapData.shape[0]):
+        y1=y0+1
+        ra0, dec0=wcs.pix2wcs(x0, y0)
+        ra1, dec1=wcs.pix2wcs(x1, y1)
+        xPixScale=astCoords.calcAngSepDeg(ra0, dec0, ra1, dec0)
+        yPixScale=astCoords.calcAngSepDeg(ra0, dec0, ra0, dec1)
+        pixAreasDeg2.append(xPixScale*yPixScale)
+    pixAreasDeg2=np.array(pixAreasDeg2)
+    pixAreasDeg2Map=np.array([pixAreasDeg2]*mapData.shape[1]).transpose()
+    
+    return pixAreasDeg2Map   
+
+#------------------------------------------------------------------------------------------------------------
+def makeBlankMap(RADeg, decDeg, sizePix, sizeDeg):
+    """Makes a square blank map with a WCS.
+    
+    Returns:
+        - mapData (2d array)
+        - wcs (astWCS.WCS object)
+    
+    """
+    CRVAL1, CRVAL2=RADeg, decDeg
+    xSizeDeg, ySizeDeg=sizeDeg, sizeDeg
+    xSizePix=float(sizePix)
+    ySizePix=float(sizePix)
+    xRefPix=xSizePix/2.0
+    yRefPix=ySizePix/2.0
+    xOutPixScale=xSizeDeg/xSizePix
+    yOutPixScale=ySizeDeg/ySizePix
+    newHead=pyfits.Header()
+    newHead['NAXIS']=2
+    newHead['NAXIS1']=xSizePix
+    newHead['NAXIS2']=ySizePix
+    newHead['CTYPE1']='RA---TAN'
+    newHead['CTYPE2']='DEC--TAN'
+    newHead['CRVAL1']=CRVAL1
+    newHead['CRVAL2']=CRVAL2
+    newHead['CRPIX1']=xRefPix+1
+    newHead['CRPIX2']=yRefPix+1
+    newHead['CDELT1']=-xOutPixScale
+    newHead['CDELT2']=xOutPixScale    # Makes more sense to use same pix scale
+    newHead['CUNIT1']='DEG'
+    newHead['CUNIT2']='DEG'
+    wcs=astWCS.WCS(newHead, mode='pyfits')
+    
+    return np.zeros([int(sizePix), int(sizePix)], dtype = float), wcs
 
 #-------------------------------------------------------------------------------------------------------------
+def makeDensityMap(RADeg, decDeg, catalog, z, dz = 0.1, rMaxMpc = 1.5):
+    """Make a projected density map within +/- dz of the given redshift. The map covers 8 Mpc on a side,
+    projected at the given redshift, with 0.1 Mpc binning. The map is smoothed with a Gaussian kernel with
+    sigma = 0.2 Mpc.
+    
+    While we're at it, we find the peak of the density map within rMaxMpc radius of the target position.
+    
+    Returns a dictionary.
+    
+    """
+    
+    # We go out to 4 Mpc for delta
+    DA=astCalc.da(z)
+    sizeDeg=np.degrees(4/DA)*2
+    sizePix=int(4/0.1)
+    d, wcs=makeBlankMap(RADeg, decDeg, sizePix, sizeDeg)
+    for g in catalog:
+        x, y=wcs.wcs2pix(g['RADeg'], g['decDeg'])
+        x=int(round(x))
+        y=int(round(y))
+        mask=np.logical_and(g['pz_z'] > z-dz, g['pz_z'] < z+dz)
+        v=np.trapz(g['pz'][mask], g['pz_z'][mask])
+        if x >= 0 and x < d.shape[1] and y >= 0 and y < d.shape[0]:
+            d[y, x]=d[y, x]+v
+    d=ndimage.gaussian_filter(d, 2)
+    
+    # We restrict centre finding to within 1.5 Mpc radius
+    ys=np.array([np.arange(d.shape[0])]*d.shape[1]).transpose()
+    xs=np.array([np.arange(d.shape[1])]*d.shape[0])
+    coords=np.array(wcs.pix2wcs(xs.flatten(), ys.flatten()))
+    ras=coords[:, 0]
+    decs=coords[:, 1]
+    rDegMap=astCoords.calcAngSepDeg(RADeg, decDeg, ras, decs).reshape(d.shape)
+    rMpcMap=np.radians(rDegMap)*DA
+    rMask=np.less(rMpcMap, rMaxMpc)
+    y, x=np.where((d*rMask) == (d*rMask).max())
+    cRADeg, cDecDeg=wcs.pix2wcs(y[0], x[0])
+    offsetArcmin=astCoords.calcAngSepDeg(cRADeg, cDecDeg, RADeg, decDeg)*60
+    offsetMpc=np.radians(offsetArcmin/60.)*DA
+
+    return {'map': d, 'wcs': wcs, 'cRADeg': cRADeg, 'cDecDeg': cDecDeg, 
+            'offsetArcmin': offsetArcmin, 'offsetMpc': offsetMpc}
+        
+#-------------------------------------------------------------------------------------------------------------
 def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMpc = 0.0, maxDistanceMpc = 1.0, 
-                   applySanityCheckRadius = True, sanityCheckRadiusArcmin = 1.0):
+                   applySanityCheckRadius = True, sanityCheckRadiusArcmin = 1.0, areaMask = None, wcs = None):
     """Make a N(z) distribution in the direction of the postion (usually of a cluster) given by RADeg, decDeg.
     This is constructed from the p(z) distributions of all galaxies in the catalog, with radial weights applied
     as per weightsType. So, for 'flat1Mpc', the radial weight is 1 if within a projected distance of 1 Mpc of 
@@ -84,7 +192,7 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
         fx=np.zeros(x.shape)
         mask=np.greater(x, 1)
         fx[mask]=1-(2.0/np.sqrt(x[mask]**2-1))*np.arctan(np.sqrt((x[mask]-1)/(x[mask]+1)))
-        mask=np.less(x, 1)
+        mask=np.logical_and(np.greater(x, 0), np.less(x, 1))
         fx[mask]=1-(2.0/np.sqrt(1-x[mask]**2))*np.arctanh(np.sqrt((1-x[mask])/(x[mask]+1)))
         mask=np.equal(x, 1)
         fx[mask]=0
@@ -145,16 +253,34 @@ def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMp
     NzWeightedSum=np.sum(pzArray*rWeights*gOddsWeights, axis = 0)
     
     # We may as well keep track of area as well
-    area=np.pi*maxDistanceMpc**2 - np.pi*minDistanceMpc**2
-    
+    if areaMask is None:
+        areaMpc2=np.array([np.pi*maxDistanceMpc**2 - np.pi*minDistanceMpc**2]*len(zArray))
+    else:
+        areaMap=getPixelAreaDeg2Map(areaMask, wcs)
+        rDegMap=np.zeros(areaMask.shape)
+        rDegMap, xRange, yRange=zClusterCython.makeDegreesDistanceMap(rDegMap, wcs, RADeg, decDeg, 2.0)
+        rDegMap=rDegMap[yRange[0]:yRange[1], xRange[0]:xRange[1]]
+        areaMap=areaMask[yRange[0]:yRange[1], xRange[0]:xRange[1]]*areaMap[yRange[0]:yRange[1], xRange[0]:xRange[1]]
+        areaMpc2=[]
+        count=0
+        for DA in DAArray:
+            areaScaling=1/np.power(np.degrees(np.arctan(1.0/DA)), 2)
+            max_rDegCut=np.degrees(np.arctan(maxDistanceMpc/DA))
+            min_rDegCut=np.degrees(np.arctan(minDistanceMpc/DA))
+            areaDeg2=areaMap[np.logical_and(rDegMap >= min_rDegCut, rDegMap < max_rDegCut)].sum()
+            areaMpc2.append(areaScaling*areaDeg2)
+            count=count+1
+        areaMpc2=np.array(areaMpc2)
+
     # If we want p(z), we can divide pzWeightedSum by Nz_r_odds
     return {'NzWeightedSum': NzWeightedSum, 'Nz': Nz_r_odds, 'Nz_total': Nz_r_odds_total, 'zArray': zArray, 
-            'DAArray': DAArray, 'areaMpc2': area}
+            'DAArray': DAArray, 'areaMpc2': areaMpc2}
     
 #-------------------------------------------------------------------------------------------------------------
 def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weightsType, maxRMpc, 
-                            zMethod, sanityCheckRadiusArcmin = 1.0, bckCatalog = [], bckAreaDeg2 = None,
-                            zDebias = None):
+                            zMethod, maskMap = None, maskWCS = None, sanityCheckRadiusArcmin = 1.0, 
+                            bckCatalog = [], bckAreaDeg2 = None, filterDeltaValues = True,
+                            minBackgroundAreaMpc2 = 11.0):
     """This does the actual work of estimating cluster photo-z from catalog.
     
     Assumes each object has keys 'pz' (p(z), probability distribution), 'pz_z' (corresponding redshifts at 
@@ -170,23 +296,27 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     This is obviously a fudge, so use with caution (only used for some surveys - see bin/zCluster).
             
     """
-    
-    print("... estimating cluster photo-z ...")
-
+       
     # Initial sanity check: if we didn't find a decent number of galaxies close to the cluster centre, 
     # the cluster is probably not actually in the optical catalog footprint (e.g., just outside edge of S82)
     gOdds, gRedshifts, angSepArray, tanArray=extractArraysFromGalaxyCatalog(catalog, RADeg, decDeg)
     if np.sum(np.less(np.degrees(tanArray), sanityCheckRadiusArcmin/60.0)) == 0:
-        print("... no galaxies within %.1f' of cluster position ..." % (sanityCheckRadiusArcmin))
         return None
-        
+
+    # Automated area mask calculation, using only catalogs
+    # Probably not super accurate but better than nothing - will at least take care of survey boundaries
+    if maskMap is None and maskWCS is None:
+        areaMask, wcs=estimateAreaMask(RADeg, decDeg, catalog)
+    else:
+        areaMask, wcs=maskMap, maskWCS
+    
     # Here, we do a weighted average of the p(z) distribution
     # The weighting is done according to distance from the cluster position at the z corresponding to a
     # given p(z). 
-    clusterNzDict=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, maxDistanceMpc = 1.0)
+    clusterNzDict=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, maxDistanceMpc = 1.0,
+                                 areaMask = areaMask, wcs = wcs)
     zArray=clusterNzDict['zArray']
     if clusterNzDict['NzWeightedSum'].sum() == 0:
-        print("... no galaxies in n(z) - skipping...")
         return None
     
     # This is how we have been calculating redshifts
@@ -195,41 +325,149 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     pzWeightedMean[np.isnan(pzWeightedMean)]=0.0
     normFactor=np.trapz(pzWeightedMean, clusterNzDict['zArray'])
     pzWeightedMean=pzWeightedMean/normFactor
-    try:
-        z, odds, zOdds=calculateRedshiftAndOdds(pzWeightedMean, clusterNzDict['zArray'], dzOdds = 0.05, method = zMethod, zPriorMax = zPriorMax, zPriorMin = zPriorMin)
-    except:
-        print("Hmm - failed in z, odds calc: what happened?")
-        IPython.embed()
-        sys.exit()
-    
-    # Background - delta (density contrast) measurement
+    z, odds, zOdds=calculateRedshiftAndOdds(pzWeightedMean, clusterNzDict['zArray'], dzOdds = 0.05, method = zMethod, 
+                                            zPriorMax = zPriorMax, zPriorMin = zPriorMin)
+
+    # Background used in delta (density contrast) measurement
+    # We also re-do the N(z) measurement in the cluster region so that this makes sense
     clusterNzDictForSNR=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, 'flat', maxDistanceMpc = maxRMpc)
-    zIndex=np.where(zArray == z)[0][0]
     if len(bckCatalog) > 0:
         # Global
         bckNzDict=makeWeightedNz(RADeg, decDeg, bckCatalog, zPriorMax, 'flat', minDistanceMpc = 3.0, maxDistanceMpc = 1e9, 
                                  applySanityCheckRadius = False)
-        bckNzDict['areaMpc2']=((np.radians(np.sqrt(bckAreaDeg2))*bckNzDict['DAArray'])**2)[zIndex]
+        bckNzDict['areaMpc2']=((np.radians(np.sqrt(bckAreaDeg2))*bckNzDict['DAArray'])**2)
     else:
         # Local background - 0.6 deg radius gives us out to 4 Mpc radius at z = 0.1
-        bckNzDict=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, 'flat', minDistanceMpc = 3.0, maxDistanceMpc = 4.0)
-    # Both
-    bckAreaNorm=clusterNzDictForSNR['areaMpc2']/bckNzDict['areaMpc2']
-    bckSubtractedCount=clusterNzDictForSNR['NzWeightedSum'][zIndex]-bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex]
-    delta=bckSubtractedCount/(bckAreaNorm*bckNzDict['NzWeightedSum'][zIndex])
-    errDelta=np.sqrt(bckSubtractedCount/bckSubtractedCount**2 + 
-                     bckNzDict['NzWeightedSum'][zIndex]/bckNzDict['NzWeightedSum'][zIndex]**2)*delta
-    if np.isnan(errDelta) == True:
-        errDelta=0
-    
-    # Optional: de-bias right here (use with caution)
-    if zDebias != None:
-        z=z+zDebias*(1+z)
-    
-    print("... zCluster = %.2f, delta = %.1f, errDelta = %.1f (RADeg = %.6f, decDeg = %.6f) ..." % (z, delta, errDelta, RADeg, decDeg))
+        bckNzDict=makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, 'flat', minDistanceMpc = 3.0, maxDistanceMpc = 4.0,
+                                 areaMask = areaMask, wcs = wcs)
+    # Masking sanity check that isn't fully implemented (in some cases would just need to bump up mask resolution)
+    if max(bckNzDict['areaMpc2']) > (np.pi*(4**2-3**2)): 
+        print("... WARNING: max(areaMpc2) = %.3f > %.3f at (RADeg, decDeg) = (%.6f, %.6f)" % (max(bckNzDict['areaMpc2']), np.pi*(4**2-3**2), RADeg, decDeg))        
+        #raise Exception("Mask resolution is too coarse - area from mask > area of circular annulus") 
 
-    return {'z': z, 'pz': pzWeightedMean, 'zOdds': zOdds, 'pz_z': zArray, 'delta': delta, 'errDelta': errDelta}
+    # Delta calculation with bootstrap error over the whole z range
+    # For the first part of the mask, we allow background area == 1/2 of the 3-4 Mpc ring (previous min value was 20)
+    # This allows us to get out to survey boundaries but will have large delta error bars
+    validMask=np.greater(bckNzDict['areaMpc2'], minBackgroundAreaMpc2) 
+    bckAreaNorm=np.zeros(len(clusterNzDictForSNR['areaMpc2']))
+    bckAreaNorm[validMask]=clusterNzDictForSNR['areaMpc2'][validMask]/bckNzDict['areaMpc2'][validMask]
+    validMask=np.logical_and(validMask, clusterNzDictForSNR['NzWeightedSum'] > 0)
+    validMask=np.logical_and(validMask, bckNzDict['NzWeightedSum'] > 0)
+    if validMask.sum() > 0:
+        nc=clusterNzDictForSNR['NzWeightedSum'][validMask]
+        nb=bckNzDict['NzWeightedSum'][validMask]
+        err_nc=np.sqrt(nc)
+        err_nb=np.sqrt(nb)
+        A=bckAreaNorm[validMask]
+        delta=(nc/(A*nb))-1
+        bs_delta=[]
+        for i in range(5000):   # Needed for this to converge at 2 decimal places after rounding
+            bs_nc=np.random.poisson(nc)
+            bs_nb=np.random.poisson(nb)
+            bs_nb[bs_nb == 0]=1 # Just to avoid div 0 warnings... background should never be 0 anyway
+            bs_delta.append((bs_nc/(A*bs_nb))-1)
+        errDelta=np.std(bs_delta, axis = 0)
+        errDelta=np.round(errDelta, 2)
+        
+        # This uses the old delta method (effectively)
+        zDelta=zArray[validMask]
+        try:
+            deltaIndex=np.where(zDelta == z)[0][0]
+            delta_at_z=delta[deltaIndex]
+            errDelta_at_z=errDelta[deltaIndex]
+        except:
+            print("... no valid delta value ...")
+            return None
+        
+        # Optionally filter zOdds according to whether delta is > 3 sigma
+        if filterDeltaValues == True:
+            if zMethod == 'odds':
+                pzToCheck=zOdds
+            elif zMethod == 'max':
+                pzToCheck=pzWeightedMean
+            pzToCheck=applyUniformPrior(pzToCheck, zArray, zPriorMax = zPriorMax, zPriorMin = zPriorMin) 
+            pzToCheck_validDelta=np.greater(delta/errDelta, 3)*pzToCheck[validMask]
+            zIndex=np.argmax(pzToCheck_validDelta)
+            z=zDelta[zIndex]
+            delta_at_z=delta[zIndex]
+            errDelta_at_z=errDelta[zIndex]
+        assert(np.isinf(delta_at_z) == False)
+            
+    else:
+        print("... background area too small - skipping ...")
+        return None
+        
+    return {'z': z, 'pz': pzWeightedMean, 'zOdds': zOdds, 'pz_z': zArray, 'delta': delta_at_z, 'errDelta': errDelta_at_z,
+            'areaMask': areaMask, 'wcs': wcs}
 
+#-------------------------------------------------------------------------------------------------------------
+def estimateAreaMask(RADeg, decDeg, catalog):
+    """Using the objects in the catalog, estimate the area covered - to take care of e.g. survey boundaries
+    without needing to get masks for every survey. This works by estimating the average angular separation 
+    between sources in the catalog, and using that to draw a circle of that radius around every object. This 
+    is then used as the mask in area calculations.
+    
+    Args:
+        RADeg (float): Cluster RA position in decimal degrees.
+        decDeg (float): Cluster dec position in decimal degrees.
+        catalog (list): List of dictionaries, where each dictionary defines an object in the catalog.
+    
+    Returns:
+        areaMask (2d array): Mask of area covered.
+        wcs (astWCS.WCS object): WCS corresponding to areaMask.
+    
+    """
+
+    # Typical separation in degrees - use to set scale
+    RAs=[]
+    decs=[]
+    for obj in catalog:
+        RAs.append(obj['RADeg'])
+        decs.append(obj['decDeg'])
+    RAs=np.array(RAs)
+    decs=np.array(decs)
+    catCoords=SkyCoord(ra = RAs, dec = decs, unit = 'deg')
+    xIndices, rDeg, sep3d = match_coordinates_sky(catCoords, catCoords, nthneighbor = 2)
+    sepDeg=np.median(rDeg.data)
+    
+    # Make mask - max radius here is from catalogRetriever but should be adjustable elsewhere
+    maxRadiusDeg=40/60.0
+    widthPix=int(np.ceil((2*maxRadiusDeg)/sepDeg))
+    areaMask=np.zeros([widthPix, widthPix])
+    im=Image.fromarray(areaMask)
+    draw=ImageDraw.Draw(im)
+    CRVAL1, CRVAL2=RADeg, decDeg
+    xSizeDeg, ySizeDeg=2*maxRadiusDeg, 2*maxRadiusDeg
+    xSizePix=float(widthPix)
+    ySizePix=float(widthPix)
+    xRefPix=xSizePix/2.0
+    yRefPix=ySizePix/2.0
+    xOutPixScale=xSizeDeg/xSizePix
+    yOutPixScale=ySizeDeg/ySizePix
+    newHead=pyfits.Header()
+    newHead['NAXIS']=2
+    newHead['NAXIS1']=xSizePix
+    newHead['NAXIS2']=ySizePix
+    newHead['CTYPE1']='RA---TAN'
+    newHead['CTYPE2']='DEC--TAN'
+    newHead['CRVAL1']=CRVAL1
+    newHead['CRVAL2']=CRVAL2
+    newHead['CRPIX1']=xRefPix+1
+    newHead['CRPIX2']=yRefPix+1
+    newHead['CDELT1']=-xOutPixScale
+    newHead['CDELT2']=xOutPixScale
+    newHead['CUNIT1']='DEG'
+    newHead['CUNIT2']='DEG'
+    wcs=astWCS.WCS(newHead, mode='pyfits')
+    for obj in catalog:
+        x, y=wcs.wcs2pix(obj['RADeg'], obj['decDeg'])
+        x=int(x); y=int(y)
+        #areaMask[y, x]=1
+        draw.ellipse([x-2, y-2, x+2, y+2])
+    areaMask=np.array(im)
+
+    return areaMask, wcs
+    
 #-------------------------------------------------------------------------------------------------------------
 def extractArraysFromGalaxyCatalog(catalog, RADeg, decDeg):
     """For convenience: pulls out arrays needed for NGal measurement from galaxy catalog. Needs RADeg, decDeg
@@ -257,7 +495,24 @@ def extractArraysFromGalaxyCatalog(catalog, RADeg, decDeg):
     gRedshifts=np.array(gRedshifts)
     
     return gOdds, gRedshifts, angSepArray, tanArray
-        
+
+#-------------------------------------------------------------------------------------------------------------
+def applyUniformPrior(pz, zArray, zPriorMin = None, zPriorMax = None):
+    """Applies uniform redshift prior to pz between zPriorMin and zPriorMax.
+    
+    """
+    
+    prior=np.ones(pz.shape)
+    if zPriorMax is not None:
+        prior[np.greater(zArray, zPriorMax)]=0.0
+    if zPriorMin is not None:
+        prior[np.less(zArray, zPriorMin)]=0.0
+    pz=pz*prior
+    norm=np.trapz(pz, zArray)
+    pz=pz/norm
+    
+    return pz
+    
 #-------------------------------------------------------------------------------------------------------------
 def calculateRedshiftAndOdds(pz, zArray, dzOdds = 0.2, method = 'max', zPriorMax = None, zPriorMin = None):
     """Calculates z and BPZ/EAZY style odds for given pz, zArray
@@ -268,15 +523,7 @@ def calculateRedshiftAndOdds(pz, zArray, dzOdds = 0.2, method = 'max', zPriorMax
     """
     
     # Prior: to avoid worst cases of overestimating z
-    # Prior: low-z cut, set by 1 Mpc radius requirement and 9' radius input catalogues (np.radians(9.0/60)*astCalc.da(0.1))
-    prior=np.ones(pz.shape)
-    if zPriorMax != None:
-        prior[np.greater(zArray, zPriorMax)]=0.0
-    if zPriorMin != None:
-        prior[np.less(zArray, zPriorMin)]=0.0
-    pz=pz*prior
-    norm=np.trapz(pz, zArray)
-    pz=pz/norm    
+    pz=applyUniformPrior(pz, zArray, zPriorMax = zPriorMax, zPriorMin = zPriorMin) 
         
     zToIndex_tck=interpolate.splrep(zArray, np.arange(zArray.shape[0]))
     z=zArray[pz.tolist().index(pz.max())]
@@ -294,7 +541,7 @@ def calculateRedshiftAndOdds(pz, zArray, dzOdds = 0.2, method = 'max', zPriorMax
         if indexMax > pz.shape[0]-1:
             indexMax=pz.shape[0]-1
         odds=np.trapz(pz[indexMin:indexMax], zArray[indexMin:indexMax])
-    
+        
     elif method == 'odds':
         zOdds=[]
         for z in zArray:
@@ -310,8 +557,11 @@ def calculateRedshiftAndOdds(pz, zArray, dzOdds = 0.2, method = 'max', zPriorMax
             odds=np.trapz(pz[indexMin:indexMax], zArray[indexMin:indexMax])
             zOdds.append(odds)
         zOdds=np.array(zOdds)
-        z=zArray[zOdds.tolist().index(zOdds.max())]
-        odds=zOdds[zOdds.tolist().index(zOdds.max())]    
+        z=zArray[np.argmax(zOdds)]
+        odds=zOdds[np.argmax(zOdds)]
+        #--
+        norm=np.trapz(zOdds, zArray)
+        zOdds=zOdds/norm  
     
     return [z, odds, zOdds]
     

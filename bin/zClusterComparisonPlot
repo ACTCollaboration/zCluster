@@ -27,6 +27,7 @@ import argparse
 import astropy.table as atpy
 from astropy.coordinates import SkyCoord
 from astropy.coordinates import match_coordinates_sky
+import astropy.stats as apyStats
 from zCluster import *
 import pylab as plt
 import numpy as np
@@ -73,23 +74,35 @@ if __name__ == '__main__':
                         columns.""")
     parser.add_argument("zClusterCatalog", help="""Path to a zCluster .fits table, i.e., the output of
                         the zCluster code.""")
+    parser.add_argument("-x", "--x-match-radius", dest="xMatchRadiusArcsec", type = float, 
+                        help = """Cross match radius (arcsec) for matching between inCatalog and zClusterCatalog
+                        (default: 150).""", default = 150.0)
     parser.add_argument("-o", "--output-label", dest="outLabel", help="""Label to use for output  
                         (default: comparison_inCatalogFileName_zClusterCatalog, stripped of file extension). 
                         The code will write both a plot (.pdf) and a .fits table in the current
                         directory. Note that '.' in outLabel will be replaced with 'p' in the plot
                         file name in order to be latex friendly.""", default = None)
+    parser.add_argument("-s", "--marker-size", dest="markerSize", help="Size of markers in the plot.",
+                        default = 5, type = float)
+    parser.add_argument("-S", "--spec-z-only", dest="specRedshiftsOnly", help="""If inCatalog contains a 
+                        column named redshiftType, selects only objects with redshiftType = 'spec'.""",
+                        default = False, action = "store_true")
     parser.add_argument("-t", "--title", dest="plotTitle", help="Plot title.", default = None)
-    parser.add_argument("-z", "--zmax", dest="zMax", help="""Maximum redshift for statistics 
-                        (default: 2.0).""", default = 2.0)
-    parser.add_argument("-d", "--deltamin", dest="deltaMin", help="""Minimum delta for statistics 
-                        (default: 3.0).""", default = 3.0)
+    parser.add_argument("-z", "--z-min", dest="zMin", help="""Minimum redshift for plotting and overall
+                        statistics (default: 0.0).""", default = 0.0, type = float)
+    parser.add_argument("-Z", "--z-max", dest="zMax", help="""Maximum redshift for plotting and overall
+                        statistics (default: 2.0).""", default = 1.999, type = float)
+    parser.add_argument("-d", "--delta-min", dest="deltaMin", help="""Minimum delta for statistics 
+                        (default: 3.0).""", default = 3.0, type = float)
+    parser.add_argument("-D", "--delta-max", dest="deltaMax", help="""Maximum delta for statistics.""", 
+                        default = 1e6, type = float)
     parser.add_argument("-l", "--inlabel", dest="inLabel", help="""Subscript label for input redshifts
                         (default: s).""", default = "s")
     parser.add_argument("-y", "--yrange", dest="yRangeStr", help="""Range of the plot y-axis (which
                         is the difference between the inCatalog redshift and the redshift in 
                         zClusterCatalog), given in the format yMin:yMax.""", default = "-0.55:0.55")
-    parser.add_argument("-m", "--match-value", dest="matchValue", help="""Only consider objects in
-                        zC""", default = None)
+    parser.add_argument("-A", "--alpha", dest="alpha", help="""Alpha value transparency to use for shading
+                        data points in the plots (default: 1.0).""", default = 1.0, type = float)
     args = parser.parse_args()
 
     inCatalogFileName=args.inCatalog
@@ -99,16 +112,15 @@ if __name__ == '__main__':
         plotTitle=str(args.plotTitle)
     else:
         plotTitle=None
-    if args.zMax != None:
-        zMax=float(args.zMax)
-    if args.deltaMin != None:
-        deltaMin=float(args.deltaMin)
+    deltaMin=args.deltaMin
+    deltaMax=args.deltaMax
     if args.inLabel != None:
         inLabel=str(args.inLabel)
     if args.yRangeStr != None:
         yRangeStr=str(args.yRangeStr)
     else:
         yRangeStr=args.yRangeStr
+    xMatchRadiusDeg=args.xMatchRadiusArcsec/3600.0
         
     if inCatalogFileName.split(".")[-1] == "csv":
         inTab=atpy.Table().read(inCatalogFileName, format = 'ascii')
@@ -117,10 +129,10 @@ if __name__ == '__main__':
         
     outTab=atpy.Table().read(outCatalogFileName)
 
-    if args.outLabel == None:
+    if args.outLabel is None:
         outFileName="comparison_"+os.path.split(inCatalogFileName)[-1].replace(".fits", "").replace(".csv", "")+"_vs_"+outCatalogFileName
     else:
-        outFileName=outLabel+".fits"
+        outFileName=args.outLabel+".fits"
     plotFileName=outFileName.replace(".fits", "")
     plotFileName=plotFileName.replace(".", "p")+".pdf"
 
@@ -130,18 +142,24 @@ if __name__ == '__main__':
         zKey='redshift'
     else:
         raise Exception("didn't find 'z' or 'redshift' column in input table %s" % (inCatalogFileName))
-    
+
+    # Optionally cut down to spec-zs only (if we can)
+    if args.specRedshiftsOnly == True:
+        if 'redshiftType' not in inTab.keys():
+            raise Exception("inCatalog should contain 'redshiftType' column if you want to use the -S switch.")
+        inTab=inTab[inTab['redshiftType'] == 'spec']
+        print(">>> Using only objects with spectroscopic redshifts ...")
+        
     # Now cross matching against spec-zs table by nearest match in zCluster results file by coords
-    # This is to handle running zCluster on 'unified' catalogs, where there may be duplicate objects 
-    # (same name, slightly different coords)
+    # Because zCluster now estimates its own RADeg, decDeg postion
+    # (though we could just match on origRADeg, origDecDeg)
     cat1=SkyCoord(ra = inTab['RADeg'], dec = inTab['decDeg'], unit = 'deg')     # spec-z catalog
     cat2=SkyCoord(ra = outTab['RADeg'], dec = outTab['decDeg'], unit = 'deg')   # zCluster results catalog
-    xMatchRadiusDeg=10.0/3600.0   # 10" should be good enough for anything
     xIndices, rDeg, sep3d = match_coordinates_sky(cat1, cat2, nthneighbor = 1)
     mask=np.less(rDeg.value, xMatchRadiusDeg)
     cutTab=outTab[xIndices[mask]]
     inTab=inTab[mask]
-    
+        
     tab=atpy.Table()
     tab.add_column(inTab['name'])
     tab.add_column(cutTab['RADeg'])
@@ -151,83 +169,92 @@ if __name__ == '__main__':
     tab.add_column(atpy.Column(tab['zIn']-tab['z'], 'zDiff'))
     tab.add_column(cutTab['delta'])
     tab.add_column(cutTab['errDelta'])
+    tab.add_column(cutTab['offsetArcmin'])
+    tab.add_column(cutTab['offsetMpc'])
     tab=tab[np.where(tab['z'] > 0)] # because filled in -99 for fails/missing clusters (e.g., not in S82)
     tab=tab[np.where(tab['delta'] != np.inf)]
     
     zIn=tab['zIn']
     zOut=tab['z']
     delta=tab['delta']
-    deltaSNR=tab['delta']/tab['errDelta']
     diff=tab['zDiff']
     diff_over1plusz=diff/(1+tab['zIn'])
             
     # Stats based on delta cut by z
-    zCutsList=[[0.0, 2.0],[0.1, 0.5],[0.5, 1.0], [0.5, 1.5], [1.0, 2.0]]
+    zCutsList=[[0.1, 0.5], [0.5, 1.0], [1.0, 2.0], [args.zMin, args.zMax]]
     if deltaMin != None:
         print(">>> Stats for delta > %.2f:" % (deltaMin))
         for zCuts in zCutsList:
             zMin=zCuts[0]
             zMax=zCuts[1]
-            deltaMask=np.greater(delta, deltaMin)
-            # Another delta cut: uncertain deltas
-            deltaSNRMask=np.greater(deltaSNR, 3.0)
-            deltaMask=np.logical_and(deltaSNRMask, deltaMask)
+            deltaMask=np.logical_and(np.greater(delta, deltaMin), np.less(delta, deltaMax))
             notMask=np.less(delta, deltaMin)
             zMask=np.logical_and(np.greater(zIn, zMin), np.less(zIn, zMax))
             mask=np.logical_and(zMask, deltaMask)
             if mask.sum() > 0:
-                print("--> %.2f < z < %.2f (N = %d):" % (zMin, zMax, mask.sum()))
+                print(">>> %.2f < z < %.2f (N = %d):" % (zMin, zMax, mask.sum()))
                 maskedDiff=zIn[mask]-zOut[mask]
                 meanMaskedDiff=np.mean(maskedDiff)
                 stdMaskedDiff=np.std(maskedDiff)
                 maskedDiff_over1plusz=(zIn[mask]-zOut[mask])/(1+zIn[mask])
                 meanMaskedDiff_over1plusz=np.mean(maskedDiff_over1plusz)
                 stdMaskedDiff_over1plusz=np.std(maskedDiff_over1plusz)
-                print("... median (zIn - zOut) = %.3f" % (np.median(maskedDiff)))
-                print("... mean (zIn - Zout) = %.3f +/- %.3f" % (meanMaskedDiff, stdMaskedDiff / np.sqrt(mask.sum())))
-                print("... sigma (zIn - zOut) = %.3f" % (stdMaskedDiff))
-                if zCuts == zCutsList[0]:
-                    print("... median (zIn - zOut) / (1 + zIn) = %.3f" % (np.median(maskedDiff_over1plusz)))
-                    print("... mean (zIn - Zout) / (1 + zIn)  = %.3f" % (meanMaskedDiff_over1plusz))
-                    print("... sigma (zIn - zOut) / (1 + zIn)  = %.3f" % (stdMaskedDiff_over1plusz))
+                biweightMaskedDiff_over1plusz=apyStats.biweight_scale(maskedDiff_over1plusz, c = 9.0, modify_sample_size = True)
+                #print("... median (zIn - zOut) = %.3f" % (np.median(maskedDiff)))
+                #print("... mean (zIn - Zout) = %.3f +/- %.3f" % (meanMaskedDiff, stdMaskedDiff / np.sqrt(mask.sum())))
+                #print("... sigma (zIn - zOut) = %.3f" % (stdMaskedDiff))
+                #if zCuts == zCutsList[0]:
+                print("... median (zIn - zOut) / (1 + zIn)                  = %.3f" % (np.median(maskedDiff_over1plusz)))
+                print("... mean (zIn - Zout) / (1 + zIn)                    = %.3f" % (meanMaskedDiff_over1plusz))
+                print("... sigma (zIn - zOut) / (1 + zIn)                   = %.3f" % (stdMaskedDiff_over1plusz))
+                print("... biweight scale (zIn - zOut) / (1 + zIn)          = %.3f" % (biweightMaskedDiff_over1plusz))
+                print("... fraction with (zIn - zOut) / (1 + zIn) < 0.05   = %.3f" % ((abs(maskedDiff_over1plusz) < 0.05).sum()/len(maskedDiff_over1plusz)))
 
     # Default mask / stats for plotting
-    zMin=zCutsList[0][0]
-    zMax=zCutsList[0][1]
+    zMin=zCutsList[-1][0]
+    zMax=zCutsList[-1][1]
     deltaMask=np.greater(delta, deltaMin)
-    # Another delta cut: uncertain deltas
-    deltaSNRMask=np.greater(deltaSNR, 3.0)
-    deltaMask=np.logical_and(deltaSNRMask, deltaMask)
     notMask=np.equal(deltaMask, False)
     zMask=np.logical_and(np.greater(zIn, zMin), np.less(zIn, zMax))
     mask=np.logical_and(zMask, deltaMask)
     maskedDiff=zIn[mask]-zOut[mask]
     meanMaskedDiff=np.mean(maskedDiff)
+    medianMaskedDiff=np.median(maskedDiff)
     stdMaskedDiff=np.std(maskedDiff)
     maskedDiff_over1plusz=(zIn[mask]-zOut[mask])/(1+zIn[mask])
     meanMaskedDiff_over1plusz=np.mean(maskedDiff_over1plusz)
+    medianMaskedDiff_over1plusz=np.median(maskedDiff_over1plusz)
     stdMaskedDiff_over1plusz=np.std(maskedDiff_over1plusz)
+    biweightMaskedDiff_over1plusz=apyStats.biweight_scale(maskedDiff_over1plusz, c = 9.0, modify_sample_size = True)
+
+    # Output a table of catastropic failures for investigation
+    catMask=np.greater(abs(maskedDiff_over1plusz), 0.15)
+    catTab=(tab[mask])[catMask]
+    catTab.write(outFileName.replace(".fits", "_catastrophic.fits"), overwrite = True)
+
+    # Plot
+    zMin=args.zMin
+    zMax=args.zMax
     
-    # Plot                
     update_rcParams()
     
     plt.figure(figsize=(18, 6.5))
 
     plt.subplot(121)
     plt.subplots_adjust(left = 0.065, bottom = 0.11, right = 0.99, top = 0.97, wspace = 0.01, hspace = 0.24)
-    
-    plt.plot(zIn[notMask], diff_over1plusz[notMask], 'wD', mec = 'k', ms = 8, label = '$\delta < %.0f$' % (deltaMin))
-    plt.plot(zIn[deltaMask], diff_over1plusz[deltaMask], 'D', ms = 8, label = '$\delta > %.0f$' % (deltaMin))
+
+    plt.plot(zIn[deltaMask], diff_over1plusz[deltaMask], 'D', ms = args.markerSize, alpha = args.alpha, mew = 0, label = '$\delta > %.0f$' % (deltaMin), zorder = 3)    
+    plt.plot(zIn[notMask], diff_over1plusz[notMask], 'D', ms = args.markerSize, mfc = '#888888', alpha = args.alpha, mew = 0, label = '$\delta < %.0f$' % (deltaMin), zorder = 1)
     yPlotRange=np.linspace(-1, 1, 10)
-    xPlotRange=np.linspace(0, zIn.max()*1.1, 10)
+    xPlotRange=np.linspace(zMin, zMax, 10)
     plt.plot(xPlotRange, [meanMaskedDiff]*len(xPlotRange), 'k--', 
-             label = '$\langle \, (z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}) \, \\rangle$ = %.3f' % (inLabel, inLabel, meanMaskedDiff_over1plusz))
+             label = '$\langle \, (z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}) \, \\rangle$ = %.3f' % (inLabel, inLabel, medianMaskedDiff_over1plusz))
     plt.plot(xPlotRange, [meanMaskedDiff-stdMaskedDiff]*len(xPlotRange), 'k:', 
-             label = '$\sigma$ [($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}$)] = %.3f' % (inLabel, inLabel, stdMaskedDiff_over1plusz))
+             label = '$\sigma_{\\rm bw}$ [($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}$)] = %.3f' % (inLabel, inLabel, biweightMaskedDiff_over1plusz))
     plt.plot(xPlotRange, [meanMaskedDiff+stdMaskedDiff]*len(xPlotRange), 'k:')
-    plt.plot(np.linspace(0, zIn.max()*1.1, 3), [0]*3, 'k-')
-    plt.xlim(0, zIn.max()*1.1)
-    if yRangeStr != None:
+    plt.plot(np.linspace(zMin, zMax, 3), [0]*3, 'k-')
+    plt.xlim(zMin, zMax)
+    if yRangeStr is not None:
         yMin, yMax=yRangeStr.split(":")
         yMin=float(yMin)
         yMax=float(yMax)
@@ -241,14 +268,16 @@ if __name__ == '__main__':
     plt.ylabel("$(z_{\mathrm{%s}}-z_{\mathrm{c}})$/$(1+z_{\mathrm{%s}})$" % (inLabel, inLabel))
 
     plt.subplot(122)
-    plt.plot(delta[notMask], diff_over1plusz[notMask], 'wD', mec = 'k', ms = 8, label = '$\delta$ < $%.0f$' % (deltaMin))
-    plt.plot(delta[mask], diff_over1plusz[mask], 'D', ms = 8, label = '$\delta$ > $%.0f$' % (deltaMin))
+    plt.plot(delta[mask], diff_over1plusz[mask], 'D', ms = args.markerSize, alpha = args.alpha, mew = 0, 
+             label = '$\delta$ > $%.0f$' % (deltaMin), zorder = 3)
+    plt.plot(delta[notMask], diff_over1plusz[notMask], 'D', mfc = '#888888', ms = args.markerSize, alpha = args.alpha, mew = 0, 
+             label = '$\delta$ < $%.0f$' % (deltaMin), zorder = 1)
     yPlotRange=np.linspace(-1, 1, 10)
     xPlotRange=np.linspace(0, delta.max()*1.1, 10)
     plt.plot(xPlotRange, [meanMaskedDiff]*len(xPlotRange), 'k--', 
              label = 'mean($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, meanMaskedDiff_over1plusz))
     plt.plot(xPlotRange, [meanMaskedDiff-stdMaskedDiff]*len(xPlotRange), 'k:', 
-             label = '$\sigma$($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, stdMaskedDiff_over1plusz))
+             label = '$\sigma_{\\rm bw}$($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, biweightMaskedDiff_over1plusz))
     plt.plot(xPlotRange, [meanMaskedDiff+stdMaskedDiff]*len(xPlotRange), 'k:')
     plt.plot(np.linspace(0, delta.max()*1.1, 3), [0]*3, 'k-')
     plt.xlim(0, delta.max()*1.1)

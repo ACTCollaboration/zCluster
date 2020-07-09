@@ -1,3 +1,5 @@
 recursive-include examples *
 include COPYING
 include README.md
+include versioneer.py
+include zCluster/_version.py

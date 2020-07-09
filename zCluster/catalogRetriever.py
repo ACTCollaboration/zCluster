@@ -60,7 +60,7 @@ def makeCacheDir():
     """
     
     if os.path.exists(CACHE_DIR) == False:
-        os.makedirs(CACHE_DIR)
+        os.makedirs(CACHE_DIR, exist_ok = True)
 
 #-------------------------------------------------------------------------------------------------------------
 def addWISEPhotometry(RADeg, decDeg, catalog, halfBoxSizeDeg = 36.0/60.):
@@ -72,7 +72,7 @@ def addWISEPhotometry(RADeg, decDeg, catalog, halfBoxSizeDeg = 36.0/60.):
     
     cacheDir="WISECache"
     if os.path.exists(cacheDir) == False:
-        os.makedirs(cacheDir)
+        os.makedirs(cacheDir, exist_ok = True)
     
     # Note that using size= in query below is broken (even though it is on IPAC docs)
     outFileName=cacheDir+os.path.sep+"unWISE_%.6f_%.6f.vot" % (RADeg, decDeg)
@@ -161,7 +161,7 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
         cacheDir=CACHE_DIR
     
     if os.path.exists(cacheDir) == False:
-        os.makedirs(cacheDir)
+        os.makedirs(cacheDir, exist_ok = True)
         
     url = 'http://cas.sdss.org/stripe82/en/tools/search/x_sql.asp'
             
@@ -367,7 +367,7 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
         cacheDir=CACHE_DIR
     
     if os.path.exists(cacheDir) == False:
-        os.makedirs(cacheDir)
+        os.makedirs(cacheDir, exist_ok = True)
     
     try:
         connection=optionsDict['connection']
@@ -496,7 +496,7 @@ def KiDSDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}
         cacheDir=CACHE_DIR
     
     if os.path.exists(cacheDir) == False:
-        os.makedirs(cacheDir)
+        os.makedirs(cacheDir, exist_ok = True)
         
     # This defines the rough final KIDS area (split into two fields)
     inKIDSRegion=False
@@ -584,11 +584,8 @@ def KiDSDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}
     return catalog
     
 #-------------------------------------------------------------------------------------------------------------
-def ATLASDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
-    """Retrieves VST ATLAS DR3 photometry, from the ESO Catalogue Facility. This requires an ESO Portal login,
-    which should be stored under $HOME/.zCluster/ESOLogin. That file should just contain the username on the
-    first line, and the password on the second. If security is a concern, this could be stored in an encrypted
-    directory (e.g., KDE's Vaults facility). See the bin/zCluster script for how the login is handled.
+def ATLASDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
+    """Retrieves VST ATLAS DR4 photometry via ESO.
     
     """
 
@@ -598,61 +595,72 @@ def ATLASDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
         cacheDir=CACHE_DIR
     
     if os.path.exists(cacheDir) == False:
-        os.makedirs(cacheDir)
-    
-    try:
-        br=optionsDict['connection']
-    except:
-        raise Exception("No ESO database connection")
-    
-    # This defines the rough ATLAS DR3 area
-    inATLASRegion=False
-    if RADeg > 21*15 or RADeg < 4.2*60:
-        if decDeg > -42 and decDeg < -7:
-            inATLASRegion=True
-    if inATLASRegion == False:
-        print("... outside ATLAS area - skipping ...")
-        return None
-
-    outFileName=cacheDir+os.path.sep+"ATLASDR3_%.4f_%.4f_%.4f.fits" % (RADeg, decDeg, halfBoxSizeDeg)      
+        os.makedirs(cacheDir, exist_ok = True)
+        
+    outFileName=cacheDir+os.path.sep+"ATLASDR4_%.4f_%.4f_%.4f.fits" % (RADeg, decDeg, halfBoxSizeDeg)          
     if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
-        print("... downloading catalog %s ..." % (outFileName))
-        queryURL="https://www.eso.org/qi/catalogQuery/index/147"
-        br.open(queryURL)
-        br.select_form(nr=1)
-        br.form['target']='%.6f %.6f' % (RADeg, decDeg)
-        br.form['radius']='%.3f' % (halfBoxSizeDeg)     # default unit is degrees
-        #br.form['param_112_7']='=0'                     # SG2DPHOT: 0 = galaxy
-        br.form.find_control('selectedFields_147').readonly=False
-        # Selected Petrosian mags below (and extinction corrections needed)
-        br.form['selectedFields_147']=',row_147_5,row_147_6,row_147_30,row_147_31,row_147_35,row_147_36,row_147_37,row_147_38,row_147_39,row_147_41,row_147_42,row_147_65,row_147_66,row_147_89,row_147_90,row_147_113,row_147_114,row_147_137,row_147_138'    
-        a=br.submit(id = 'exportGeoButtonSpatial')
-        b=a.get_data()
-        outFile=open(outFileName, "wb")
-        outFile.write(b)
-        outFile.close()
-
+        print("... downloading catalog %s ..." % (outFileName)) 
+        query="select sourceID, ra2000, dec2000, uPetroMag, uPetroMagErr, gPetroMag, gPetroMagErr, rPetroMag, rPetroMagErr, iPetroMag, iPetroMagErr, zPetroMag, zPetroMagErr, uAperMagNoAperCorr3, uAperMag3Err, gAperMagNoAperCorr3, gAperMag3Err, rAperMagNoAperCorr3, rAperMag3Err, iAperMagNoAperCorr3, iAperMag3Err, zAperMagNoAperCorr3, zAperMag3Err, aU, aG, aR, aI, aZ, pGalaxy, pStar, pNoise, pSaturated from atlas_er4_ugriz_catMetaData_fits_V3 where ra2000 BETWEEN %.4f AND %.4f AND dec2000 BETWEEN %.4f and %.4f and priOrSec = 0;" % (RAMin, RAMax, decMin, decMax)   
+        r=requests.get('http://archive.eso.org/tap_cat/sync?', 
+                        params = {'REQUEST': 'doQuery',
+                                  'LANG': 'ADQL',
+                                  'MAXREC': 1000000,
+                                  'FORMAT': 'fits',
+                                  'QUERY': query},
+                        stream = True)
+        with open(outFileName, 'wb') as outFile: 
+            r.raw.decode_content = True
+            outFile.write(r.raw.data) 
+            
     # Load/parse table
     print("... reading catalog %s ..." % (outFileName))
-    try:
-        tab=atpy.Table().read(outFileName)
-    except ValueError:
+    tab=atpy.Table().read(outFileName)
+    if len(tab) == 0:
         print("... no objects in catalog - skipping ...")
         return None
-    
+
     magKey="$BANDPETROMAG"
     magErrKey="$BANDPETROMAGERR"
+    #magKey="$BANDAPERMAGNOAPERCORR3"
+    #magErrKey="$BANDAPERMAG3ERR"
     
     # First, get rid of nans or nonsensical values
-    bands=['U', 'G', 'R', 'I', 'Z']
+    # We apply extinction correction in-place here
+    # NOTE: Zapping u (most uncertain with regards photo calib I think) makes no significant difference
+    bands=['u', 'g', 'r', 'i', 'z']
     for b in bands:
-        tab[magKey.replace("$BAND", b)][np.isnan(tab[magKey.replace("$BAND", b)])]=99.
-        tab[magErrKey.replace("$BAND", b)][np.isnan(tab[magErrKey.replace("$BAND", b)])]=99.
-
-    # Star-galaxy separation (could be done at query level...)
+        tab[magKey.replace("$BAND", b.upper())][np.isnan(tab[magKey.replace("$BAND", b.upper())])]=99.0
+        tab[magErrKey.replace("$BAND", b.upper())][np.isnan(tab[magErrKey.replace("$BAND", b.upper())])]=99.0
+        tab[magKey.replace("$BAND", b.upper())]=tab[magKey.replace("$BAND", b.upper())]-tab['A%s' % (b.upper())]
+        
+    # Transform to SDSS in-place - maybe this works better?
+    # These transforms are from doing some algebra on the ones in the VST-ATLAS paper and throwing away ~0.00x terms
+    # NOTE: These don't work at all well (much worse than not doing this)
+    #iSDSS=tab[magKey.replace("$BAND", 'I')]-0.025
+    #zSDSS=(tab[magKey.replace("$BAND", 'Z')]-0.04*tab[magKey.replace("$BAND", 'I')]+0.04)/0.96
+    #rSDSS=(tab[magKey.replace("$BAND", 'R')]+0.0316*tab[magKey.replace("$BAND", 'G')])/1.03
+    #gSDSS=(tab[magKey.replace("$BAND", 'G')]/0.95)-0.048*(tab[magKey.replace("$BAND", 'R')]+0.316*tab[magKey.replace("$BAND", 'G')])-0.063
+    #uSDSS=1.01*(tab[magKey.replace("$BAND", 'U')]-0.01*gSDSS+0.27)
+    #tab[magKey.replace("$BAND", 'U')]=uSDSS
+    #tab[magKey.replace("$BAND", 'G')]=gSDSS
+    #tab[magKey.replace("$BAND", 'R')]=rSDSS
+    #tab[magKey.replace("$BAND", 'I')]=iSDSS
+    #tab[magKey.replace("$BAND", 'Z')]=zSDSS
+    
+    # Empirical corrections (based on own comparison with SDSS galaxy photometry for small subsample)
+    # Again, these don't help at all really
+    #tab[magKey.replace("$BAND", 'U')]=tab[magKey.replace("$BAND", 'U')]-0.286
+    #tab[magKey.replace("$BAND", 'G')]=tab[magKey.replace("$BAND", 'G')]-0.080
+    #tab[magKey.replace("$BAND", 'R')]=tab[magKey.replace("$BAND", 'R')]-0.009
+    #tab[magKey.replace("$BAND", 'I')]=tab[magKey.replace("$BAND", 'I')]-0.084
+    #tab[magKey.replace("$BAND", 'Z')]=tab[magKey.replace("$BAND", 'Z')]-0.073
+    
+    # Classification cuts
     tab=tab[np.where(tab['PGALAXY'] > 0.5)]
-
+    tab=tab[np.where(tab['PNOISE'] < 0.01)]
+    tab=tab[np.where(tab['PSATURATED'] < 0.01)]
+    
     idCount=0
     catalog=[]
     for row in tab:
@@ -661,25 +669,13 @@ def ATLASDR3Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
         photDict['id']=idCount    # just so we have something - we could use ID but skipping for now
         photDict['RADeg']=row['RA2000']
         photDict['decDeg']=row['DEC2000']
-        photDict['u']=row[magKey.replace("$BAND", "U")]-row['AU']
-        photDict['g']=row[magKey.replace("$BAND", "G")]-row['AG']
-        photDict['r']=row[magKey.replace("$BAND", "R")]-row['AR']
-        photDict['i']=row[magKey.replace("$BAND", "I")]-row['AI']
-        photDict['z']=row[magKey.replace("$BAND", "Z")]-row['AZ']
-        photDict['uErr']=row[magErrKey.replace("$BAND", "U")]
-        photDict['gErr']=row[magErrKey.replace("$BAND", "G")]
-        photDict['rErr']=row[magErrKey.replace("$BAND", "R")]
-        photDict['iErr']=row[magErrKey.replace("$BAND", "I")]
-        photDict['zErr']=row[magErrKey.replace("$BAND", "Z")]
-        # Apply mag error cuts if given
-        # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
-        # We're just making the mag unconstrained here (missing data), rather than applying a limit
-        # If we don't have a minimum of three useful bands, reject
+        for b in bands:
+            photDict[b]=row[magKey.replace("$BAND", b.upper())]
+            photDict[b+'Err']=row[magErrKey.replace("$BAND", b.upper())]
         if 'maxMagError' in list(optionsDict.keys()):
-            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['u', 'g', 'r', 'i', 'z'])
+            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
         else:
             keep=True
-                    
         if keep == True:
             catalog.append(photDict)
         
@@ -705,7 +701,7 @@ def fixcolnames(tab):
     return tab
 
 #-------------------------------------------------------------------------------------------------------------
-def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
+def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
     """Retrieves PS1 photometry at the given position.
         
     """
@@ -718,7 +714,7 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
         cacheDir=CACHE_DIR
     
     if os.path.exists(cacheDir) == False:
-        os.makedirs(cacheDir)
+        os.makedirs(cacheDir, exist_ok = True)
 
     outFileName=cacheDir+os.path.sep+"PS1_%.4f_%.4f_%.4f.fits" % (RADeg, decDeg, halfBoxSizeDeg)      
     print("... getting PS1 photometry (file: %s) ..." % (outFileName))
@@ -729,11 +725,20 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
     
     if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
         print("... fetching from the internet ...")
-        query="""select o.objID, o.raMean, o.decMean,
-        m.gMeanKronMag, m.rMeanKronMag, m.iMeanKronMag, m.zMeanKronMag, m.yMeanKronMag, m.gMeanKronMagErr, m.rMeanKronMagErr, m.iMeanKronMagErr, m.zMeanKronMagErr, m.yMeanKronMagErr
-        from fGetNearbyObjEq(%.6f, %.6f, %.6f) nb
-        inner join ObjectThin o on o.objid=nb.objid and o.nDetections > 3
-        inner join MeanObject m on o.objid=m.objid and o.uniquePspsOBid=m.uniquePspsOBid""" % (RADeg, decDeg, halfBoxSizeDeg*60)
+        #query="""select o.objID, o.raMean, o.decMean,
+        #m.gMeanKronMag, m.rMeanKronMag, m.iMeanKronMag, m.zMeanKronMag, m.yMeanKronMag, m.gMeanKronMagErr, m.rMeanKronMagErr, m.iMeanKronMagErr, m.zMeanKronMagErr, m.yMeanKronMagErr, m.iMeanPSFMag
+        #from fGetNearbyObjEq(%.6f, %.6f, %.6f) nb
+        #inner join ObjectThin o on o.objid=nb.objid and o.nDetections > 3
+        #inner join MeanObject m on o.objid=m.objid and o.uniquePspsOBid=m.uniquePspsOBid""" % (RADeg, decDeg, halfBoxSizeDeg*60)
+        RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
+        #query="""select m.objID, m.raMean, m.decMean, m.gKronMag, m.rKronMag, m.iKronMag, m.zKronMag, m.yKronMag, m.gKronMagErr, m.rKronMagErr, m.iKronMagErr, m.zKronMagErr, m.yKronMagErr, m.iPSFMag from StackObjectView m where m.raMean > %.6f and m.raMean < %.6f and m.decMean > %.6f and m.decMean < %.6f""" % (RAMin, RAMax, decMin, decMax)
+        #query="""select objID, raMean, decMean, gKronMag, rKronMag, iKronMag, zKronMag, yKronMag, gKronMagErr, rKronMagErr, iKronMagErr, zKronMagErr, yKronMagErr, iPSFMag, primaryDetection from StackObjectView where raMean > %.6f and raMean < %.6f and decMean > %.6f and decMean < %.6f""" % (RAMin, RAMax, decMin, decMax)
+        query="""select objID, raMean, decMean, gAperMag, rAperMag, iAperMag, zAperMag, yAperMag, gAperMagErr, rAperMagErr, iAperMagErr, zAperMagErr, yAperMagErr, iPSFMag, primaryDetection from StackObjectView where raMean > %.6f and raMean < %.6f and decMean > %.6f and decMean < %.6f""" % (RAMin, RAMax, decMin, decMax)
+        #query="""select o.objID, o.raMean, o.decMean,
+        #m.gKronMag, m.rKronMag, m.iKronMag, m.zKronMag, m.yKronMag, m.gKronMagErr, m.rKronMagErr, m.iKronMagErr, m.zKronMagErr, m.yKronMagErr, m.iPSFMag
+        #from fGetNearbyObjEq(%.6f, %.6f, %.6f) nb
+        #inner join ObjectThin o on o.objid=nb.objid and o.nDetections > 3
+        #inner join StackObject m on o.objid=m.objid and o.uniquePspsOBid=m.uniquePspsOBid""" % (RADeg, decDeg, halfBoxSizeDeg*60)
         jobs=optionsDict['jobs']
         #jobs=mastcasjobs.MastCasJobs(context="PanSTARRS_DR2")
         results=jobs.quick(query, task_name="python cone search")
@@ -746,6 +751,9 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
     if len(tab) == 0:
         catalog=None
     else:
+        # Star-galaxy cut (see: https://outerspace.stsci.edu/display/PANSTARRS/How+to+separate+stars+and+galaxies)
+        #tab=tab[(tab['iPSFMag']-tab['iKronMag']) > 0.05]
+        tab=tab[tab['primaryDetection'] == 1]
         EBMinusV=getEBMinusV(RADeg, decDeg, optionsDict = optionsDict) # assume same across field
         catalog=[]
         idCount=0
@@ -757,8 +765,8 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
             photDict['RADeg']=row['raMean']
             photDict['decDeg']=row['decMean']
             for b in bands:
-                photDict[b]=row['%sMeanKronMag' % (b)]
-                photDict['%sErr' % (b)]=row['%sMeanKronMagErr' %  (b)]
+                photDict[b]=row['%sAperMag' % (b)]
+                photDict['%sErr' % (b)]=row['%sAperMagErr' %  (b)]
 
             # Correct for dust extinction
             # Taken from: http://www.mso.anu.edu.au/~brad/filters.html
@@ -773,7 +781,7 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 25.5/60.0, optionsDict = {}):
             # We're just making the mag unconstrained here (missing data), rather than applying a limit
             # If we don't have a minimum of three useful bands, reject
             if 'maxMagError' in list(optionsDict.keys()):
-                keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['g', 'r', 'i', 'z'], minBands = 4)
+                keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['g', 'r', 'i', 'z', 'y'], minBands = 3)
             else:
                 keep=True
                 
@@ -801,7 +809,7 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
         cacheDir=CACHE_DIR
     
     if os.path.exists(cacheDir) == False:
-        os.makedirs(cacheDir)
+        os.makedirs(cacheDir, exist_ok = True)
     
     if DR == 7:
         url='http://cas.sdss.org/astrodr7/en/tools/search/x_sql.asp'
@@ -962,7 +970,8 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
 
 #-------------------------------------------------------------------------------------------------------------
 def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
-    """Retrieves DECaLS DR7 tractor catalogs (if they exist) at the given position.
+    """Retrieves DECaLS DR8 tractor catalogs (if they exist) at the given position. Cuts the catalog to the
+    radius specified by halfBoxSizeDeg.
 
     """
 
@@ -974,65 +983,89 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
         cacheDir=CACHE_DIR
     
     if os.path.exists(cacheDir) == False:
-        os.makedirs(cacheDir)
+        os.makedirs(cacheDir, exist_ok = True)
 
     # Organised such that after this, have subdir with degrees RA (e.g. 000/ is 0 < RADeg < 1 degree)
-    basePath="http://portal.nersc.gov/project/cosmo/data/legacysurvey/dr7/tractor/"
+    basePath="https://portal.nersc.gov/project/cosmo/data/legacysurvey/dr8/south/tractor/"
 
-    outFileName=cacheDir+os.path.sep+"DECaLSDR7_%.4f_%.4f_%.2f.fits" % (RADeg, decDeg,
+    outFileName=cacheDir+os.path.sep+"DECaLSDR8_%.4f_%.4f_%.2f.fits" % (RADeg, decDeg,
                                                                             halfBoxSizeDeg)
     
-    print("... getting DECaLS photometry (file: %s) ..." % (outFileName))
+    print("... getting DECaLS photometry ...")
 
     bricksTab=optionsDict['bricksTab']
-    DR7Tab=optionsDict['DR7Tab']
-    
-    if os.path.exists(outFileName) == False:
-        
-        # Find matching tractor catalogs and download (temporary) .fits table files
-        RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
-        mask=np.logical_and(np.greater(bricksTab['RA1'], RAMin), np.less(bricksTab['RA2'], RAMax))
-        mask=np.logical_and(mask, np.greater(bricksTab['DEC1'], decMin))
-        mask=np.logical_and(mask, np.less(bricksTab['DEC2'], decMax))
-        matchTab=bricksTab[np.where(mask)]
-        count=0
-        tractorTabs=[]
-        cacheFileNames=[]
-        matchTab=atpy.join(matchTab, DR7Tab, keys = 'BRICKNAME')
-        for mrow in matchTab:
-            print("... retrieving tractor catalog from web ...")
-            url=basePath+"%03d" % np.floor(mrow['RA'])
-            url=url+os.path.sep+"tractor-"+mrow['BRICKNAME']+".fits"
-            fileName=cacheDir+os.path.sep+"tractor-tmp_%s.fits" % (mrow['BRICKNAME'])
-            cacheFileNames.append(fileName)
-            urllib.request.urlretrieve(url, filename = fileName)
+    DR8Tab=optionsDict['DR8Tab']
+
+    # Find matching tractor catalogs and download/cache .fits table files
+    # Previously this would fail for very small search areas - hence added centre coords search
+    # NOTE: We've doubled asked for halfBoxSizeDeg here to get all the matching tiles
+    # Otherwise we tend to miss...
+    RAMask=np.logical_and(np.greater(RADeg, bricksTab['RA1']), np.less(RADeg, bricksTab['RA2']))
+    decMask=np.logical_and(np.greater(decDeg, bricksTab['DEC1']), np.less(decDeg, bricksTab['DEC2']))
+    centreMask=np.logical_and(RAMask, decMask)
+    RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, 2*halfBoxSizeDeg)
+    mask=np.logical_and(np.greater(bricksTab['RA1'], RAMin), np.less(bricksTab['RA2'], RAMax))
+    mask=np.logical_and(mask, np.greater(bricksTab['DEC1'], decMin))
+    mask=np.logical_and(mask, np.less(bricksTab['DEC2'], decMax))
+    mask=np.logical_or(mask, centreMask)
+    matchTab=bricksTab[np.where(mask)]
+    count=0
+    tractorTabs=[]
+    try:
+        matchTab=atpy.join(matchTab, DR8Tab, keys = 'BRICKNAME')
+    except:
+        # Not in DECaLS?
+        print("... no match between bricks and DR8 tables - %s ..." % (outFileName))
+        return None
+    for mrow in matchTab:
+        subDir="%03d" % np.floor(mrow['RA'])
+        url=basePath+subDir
+        url=url+os.path.sep+"tractor-"+mrow['BRICKNAME']+".fits"
+        os.makedirs(cacheDir+os.path.sep+subDir, exist_ok = True)
+        fileName=cacheDir+os.path.sep+subDir+os.path.sep+"tractor-%s.fits" % (mrow['BRICKNAME'])
+        if os.path.exists(fileName) == False:
+            print("... retrieving tractor catalog from web: %s ..." % (url))
             try:
-                tractorTab=atpy.Table.read(fileName)
-                tractorTabs.append(tractorTab)
+                urllib.request.urlretrieve(url, filename = fileName)
             except:
-                print("... probably a 404 error for %s ..." % (fileName))
-        # Stitch catalogs together and write to cache, delete temporary files
-        if len(tractorTabs) > 0:
-            uberTab=atpy.vstack(tractorTabs)
-            uberTab.write(outFileName)
-            for fileName in cacheFileNames:
-                os.remove(fileName)
+                with open("wget_failed.sh", "a") as outFile:
+                    outFile.write("wget -nc %s\n" % (url))
+                print("... WARNING: failed to fetch from %s" % (url))
+        try:
+            tractorTab=atpy.Table.read(fileName)
+            tractorTabs.append(tractorTab)
+        except:
+            print("... possibly a 404 error for %s - check if cached file is corrupted ..." % (fileName))
+    if 'downloadOnly' in optionsDict.keys() and optionsDict['downloadOnly'] == True:
+        return None
     
-    # Load catalog
-    if os.path.exists(outFileName) == True:
+    # Stitch catalogs together
+    if len(tractorTabs) > 0:
+        tab=atpy.vstack(tractorTabs)
+                
+        # Cut to asked for size
+        rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, tab['ra'].data, tab['dec'].data)
+        mask=np.less(rDeg, halfBoxSizeDeg)
+        try:
+            tab=tab[mask]
+        except:
+            raise Exception("Check if rDeg is not an array - %s, RADeg = %.6f, dec = %.6f" % (fileName, RADeg, decDeg))
         
-        tab=atpy.Table().read(outFileName)
-        
-        # Remove stars
+        # DECaLS redshifts go very wrong when there are stars bright in W1, W2 in the vicinity
+        # This should fix - we'll also throw out PSF-shaped sources too
+        tab=tab[np.where(tab['brightblob'] == 0)]
+        # Below is clean but loses us some clusters that look ok (we can't do proper bitwise anyway with atpy table?)
+        #tab=tab[np.where(tab['maskbits'] == 0)] 
         tab=tab[np.where(tab['type'] != 'PSF')]
-        
+        tab=tab[np.where(tab['type'] != 'PSF ')] # Trailing space
+
         # WISE fluxes are available...
-        bands=['u', 'g', 'r', 'i', 'z', "w1", "w2"]# , 'Y']
+        bands=['g', 'r', 'z', "w1", "w2"]# , 'Y']
 
         # Convert nanomaggies to mags and do extinction correction
         bricksInTab=np.unique(tab['brickname'])
         for brickName in bricksInTab:
-            brickExtTab=DR7Tab[np.where(DR7Tab['BRICKNAME'] == brickName)]
+            brickExtTab=DR8Tab[np.where(DR8Tab['BRICKNAME'] == brickName)]
             brickIndices=np.where(tab['brickname'] == brickName)
             brickMask=np.zeros(len(tab), dtype = bool)
             brickMask[brickIndices]=True
@@ -1075,7 +1108,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
     
     else:
         catalog=None
-                
+    
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
@@ -1272,20 +1305,21 @@ def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
     #magNumber=2
         
     # Dust correction setup
-    corrDict={'u': 5.155, 'g': 3.793, 'r': 2.751, 'i': 2.086, 'z': 1.479, 'Ks': 0.367}  
-    EBMinusVList=[]
-    if fieldIDKey == None:
-        EBMinusV=getEBMinusV(np.mean(tab['RADeg']), np.mean(tab['decDeg']), optionsDict = optionsDict)
-        EBMinusVList.append({'RADeg': np.mean(tab['RADeg']), 'decDeg': np.mean(tab['decDeg']), 'EBMinusV': EBMinusV})
-    else:
-        fieldNames=np.unique(tab['field'])
-        for f in fieldNames:
-            mask=np.where(tab['field'] == f)
-            EBMinusV=getEBMinusV(np.mean(tab['RADeg'][mask]), np.mean(tab['decDeg'][mask]), optionsDict = optionsDict)
-            EBMinusVList.append({'RADeg': np.mean(tab['RADeg'][mask]), 'decDeg': np.mean(tab['decDeg'][mask]), 'EBMinusV': EBMinusV})
+    #corrDict={'u': 5.155, 'g': 3.793, 'r': 2.751, 'i': 2.086, 'z': 1.479, 'Ks': 0.367}  
+    #corrDict={'u': 5.155, 'g': 3.793, 'r': 2.751, 'i': 2.086, 'z': 1.479, 'Ks': 0.367}  
+    #EBMinusVList=[]
+    #if fieldIDKey == None:
+        #EBMinusV=getEBMinusV(np.mean(tab['RADeg']), np.mean(tab['decDeg']), optionsDict = optionsDict)
+        #EBMinusVList.append({'RADeg': np.mean(tab['RADeg']), 'decDeg': np.mean(tab['decDeg']), 'EBMinusV': EBMinusV})
+    #else:
+        #fieldNames=np.unique(tab['field'])
+        #for f in fieldNames:
+            #mask=np.where(tab['field'] == f)
+            #EBMinusV=getEBMinusV(np.mean(tab['RADeg'][mask]), np.mean(tab['decDeg'][mask]), optionsDict = optionsDict)
+            #EBMinusVList.append({'RADeg': np.mean(tab['RADeg'][mask]), 'decDeg': np.mean(tab['decDeg'][mask]), 'EBMinusV': EBMinusV})
 
     # Work out available bands
-    acceptableBands=['u', 'g', 'r', 'i', 'z', 'Ks']
+    acceptableBands=['u', 'g', 'r', 'i', 'z', 'J', 'H', 'Ks']
     tabBands=[]
     for key in list(tab.keys()):
         bits=key.split("_")
@@ -1300,19 +1334,33 @@ def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
         photDict['RADeg']=row['RADeg']
         photDict['decDeg']=row['decDeg']
         rMin=1e6
-        for EBMinusVDict in EBMinusVList:
-            rDeg=astCoords.calcAngSepDeg(photDict['RADeg'], photDict['decDeg'], EBMinusVDict['RADeg'], EBMinusVDict['decDeg'])
-            if rDeg < rMin:
-                rMin=rDeg
-                EBMinusV=EBMinusVDict['EBMinusV']
+        #for EBMinusVDict in EBMinusVList:
+            #rDeg=astCoords.calcAngSepDeg(photDict['RADeg'], photDict['decDeg'], EBMinusVDict['RADeg'], EBMinusVDict['decDeg'])
+            #if rDeg < rMin:
+                #rMin=rDeg
+                #EBMinusV=EBMinusVDict['EBMinusV']
+        #for b in tabBands:
+            #dustCorrMag=EBMinusV*corrDict[b]
+            #if magNumber == None:
+                #photDict[b]=row['%s_%s' % (b, magKey)]-dustCorrMag
+                #photDict[b+"Err"]=row['%s_%s' % (b, magErrKey)]
+            #else:
+                #photDict[b]=row['%s_%s' % (b, magKey)][magNumber]-dustCorrMag
+                #photDict[b+"Err"]=row['%s_%s' % (b, magErrKey)][magNumber]
         for b in tabBands:
-            dustCorrMag=EBMinusV*corrDict[b]
             if magNumber == None:
-                photDict[b]=row['%s_%s' % (b, magKey)]-dustCorrMag
+                photDict[b]=row['%s_%s' % (b, magKey)]
                 photDict[b+"Err"]=row['%s_%s' % (b, magErrKey)]
             else:
-                photDict[b]=row['%s_%s' % (b, magKey)][magNumber]-dustCorrMag
+                photDict[b]=row['%s_%s' % (b, magKey)][magNumber]
                 photDict[b+"Err"]=row['%s_%s' % (b, magErrKey)][magNumber]
+        # Optional: spec-zs for fitting for zero point offsets
+        if 'z_spec' in tab.keys():
+            photDict['z_spec']=row['z_spec']
+        if 'maxMagError' in list(optionsDict.keys()):
+            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = acceptableBands)
+        else:
+            keep=True
         catalog.append(photDict)
 
     # Get SDSS catalog, if we want to include missing bands
@@ -1346,11 +1394,11 @@ def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
         
     if catalog == []:
         catalog=None
-    
+
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
-def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
+def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
     """Parses a FITS catalog made by e.g., soi_makecatalogs.py.
     
     NOTE: No star-galaxy separation is applied in this currently.
@@ -1369,7 +1417,7 @@ def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
         raise Exception("assumed database is a FITS table file, but failed to read")
     
     # If the position isn't actually in our galaxy catalog, we give up now
-    rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, tab['RADeg'], tab['decDeg'])
+    rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, tab['RADeg'].data, tab['decDeg'].data)
     if rDeg.min() > halfBoxSizeDeg:
         print("... no galaxies found in FITS catalog near RA, dec = (%.6f, %.6f) ..." % (RADeg, decDeg))
         return None
