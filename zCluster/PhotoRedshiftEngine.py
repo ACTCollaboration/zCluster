@@ -23,6 +23,7 @@
 """
 
 import os
+import sys
 import numpy as np
 import zCluster
 from astLib import *
@@ -37,14 +38,14 @@ import IPython
 class PhotoRedshiftEngine:
     """A class that calculates galaxy photo-zs, adding photo-z info to a catalog (list of dictionaries)
     in place.
-    
+
     """
-    
+
     def __init__(self, absMagCut, passbandSet = 'SDSS+Ks', zMin = 0.01, zMax = 3.0, zStep = 0.01):
         """Sets up the stuff we would otherwise calculate every time, i.e., the templates.
-        
+
         """
-                                
+
         # Redshift grid on which to calculate p(z)
         self.zRange=np.linspace(zMin, zMax, ((zMax+zStep)-zMin)/zStep)
 

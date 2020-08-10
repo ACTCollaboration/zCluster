@@ -329,6 +329,72 @@ def getRoughFootprint(database):
     
     return RAMin, RAMax, decMin, decMax
     
+#----------------------------------------
+def getRetriever(database):
+    """ given a name of a survey, return a function that can retrieve object catalog"""
+    retriever=None
+    retrieverOptions=None
+    if database == 'S82':
+        retriever=catalogRetriever.S82Retriever
+        retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'SDSSDR7':
+        retriever=catalogRetriever.SDSSDR7Retriever
+    elif database == 'SDSSDR8':
+        retriever=catalogRetriever.SDSSDR8Retriever
+    elif database == 'SDSSDR10':
+        retriever=catalogRetriever.SDSSDR10Retriever
+    elif database == 'SDSSDR12':
+        retriever=catalogRetriever.SDSSDR12Retriever
+        retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'PS1':
+        retriever=catalogRetriever.PS1Retriever
+        retrieverOptions={'maxMagError': maxMagError, 'jobs': mastcasjobs.MastCasJobs(context="PanSTARRS_DR2")}
+    elif database == 'DESY3':
+        retriever=catalogRetriever.DESY3Retriever
+        retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
+    elif database == 'DESY3+WISE':
+        retriever=catalogRetriever.DESY3WISERetriever
+        retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
+    elif database == 'DESDR1':
+        retriever=catalogRetriever.DESDR1Retriever
+        retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
+    elif database == 'KiDSDR4':
+        retriever=catalogRetriever.KiDSDR4Retriever
+        retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'ATLASDR3':
+        retriever=catalogRetriever.ATLASDR3Retriever
+        retrieverOptions={'maxMagError': maxMagError, 'connection': br}
+    elif database == 'CFHTLenS':
+        retriever=catalogRetriever.CFHTLenSRetriever
+        retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'DECaLS':
+         # For DECaLS, need the bricks files that define survey on the sky
+        # These were previously included in zCluster, but now we fetch over web and cache
+        bricksCacheDir=catalogRetriever.CACHE_DIR
+        catalogRetriever.makeCacheDir()
+        bricksPath=bricksCacheDir+os.path.sep+"survey-bricks.fits.gz"
+        if os.path.exists(bricksPath) == False:
+            print("... fetching and caching DECaLS survey-bricks.fits.gz ...")
+            urllib.request.urlretrieve("http://portal.nersc.gov/project/cosmo/data/legacysurvey/dr7/survey-bricks.fits.gz", bricksPath)
+        bricksDR7Path=bricksCacheDir+os.path.sep+"survey-bricks-dr7.fits.gz"
+        if os.path.exists(bricksDR7Path) == False:
+            print("... fetching and caching DECaLS survey-bricks-dr7.fits.gz ...")
+            urllib.request.urlretrieve("http://portal.nersc.gov/project/cosmo/data/legacysurvey/dr7/survey-bricks-dr7.fits.gz", bricksDR7Path)
+        bricksTab=atpy.Table().read(bricksPath)
+        DR7Tab=atpy.Table().read(bricksDR7Path)
+        DR7Tab.rename_column("brickname", "BRICKNAME")
+        retriever=catalogRetriever.DECaLSRetriever
+        passbandSet='DECaLS'
+        zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
+        retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab, 'DR7Tab': DR7Tab}
+    elif database == 'CFHTDeep':
+        retriever=catalogRetriever.CFHTDeepRetriever
+    elif database == 'CFHTWide':
+        retriever=catalogRetriever.CFHTWideRetriever
+   
+    return retriever, retrieverOptions
+
+
 #-------------------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
 
@@ -376,9 +442,9 @@ if __name__ == '__main__':
                         default = False)
     parser.add_argument("-P", "--write-plots", dest="writePlots", action="store_true", 
                         help = """Write out a .pdf plot of n(z) for each cluster.""", default = False)
-    parser.add_argument("-s", "--add-SDSS", dest="addSDSS", action="store_true", help="""If using 
-                        a user-supplied FITS galaxy photometic catalog, add in additional SDSS 
-                        photometry if available.""", default = False)
+    parser.add_argument("-a", "--add-extra-photo", dest="addExtraPhoto", help="""If using 
+                        a user-supplied FITS galaxy photometic catalog, add in additional
+                        photometry if available.""", default = None)
     parser.add_argument("-B", "--background-catalog", dest="bckCatalogFileName", help="""A .fits table with columns 
                         in the appropriate format ('ID', 'RADeg', 'decDeg', and magnitude column names in the form 
                         'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.) to be used as the background sample for delta estimates.
@@ -456,67 +522,57 @@ if __name__ == '__main__':
     retrieverOptions={}
     passbandSet='SDSS+Ks'
     zDebias=None    # A fudge used to correct output zs for some surveys (final z = z + zDebias*(1+z))
+    retriever,retrieverOptions=getRetriever(database) 
+    
+
     if database == 'S82':
-        retriever=catalogRetriever.S82Retriever
         zPriorMin=0.20
         zPriorMax=1.5
-        retrieverOptions={'maxMagError': maxMagError}
-    elif database == 'SDSSDR7':
-        retriever=catalogRetriever.SDSSDR7Retriever
-    elif database == 'SDSSDR8':
-        retriever=catalogRetriever.SDSSDR8Retriever
-    elif database == 'SDSSDR10':
-        retriever=catalogRetriever.SDSSDR10Retriever
+        #retrieverOptions={'maxMagError': maxMagError}
     elif database == 'SDSSDR12':
-        retriever=catalogRetriever.SDSSDR12Retriever
         zPriorMin=0.05
         zPriorMax=0.8
-        retrieverOptions={'maxMagError': maxMagError}
+        #retrieverOptions={'maxMagError': maxMagError}
     elif database == 'PS1':
         import mastcasjobs
         if not os.environ.get('CASJOBS_WSID'):
             raise Exception("Set CASJOBS_WSID environment variable to use PS1 (see: http://ps1images.stsci.edu/ps1_dr2_query.html - to get your WSID, go to http://mastweb.stsci.edu/ps1casjobs/ChangeDetails.aspx and check your 'profile' page)")
         if not os.environ.get('CASJOBS_PW'):
             raise Exception("Set CASJOBS_PW environment variable to use PS1 (see: http://ps1images.stsci.edu/ps1_dr2_query.html)")
-        retriever=catalogRetriever.PS1Retriever
         # Min prior here set to match 4 Mpc max search radius
         zPriorMin=0.15
         zPriorMax=0.6
         passbandSet='PS1'
-        retrieverOptions={'maxMagError': maxMagError, 'jobs': mastcasjobs.MastCasJobs(context="PanSTARRS_DR2")}
+        #retrieverOptions={'maxMagError': maxMagError, 'jobs': mastcasjobs.MastCasJobs(context="PanSTARRS_DR2")}
     elif database == 'DESY3':
         import easyaccess as ea
         connection=ea.connect(section = 'dessci')
         #connection=None
-        retriever=catalogRetriever.DESY3Retriever
         zPriorMin=0.05
         zPriorMax=1.5
         passbandSet='DES'
-        retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
+        #retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
         zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
     elif database == 'DESY3+WISE':
         import easyaccess as ea
         connection=ea.connect(section = 'dessci')
-        retriever=catalogRetriever.DESY3WISERetriever
         zPriorMin=0.05
         zPriorMax=1.5
         passbandSet='DES+WISE'
-        retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
+        #retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
         zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
     elif database == 'DESDR1':
         import easyaccess as ea
         connection=ea.connect(section = 'desdr')
-        retriever=catalogRetriever.DESDR1Retriever
         zPriorMin=0.05
         zPriorMax=1.5
         passbandSet='DES'
-        retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
+        #retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
     elif database == 'KiDSDR4':
-        retriever=catalogRetriever.KiDSDR4Retriever
         zPriorMin=0.05
         zPriorMax=1.5
         passbandSet='KiDS-VIKING'
-        retrieverOptions={'maxMagError': maxMagError}
+        #retrieverOptions={'maxMagError': maxMagError}
     elif database == 'ATLASDR3':
         # ESO requires log-in to access public data - do once
         if args.credentialsFileName == None:
@@ -532,16 +588,14 @@ if __name__ == '__main__':
         br.form['username']='%s' % (lines[0].replace("\n", ""))
         br.form['password']='%s' % (lines[1].replace("\n", ""))
         br.submit()
-        retriever=catalogRetriever.ATLASDR3Retriever
         zPriorMin=0.05
         zPriorMax=0.8
         passbandSet='SDSS+Ks'
-        retrieverOptions={'maxMagError': maxMagError, 'connection': br}
+        #retrieverOptions={'maxMagError': maxMagError, 'connection': br}
     elif database == 'CFHTLenS':
-        retriever=catalogRetriever.CFHTLenSRetriever
         zPriorMin=0.05
         zPriorMax=1.5
-        retrieverOptions={'maxMagError': maxMagError}
+        #retrieverOptions={'maxMagError': maxMagError}
     elif database == 'DECaLS':
         # For DECaLS, need the bricks files that define survey on the sky
         # These were previously included in zCluster, but now we fetch over web and cache
@@ -558,16 +612,12 @@ if __name__ == '__main__':
         bricksTab=atpy.Table().read(bricksPath)
         DR7Tab=atpy.Table().read(bricksDR7Path)
         DR7Tab.rename_column("brickname", "BRICKNAME")
-        retriever=catalogRetriever.DECaLSRetriever
         zPriorMin=0.05
         zPriorMax=1.5
         passbandSet='DECaLS'
         zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
-        retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab, 'DR7Tab': DR7Tab}
-    elif database == 'CFHTDeep':
-        retriever=catalogRetriever.CFHTDeepRetriever
+        #retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab, 'DR7Tab': DR7Tab}
     elif database == 'CFHTWide':
-        retriever=catalogRetriever.CFHTWideRetriever
         zPriorMin=0.05
         zPriorMax=1.5
     else:
@@ -577,7 +627,8 @@ if __name__ == '__main__':
         zPriorMin=0.5 
         zPriorMax=2.0
         retriever=catalogRetriever.FITSRetriever
-        retrieverOptions={'fileName': database, 'addSDSS': args.addSDSS}
+        extraRetriever, extraOptions=getRetriever(args.addExtraPhoto)
+        retrieverOptions={'fileName': database, 'extraRetriever': extraRetriever, 'extraOptions': extraOptions}
 
     # Allow prior overrides from command line
     if args.zPriorMax != None:

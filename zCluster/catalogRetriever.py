@@ -1,4 +1,4 @@
-"""
+p"""
     Routines for retrieving photometric catalogs from SDSS, CFHTLenS etc. 
     and parsing them into a dictionary list format.
 
