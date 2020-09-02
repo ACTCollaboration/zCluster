@@ -17,6 +17,7 @@ from astLib import *
 from zCluster import catalogRetriever
 from zCluster import PhotoRedshiftEngine
 from zCluster import clusterFinding
+from zCluster import catalogTools
 import urllib
 import time
 import IPython
@@ -246,6 +247,7 @@ if __name__ == '__main__':
                 arr.append(99)
         tab.add_column(atpy.Column(np.array(arr), key))
     tab.write(outFileName, overwrite = True)
+    catalogTools.catalog2DS9(tab, outFileName.replace(".fits", ".reg"), idKeyToUse = 'id')
         
     if writeDensityMaps == True:
         if z == None and dz == None:
@@ -258,6 +260,4 @@ if __name__ == '__main__':
     # We may as well print some stats
     print(">>> Summary:")
     print("    N = %d" %  (len(tab['zPhot'])))
-    print("    ")
-    print(">>> Catalog fetching is complete.")
     print(">>> Total time: {:.1g} minutes".format((time.time()-start)/60.))
