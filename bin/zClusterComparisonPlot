@@ -31,13 +31,13 @@ import astropy.stats as apyStats
 from zCluster import *
 import pylab as plt
 import numpy as np
+from cycler import cycler
 import IPython
 plt.matplotlib.interactive(False)
 
 #------------------------------------------------------------------------------------------------------------
 def update_rcParams(dict={}):
-    """
-    Based on Cristobal's preferred settings.
+    """Based on Cristobal's preferred settings. Updates matplotlib rcParams in place.
     
     """
     default = {}
@@ -63,6 +63,9 @@ def update_rcParams(dict={}):
     # defined
     for key in dict:
         plt.rcParams[key] = dict[key]
+
+    # From https://github.com/mhasself/rg_friendly
+    plt.rcParams['axes.prop_cycle']=cycler(color=['#2424f0','#df6f0e','#3cc03c','#d62728','#b467bd','#ac866b','#e397d9','#9f9f9f','#ecdd72','#77becf'])
         
 #-------------------------------------------------------------------------------------------------------------
 if __name__ == '__main__':

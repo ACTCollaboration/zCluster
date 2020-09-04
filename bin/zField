@@ -14,10 +14,10 @@ import astropy.table as atpy
 import astropy.io.fits as pyfits
 import astropy.stats as apyStats
 from astLib import *
-#from zCluster import catalogRetriever
-#from zCluster import PhotoRedshiftEngine
-#from zCluster import clusterFinding
-from zCluster import *
+from zCluster import catalogRetriever
+from zCluster import PhotoRedshiftEngine
+from zCluster import clusterFinding
+from zCluster import catalogTools
 import urllib
 import time
 import IPython
@@ -253,7 +253,7 @@ if __name__ == '__main__':
                 arr.append(99)
         tab.add_column(atpy.Column(np.array(arr), key))
     tab.write(outFileName, overwrite = True)
-
+    
     if args.writeDS9regions == True:
         catalogTools.catalog2DS9(galaxyCatalog, args.outDir+os.path.sep+"{0:}_{1:.3f}_{2:.3f}.reg".format(database, RADeg, decDeg),
                                  idKeyToUse = 'id', addInfo = [{'key': 'r', 'fmt': '%.3f'}, {'key': 'zPhot', 'fmt': '%.2f'}])
@@ -269,6 +269,4 @@ if __name__ == '__main__':
     # We may as well print some stats
     print(">>> Summary:")
     print("    N = %d" %  (len(tab['zPhot'])))
-    print("    ")
-    print(">>> Catalog fetching is complete.")
     print(">>> Total time: {:.1g} minutes".format((time.time()-start)/60.))
