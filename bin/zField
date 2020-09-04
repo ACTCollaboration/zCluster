@@ -66,6 +66,8 @@ if __name__ == '__main__':
                         default = None)
     parser.add_argument("-delta_z", "--delta-z", dest="dz", help="""Make a projected density map within +/- dz of the
                         given redshift.""", type = float, default = None)
+    parser.add_argument("-DS9", "--write-ds9-regions", dest="writeDS9regions", action="store_true", 
+                        help="""Write out a DS9 .reg file for the fetched photometric catalog.""", default = False)
 
     args = parser.parse_args()
 
@@ -85,10 +87,11 @@ if __name__ == '__main__':
 
     # Set-up cache
     if cacheDir is not None:
-        os.makedirs(cacheDir, exist_ok=True)
+        if os.path.exists(cacheDir) == False:
+            os.makedirs(cacheDir, exist_ok=True)
     else:
-        cacheDir=catalogRetriever.CACHE_DIR
-    os.makedirs(cacheDir, exist_ok  = True)
+        if os.path.exists(catalogRetriever.CACHE_DIR) == False:
+                os.makedirs(catalogRetriever.CACHE_DIR, exist_ok = True)
 
     # Set-up where we will write output
     os.makedirs(args.outDir, exist_ok = True)
@@ -210,6 +213,9 @@ if __name__ == '__main__':
         zPriorMin=0.05
         zPriorMax=1.5
         
+    if cacheDir != None:
+        retrieverOptions['altCacheDir']=cacheDir
+
     galaxyCatalog=retriever(RADeg, decDeg, halfBoxSizeDeg = maxRDeg, optionsDict = retrieverOptions)
 
     if galaxyCatalog is None:
@@ -247,7 +253,10 @@ if __name__ == '__main__':
                 arr.append(99)
         tab.add_column(atpy.Column(np.array(arr), key))
     tab.write(outFileName, overwrite = True)
-    catalogTools.catalog2DS9(tab, outFileName.replace(".fits", ".reg"), idKeyToUse = 'id')
+    
+    if args.writeDS9regions == True:
+        catalogTools.catalog2DS9(galaxyCatalog, args.outDir+os.path.sep+"{0:}_{1:.3f}_{2:.3f}.reg".format(database, RADeg, decDeg),
+                                 idKeyToUse = 'id', addInfo = [{'key': 'r', 'fmt': '%.3f'}, {'key': 'zPhot', 'fmt': '%.2f'}])
         
     if writeDensityMaps == True:
         if z == None and dz == None:
