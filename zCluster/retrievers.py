@@ -54,13 +54,108 @@ CACHE_DIR=os.environ['HOME']+os.path.sep+".zCluster"+os.path.sep+"cache"
 
 #-------------------------------------------------------------------------------------------------------------
 def makeCacheDir():
-    """Makes the cache dir where we store raw .csv output from the databases we query, if it doesn't already
-    exist.
+    """Makes the cache directory where catalogs (and sometimes other survey-specific data) are stored.
+    
+    """
+    os.makedirs(CACHE_DIR, exist_ok = True)
+
+#------------------------------------------------------------------------------------------------------------
+def getRetriever(database, maxMagError = 0.2):
+    """Given the name of a survey database, return a function that can retrieve a galaxy catalog, and an 
+    associated options dictionary.
+    
+    Args:
+        database (str): Name of the survey database - relatively well-tested options are: SDSSDR12, S82, 
+            DESY3, DESDR1, KiDSDR4, DECaLS (and similar variants).
+        maxMagError (float, optional): Objects with magnitude uncertainties greater than this value will be
+            cut from retrieved catalogs, subject to the minimum number of bands used by 
+            :func:`checkMagErrors`.
+    
+    Returns:
+        Retriever function, a dictionary containing additional parameters that the function needs to be
+        given, and the name of the PhotoRedshiftEngine passband set to use. 
+        
+        Returns `None` if there is no match to `database`.
     
     """
     
-    if os.path.exists(CACHE_DIR) == False:
-        os.makedirs(CACHE_DIR, exist_ok = True)
+    retriever=None
+    retrieverOptions=None
+    passbandSet='SDSS+Ks'
+    if database == 'S82':
+        retriever=S82Retriever
+        retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'SDSSDR7':
+        retriever=SDSSDR7Retriever
+    elif database == 'SDSSDR8':
+        retriever=SDSSDR8Retriever
+    elif database == 'SDSSDR10':
+        retriever=SDSSDR10Retriever
+    elif database == 'SDSSDR12':
+        retriever=SDSSDR12Retriever
+        retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'PS1':
+        passbandSet='PS1'
+        import mastcasjobs
+        if not os.environ.get('CASJOBS_WSID'):
+            raise Exception("Set CASJOBS_WSID environment variable to use PS1 (see: http://ps1images.stsci.edu/ps1_dr2_query.html - to get your WSID, go to http://mastweb.stsci.edu/ps1casjobs/ChangeDetails.aspx and check your 'profile' page)")
+        if not os.environ.get('CASJOBS_PW'):
+            raise Exception("Set CASJOBS_PW environment variable to use PS1 (see: http://ps1images.stsci.edu/ps1_dr2_query.html)")
+        retriever=PS1Retriever
+        retrieverOptions={'maxMagError': maxMagError, 'jobs': mastcasjobs.MastCasJobs(context="PanSTARRS_DR2")}
+    elif database == 'DESY3':
+        passbandSet='DES'
+        import easyaccess as ea
+        connection=ea.connect(section = 'dessci')
+        retriever=DESY3Retriever
+        retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
+    elif database == 'DESY3+WISE':
+        passbandSet='DES+WISE'
+        import easyaccess as ea
+        connection=ea.connect(section = 'dessci')
+        retriever=DESY3WISERetriever
+        retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
+    elif database == 'DESDR1':
+        import easyaccess as ea
+        connection=ea.connect(section = 'desdr')
+        retriever=DESDR1Retriever
+        retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
+    elif database == 'KiDSDR4':
+        passbandSet='KiDS-VIKING'
+        retriever=KiDSDR4Retriever
+        retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'ATLASDR4':
+        passbandSet='KiDS-VIKING'
+        retriever=ATLASDR4Retriever
+        retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'CFHTLenS':
+        retriever=CFHTLenSRetriever
+        retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'DECaLS':
+        passbandSet='DECaLS'
+        # For DECaLS, need the bricks files that define survey on the sky
+        # These were previously included in zCluster, but now we fetch over web and cache
+        bricksCacheDir=CACHE_DIR
+        makeCacheDir()
+        bricksPath=bricksCacheDir+os.path.sep+"survey-bricks.fits.gz"
+        if os.path.exists(bricksPath) == False:
+            print("... fetching and caching DECaLS survey-bricks.fits.gz ...")
+            urllib.request.urlretrieve("http://portal.nersc.gov/project/cosmo/data/legacysurvey/dr8/survey-bricks.fits.gz", bricksPath)
+        bricksDR8Path=bricksCacheDir+os.path.sep+"survey-bricks-dr8-south.fits.gz"
+        if os.path.exists(bricksDR8Path) == False:
+            print("... fetching and caching DECaLS survey-bricks-dr8-south.fits.gz ...")
+            urllib.request.urlretrieve("https://portal.nersc.gov/project/cosmo/data/legacysurvey/dr8/south/survey-bricks-dr8-south.fits.gz", bricksDR8Path)
+        bricksTab=atpy.Table().read(bricksPath)
+        DR8Tab=atpy.Table().read(bricksDR8Path)
+        DR8Tab.rename_column("brickname", "BRICKNAME")
+        retriever=DECaLSRetriever
+        retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab, 'DR8Tab': DR8Tab}
+    elif database == 'CFHTDeep':
+        retriever=CFHTDeepRetriever
+    elif database == 'CFHTWide':
+        retriever=CFHTWideRetriever
+   
+    return retriever, retrieverOptions, passbandSet
 
 #-------------------------------------------------------------------------------------------------------------
 def addWISEPhotometry(RADeg, decDeg, catalog, halfBoxSizeDeg = 36.0/60.):
@@ -1005,6 +1100,9 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {})
     centreMask=np.logical_and(RAMask, decMask)
     RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, 2*halfBoxSizeDeg)
     mask=np.logical_and(np.greater(bricksTab['RA1'], RAMin), np.less(bricksTab['RA2'], RAMax))
+    if RAMin < 0:
+        zeroCrossMask=np.greater(-(360-bricksTab['RA1']), RAMin)
+        mask=np.logical_or(mask, zeroCrossMask)
     mask=np.logical_and(mask, np.greater(bricksTab['DEC1'], decMin))
     mask=np.logical_and(mask, np.less(bricksTab['DEC2'], decMax))
     mask=np.logical_or(mask, centreMask)

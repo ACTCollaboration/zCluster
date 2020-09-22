@@ -24,9 +24,7 @@ from . import catalogRetriever
 from . import catalogTools
 from . import clusterFinding
 
-__all__=['catalogRetriever', 'catalogTools', 'PhotoRedshiftEngine', 'clusterFinding']
-
-__version__ = "git"
+__all__=['catalogs', 'retrievers', 'PhotoRedshiftEngine', 'clusters']
 
 from ._version import get_versions
 __version__ = get_versions()['version']

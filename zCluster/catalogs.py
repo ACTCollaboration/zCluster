@@ -23,6 +23,7 @@
 """
 
 from astLib import *
+import astropy.table as atpy
 import numpy as np
 import operator
 import os
@@ -157,6 +158,30 @@ def writeCatalog(catalog, outFileName, keysToWrite, keyFormats, constraintsList,
         outFile.write(line+"\t"+notes+"\n")
     outFile.close()    
 
+#-------------------------------------------------------------------------------------------------------------
+def writeRedshiftsCatalog(catalog, outFileName):
+    """Writes a .fits table with cluster photo-zs in it
+    
+    """
+    
+    tab=atpy.Table()
+    keys=['name', 'RADeg', 'decDeg', 'origRADeg', 'origDecDeg', 'offsetArcmin', 'offsetMpc', 'z', 'delta', 'errDelta']
+    for key in keys:
+        arr=[]
+        for obj in catalog:
+            arr.append(obj[key])
+        tab.add_column(atpy.Column(arr, key))
+    
+    # Since generally we cross match against sourcery tables, we may as well zap the non-results as we don't need
+    # The try... except bit here is because we've also used this routine to write the nullTest catalog, which doesn't have zs
+    try:
+        tab=tab[np.where(tab['z'] > 0.)]
+    except:
+        pass
+    
+    tab.table_name="zCluster"
+    tab.write(outFileName, overwrite = True)
+    
 #-------------------------------------------------------------------------------------------------------------
 def getNEDInfo(obj, nedDir = "NEDResults", radiusDeg = 5.0/60.0, crossMatchRadiusDeg = 2.5/60, refetch = True):
     """Queries NED for matches near each obj (must have keys name, RADeg, decDeg) and returns the nearest 
