@@ -101,9 +101,9 @@ if __name__ == '__main__':
     retriever, retrieverOptions, passbandSet=retrievers.getRetriever(database, maxMagError = 0.2)
 
     ZPOffsets=None
-    #if database == 'DECaLS':
-        ## Zero point offsets had no effect on correcting the bias, but left in for now 
-        #ZPOffsets=np.array([0.02271222, -0.05051711, -0.02465597, -0.00406835, 0.05406105])
+    if database == 'DECaLS':
+        # Zero point offsets remove bias from galaxy max likelihood photo-zs when testing on SDSS
+        ZPOffsets=np.array([0.02271222, -0.05051711, -0.02465597, -0.00406835, 0.05406105])
         
     if cacheDir is not None:
         retrieverOptions['altCacheDir']=cacheDir

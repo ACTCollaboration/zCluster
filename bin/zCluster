@@ -570,8 +570,9 @@ if __name__ == '__main__':
     elif database == 'DECaLS':
         zPriorMin=0.05
         zPriorMax=1.5
-        # Zero point offsets had no effect on correcting the bias
-        #ZPOffsets=np.array([0.02271222, -0.05051711, -0.02465597, -0.00406835, 0.05406105])
+        # Zero point offsets remove bias from galaxy max likelihood photo-zs when testing on SDSS
+        # But they don't get rid of bias on cluster photo-zs
+        ZPOffsets=np.array([0.02271222, -0.05051711, -0.02465597, -0.00406835, 0.05406105])
         zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
 
     # Allow prior overrides from command line
