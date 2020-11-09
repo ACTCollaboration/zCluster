@@ -326,7 +326,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                         pass
 
                 if writePlots == True:
-                    writePlot(obj['name'], obj['zClusterResult'], zPriorMax, outDir+os.path.sep+"Plots")
+                    writePlot(obj['name'], result, zPriorMax, outDir+os.path.sep+"Plots")
 
 
             # Insert a row of data
