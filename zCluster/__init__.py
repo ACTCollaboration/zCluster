@@ -4,9 +4,9 @@ zCluster - photometric redshift estimation package
 
 """
 
-from . import catalogRetriever
-from . import catalogTools
-from . import clusterFinding
+from . import retrievers
+from . import catalogs
+from . import clusters
 
 __all__=['catalogs', 'retrievers', 'PhotoRedshiftEngine', 'clusters']
 
