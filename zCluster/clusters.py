@@ -1,25 +1,7 @@
 """
-    Routines for finding cluster redshift from p(z) distributions of galaxies in catalog
 
-    ---
-    
-    Copyright 2017 Matt Hilton (matt.hilton@mykolab.com)
-    
-    This file is part of zCluster.
+This module contains routines for estimating galaxy cluster photometric redshifts.
 
-    zCluster is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    zCluster is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with zCluster.  If not, see <http://www.gnu.org/licenses/>.
-    
 """
 
 import os
@@ -344,7 +326,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     if max(bckNzDict['areaMpc2']) > (np.pi*(4**2-3**2)): 
         print("... WARNING: max(areaMpc2) = %.3f > %.3f at (RADeg, decDeg) = (%.6f, %.6f)" % (max(bckNzDict['areaMpc2']), np.pi*(4**2-3**2), RADeg, decDeg))        
         #raise Exception("Mask resolution is too coarse - area from mask > area of circular annulus") 
-
+    
     # Delta calculation with bootstrap error over the whole z range
     # For the first part of the mask, we allow background area == 1/2 of the 3-4 Mpc ring (previous min value was 20)
     # This allows us to get out to survey boundaries but will have large delta error bars
@@ -391,6 +373,9 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
             z=zDelta[zIndex]
             delta_at_z=delta[zIndex]
             errDelta_at_z=errDelta[zIndex]
+            if z < zPriorMin or z > zPriorMax:
+                print("... not within z prior range ...")
+                return None
         assert(np.isinf(delta_at_z) == False)
             
     else:
@@ -521,7 +506,7 @@ def calculateRedshiftAndOdds(pz, zArray, dzOdds = 0.2, method = 'max', zPriorMax
     Method == 'odds' finds z based on z at which odds is maximised
     
     """
-    
+        
     # Prior: to avoid worst cases of overestimating z
     pz=applyUniformPrior(pz, zArray, zPriorMax = zPriorMax, zPriorMin = zPriorMin) 
         
@@ -561,7 +546,7 @@ def calculateRedshiftAndOdds(pz, zArray, dzOdds = 0.2, method = 'max', zPriorMax
         odds=zOdds[np.argmax(zOdds)]
         #--
         norm=np.trapz(zOdds, zArray)
-        zOdds=zOdds/norm  
-    
+        zOdds=zOdds/norm
+            
     return [z, odds, zOdds]
     

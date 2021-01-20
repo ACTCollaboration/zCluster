@@ -148,30 +148,6 @@ def writePlot(objName, result, zPriorMax, plotsDir):
         plt.close()
 
 #-------------------------------------------------------------------------------------------------------------
-def writeRedshiftsCatalog(catalog, outFileName):
-    """Writes a .fits table with cluster photo-zs in it
-    
-    """
-    
-    tab=atpy.Table()
-    keys=['name', 'RADeg', 'decDeg', 'origRADeg', 'origDecDeg', 'offsetArcmin', 'offsetMpc', 'z', 'delta', 'errDelta']
-    for key in keys:
-        arr=[]
-        for obj in catalog:
-            arr.append(obj[key])
-        tab.add_column(atpy.Column(arr, key))
-    
-    # Since generally we cross match against sourcery tables, we may as well zap the non-results as we don't need
-    # The try... except bit here is because we've also used this routine to write the nullTest catalog, which doesn't have zs
-    try:
-        tab=tab[np.where(tab['z'] > 0.)]
-    except:
-        pass
-    
-    tab.table_name="zCluster"
-    tab.write(outFileName, overwrite = True)
-
-#-------------------------------------------------------------------------------------------------------------
 def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir, zPriorMin,
                  zPriorMax, weightsType, maxRMpc, zMethod, bckCatalogFileName, bckAreaDeg2,
                  maskPath = None, writeGalaxyCatalogs = False, writeDensityMaps = False, writePlots = False, 
@@ -211,7 +187,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
     # Optional background catalog (usually would only be used with proprietary photometric survey, e.g., SOAR)
     if bckCatalogFileName != None and bckAreaDeg2 != None:
         bckTab=atpy.Table().read(bckCatalogFileName)
-        bckCatalog=catalogRetriever.parseFITSPhotoTable(bckTab, fieldIDKey = 'field', optionsDict = retrieverOptions)
+        bckCatalog=retrievers.parseFITSPhotoTable(bckTab, fieldIDKey = 'field', optionsDict = retrieverOptions)
         photoRedshiftEngine.calcPhotoRedshifts(bckCatalog, calcMLRedshiftAndOdds = True)
     else:
         bckCatalog=[]
@@ -257,7 +233,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                 numIter=0
                 while converged == False and numIter < maxIter:
                     numIter=numIter+1
-                    result=clusterFinding.estimateClusterRedshift(RADeg, decDeg, galaxyCatalog, zPriorMin, 
+                    result=clusters.estimateClusterRedshift(RADeg, decDeg, galaxyCatalog, zPriorMin, 
                                                                   zPriorMax, weightsType, maxRMpc, zMethod, 
                                                                   maskMap = maskMap, maskWCS = maskWCS,
                                                                   bckCatalog = bckCatalog, bckAreaDeg2 = bckAreaDeg2,
@@ -266,7 +242,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                         break
                     else:
                         # We want the offset relative to the original position, not the last iteration
-                        dMapDict=clusterFinding.makeDensityMap(obj['origRADeg'], obj['origDecDeg'], galaxyCatalog, 
+                        dMapDict=clusters.makeDensityMap(obj['origRADeg'], obj['origDecDeg'], galaxyCatalog, 
                                                                result['z'], dz = 0.05)
                         result['offsetArcmin']=dMapDict['offsetArcmin']
                         result['offsetMpc']=dMapDict['offsetMpc']
@@ -341,7 +317,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                     tab.table_name="zCluster"
                     tab.write(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_")))
                     try:
-                        catalogTools.catalog2DS9(galaxyCatalog, 
+                        catalogs.catalog2DS9(galaxyCatalog, 
                                                  objOutDir+os.path.sep+"galaxyCatalog_%s.reg" % (obj['name'].replace(" ", "_")), 
                                                  idKeyToUse = 'id', 
                                                  addInfo = [{'key': 'r', 'fmt': '%.3f'}, {'key': 'zPhot', 'fmt': '%.2f'}]) 
@@ -350,7 +326,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                         pass
 
                 if writePlots == True:
-                    writePlot(obj['name'], obj['zClusterResult'], zPriorMax, outDir+os.path.sep+"Plots")
+                    writePlot(obj['name'], result, zPriorMax, outDir+os.path.sep+"Plots")
 
 
             # Insert a row of data
@@ -405,13 +381,12 @@ def getRoughFootprint(database):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser("zCluster")
-    parser.add_argument("catalogFileName", help="""A .fits table or a .csv file with columns 'name', 'RADeg',
-                        'decDeg'. Set to 'nullTest', to create a catalog with 1000 random positions
-                        that are more than 5 arcmin away from redMaPPer and NED clusters.""")
+    parser.add_argument("catalogFileName", help="""A .fits table or a .csv file with at least the columns 
+                        'name', 'RADeg', 'decDeg'.""")
     parser.add_argument("database", help="""The photometric database to use. Options are 'SDSSDR12', 'S82' 
                         (for SDSS DR7 Stripe 82 co-add); 'CFHTLenS'; 'DESDR1' [experimental], 
                         'DESY3' [experimental; requires access to proprietary DES data]; 'PS1' [experimental]; 
-                        'DECaLS' (DR8) [experimental]; or the path to a .fits table with columns in the 
+                        'DECaLS' (DR8); or the path to a .fits table with columns in the 
                         appropriate format ('ID', 'RADeg', 'decDeg', and magnitude column names in the form 
                         'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.).""")
     parser.add_argument("-o", "--output-label", dest="outLabel", help="""Label to use for outputs  
@@ -475,7 +450,7 @@ if __name__ == '__main__':
     parser.add_argument("--min-background-area-Mpc2", dest="minBackgroundAreaMpc2", default = 11, type = float,
                         help="""The minimum area of the background region in square Mpc. Candidate redshifts that have
                         less than this minimum background area will be filtered out of the output catalog (default: 11, 
-                        which corresponds to 50% of the background area for the standard 3-4 Mpc annulus used).""")
+                        which corresponds to 50%% of the background area for the standard 3-4 Mpc annulus used).""")
     parser.add_argument("-B", "--background-catalog", dest="bckCatalogFileName", help="""A .fits table with columns 
                         in the appropriate format ('ID', 'RADeg', 'decDeg', and magnitude column names in the form 
                         'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.) to be used as the background sample for delta estimates.
@@ -533,7 +508,7 @@ if __name__ == '__main__':
     else:
         bckAreaDeg2=None
     
-    if MPIEnabled ==True:
+    if MPIEnabled == True:
         from mpi4py import MPI
         comm=MPI.COMM_WORLD
         size=comm.Get_size()
@@ -545,138 +520,65 @@ if __name__ == '__main__':
 
     if rank == 0:
         if cacheDir is not None:
-            if os.path.exists(cacheDir) == False:
-                os.makedirs(cacheDir, exist_ok = True)
+            os.makedirs(cacheDir, exist_ok = True)
         else:
-            if os.path.exists(catalogRetriever.CACHE_DIR) == False:
-                os.makedirs(catalogRetriever.CACHE_DIR, exist_ok = True)
-                    
-    # Default prior cuts are defined for each database here... 
-    # Can be overridden with args.zPriorMin, args.zPriorMax... see below
-    retrieverOptions={}
-    passbandSet='SDSS+Ks'
+            os.makedirs(retrievers.CACHE_DIR, exist_ok = True)
+
+    catalog=parseClusterCatalog(catalogFileName)
+
+    # Method for fetching catalogs
+    retriever, retrieverOptions, passbandSet=retrievers.getRetriever(database, maxMagError = 0.2)
+    
+    # If we're not given a database, we're using a user-supplied FITS catalog
+    # We can supplement that with photometry from a chosen database cross-matched onto that catalog
+    if retriever is None:
+        retriever=catalogRetriever.FITSRetriever
+        extraRetriever, extraOptions, extraPassbandSet=getRetriever(args.addExtraPhoto)
+        retrieverOptions={'fileName': database, 'extraRetriever': extraRetriever, 'extraOptions': extraOptions}
+    
+    # Redshift priors and passband sets
     zDebias=None    # A fudge used to correct output zs for some surveys (final z = z + zDebias*(1+z))
     ZPOffsets=None
     if database == 'S82':
-        retriever=catalogRetriever.S82Retriever
         zPriorMin=0.20
         zPriorMax=1.5
-        retrieverOptions={'maxMagError': maxMagError}
-    elif database == 'SDSSDR7':
-        retriever=catalogRetriever.SDSSDR7Retriever
-    elif database == 'SDSSDR8':
-        retriever=catalogRetriever.SDSSDR8Retriever
-    elif database == 'SDSSDR10':
-        retriever=catalogRetriever.SDSSDR10Retriever
-    elif database == 'SDSSDR12':
-        retriever=catalogRetriever.SDSSDR12Retriever
+    elif database in ['SDSSDR7', 'SDSSDR8', 'SDSSDR10', 'SDSSDR12']:
         zPriorMin=0.05
         zPriorMax=0.8
-        retrieverOptions={'maxMagError': maxMagError}
     elif database == 'PS1':
-        import mastcasjobs
-        if not os.environ.get('CASJOBS_WSID'):
-            raise Exception("Set CASJOBS_WSID environment variable to use PS1 (see: http://ps1images.stsci.edu/ps1_dr2_query.html - to get your WSID, go to http://mastweb.stsci.edu/ps1casjobs/ChangeDetails.aspx and check your 'profile' page)")
-        if not os.environ.get('CASJOBS_PW'):
-            raise Exception("Set CASJOBS_PW environment variable to use PS1 (see: http://ps1images.stsci.edu/ps1_dr2_query.html)")
-        retriever=catalogRetriever.PS1Retriever
         # Min prior here set to match 4 Mpc max search radius
         zPriorMin=0.15
         zPriorMax=0.6
-        passbandSet='PS1'
-        retrieverOptions={'maxMagError': maxMagError, 'jobs': mastcasjobs.MastCasJobs(context="PanSTARRS_DR2")}
-    elif database == 'DESY3':
-        import easyaccess as ea
-        connection=ea.connect(section = 'dessci')
-        #connection=None
-        retriever=catalogRetriever.DESY3Retriever
+    elif database in ['DESY3', 'DESDR1']:
         zPriorMin=0.05
         zPriorMax=1.5
-        passbandSet='DES'
-        retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
         zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
     elif database == 'DESY3+WISE':
-        import easyaccess as ea
-        connection=ea.connect(section = 'dessci')
-        retriever=catalogRetriever.DESY3WISERetriever
         zPriorMin=0.05
         zPriorMax=1.5
-        passbandSet='DES+WISE'
-        retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
         zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
-    elif database == 'DESDR1':
-        import easyaccess as ea
-        connection=ea.connect(section = 'desdr')
-        retriever=catalogRetriever.DESDR1Retriever
-        zPriorMin=0.05
-        zPriorMax=1.5
-        passbandSet='DES'
-        retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
     elif database == 'KiDSDR4':
-        retriever=catalogRetriever.KiDSDR4Retriever
         zPriorMin=0.05
         zPriorMax=1.5
-        passbandSet='KiDS-VIKING'
         zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
-        retrieverOptions={'maxMagError': maxMagError}
     elif database == 'ATLASDR4':
-        retriever=catalogRetriever.ATLASDR4Retriever
         zPriorMin=0.05
         zPriorMax=0.8
-        passbandSet='KiDS-VIKING'
-        retrieverOptions={'maxMagError': maxMagError}
     elif database == 'CFHTLenS':
-        retriever=catalogRetriever.CFHTLenSRetriever
         zPriorMin=0.05
         zPriorMax=1.5
-        retrieverOptions={'maxMagError': maxMagError}
     elif database == 'DECaLS':
-        # For DECaLS, need the bricks files that define survey on the sky
-        # These were previously included in zCluster, but now we fetch over web and cache
-        bricksCacheDir=catalogRetriever.CACHE_DIR
-        catalogRetriever.makeCacheDir()
-        bricksPath=bricksCacheDir+os.path.sep+"survey-bricks.fits.gz"
-        if os.path.exists(bricksPath) == False:
-            print("... fetching and caching DECaLS survey-bricks.fits.gz ...")
-            urllib.request.urlretrieve("http://portal.nersc.gov/project/cosmo/data/legacysurvey/dr8/survey-bricks.fits.gz", bricksPath)
-        bricksDR8Path=bricksCacheDir+os.path.sep+"survey-bricks-dr8-south.fits.gz"
-        if os.path.exists(bricksDR8Path) == False:
-            print("... fetching and caching DECaLS survey-bricks-dr8-south.fits.gz ...")
-            urllib.request.urlretrieve("https://portal.nersc.gov/project/cosmo/data/legacysurvey/dr8/south/survey-bricks-dr8-south.fits.gz", bricksDR8Path)
-        bricksTab=atpy.Table().read(bricksPath)
-        DR8Tab=atpy.Table().read(bricksDR8Path)
-        DR8Tab.rename_column("brickname", "BRICKNAME")
-        retriever=catalogRetriever.DECaLSRetriever
         zPriorMin=0.05
         zPriorMax=1.5
-        passbandSet='DECaLS'
-        # Zero point offsets had no effect on correcting the bias
-        #ZPOffsets=np.array([-0.00878495, -0.019883, 0.01998477, -0.03047624, 0.00860256])
-        #ZPOffsets=np.array([-0.00380799, -0.01845335, 0.01706214, -0.0291939, 0.01454793])
-        #ZPOffsets=np.array([-0.07441184, -0.04284442, 0.01009525, 0.01008043, 0.05755784]) 
+        # Zero point offsets remove bias from galaxy max likelihood photo-zs when testing on SDSS
+        # But they don't get rid of bias on cluster photo-zs
         ZPOffsets=np.array([0.02271222, -0.05051711, -0.02465597, -0.00406835, 0.05406105])
         zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
-        retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab, 'DR8Tab': DR8Tab}
-    elif database == 'CFHTDeep':
-        retriever=catalogRetriever.CFHTDeepRetriever
-    elif database == 'CFHTWide':
-        retriever=catalogRetriever.CFHTWideRetriever
-        zPriorMin=0.05
-        zPriorMax=1.5
-    else:
-        # Assume this is a FITS file in format of ACAM or SOI photometric pipelines
-        # NOTE: SOI has 5' field of view, and targets have no z from SDSS anyway, so zPriorMin = 0.5 
-        # 'addSDSS' option here queries SDSS, cross matches, and adds e.g. g-band mags if we don't have them
-        zPriorMin=0.01
-        zPriorMax=2.0
-        passbandSet='WIRDS'
-        retriever=catalogRetriever.FITSRetriever
-        retrieverOptions={'fileName': database, 'addSDSS': args.addSDSS, 'maxMagError': maxMagError}
 
     # Allow prior overrides from command line
-    if args.zPriorMax != None:
+    if args.zPriorMax is not None:
         zPriorMax=float(args.zPriorMax)
-    if args.zPriorMin != None:
+    if args.zPriorMin is not None:
         zPriorMin=float(args.zPriorMin)
 
     # Set-up output dir and log the options we're running with
@@ -705,40 +607,6 @@ if __name__ == '__main__':
     photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, passbandSet = passbandSet, 
                                                                 ZPError = ZPError, ZPOffsets = ZPOffsets,
                                                                 templatesDir = args.templatesDir)
-        
-    # Either make a null test catalog, or parse the one we asked for
-    runningNullTest=False
-    if catalogFileName == 'nullTest':
-        runningNullTest=True
-        # Generate a catalog of random points
-        print(">>> Running null test ...")
-        catalogFileName="nullTest.fits"
-        if os.path.exists(catalogFileName) == False:
-            rmTab=atpy.Table().read(zCluster.__path__[0]+os.path.sep+"data"+os.path.sep+"redmapper_dr8_public_v5.10_catalog.fits")
-            RAMin, RAMax, decMin, decMax=getRoughFootprint(database)
-            catalog=[]
-            count=0
-            while count < 1000:
-                obj={}
-                obj['name']='null%d' % (count)
-                obj['RADeg']=np.random.uniform(RAMin, RAMax)
-                obj['decDeg']=np.random.uniform(decMin, decMax)
-                if obj['RADeg'] < 0:
-                    obj['RADeg']=360.0+obj['RADeg']
-                NEDInfo=catalogTools.getNEDInfo(obj, crossMatchRadiusDeg = 5.0/60.0, refetch = True)
-                rDeg=astCoords.calcAngSepDeg(obj['RADeg'], obj['decDeg'], np.array(rmTab['RA']), np.array(rmTab['DEC']))
-                if NEDInfo == None and (rDeg.min()*60.0) > 5.0:                    
-                    catalog.append(obj)
-                    count=count+1
-                else:
-                    print("... rejected position near NED or RM cluster ...")
-            writeRedshiftsCatalog(catalog, catalogFileName)
-        else:
-            print("... using existing nullTest.fits catalog...")
-            catalog=parseClusterCatalog(catalogFileName)
-            #catalog=catalog[:500] # For testing   
-    else:
-        catalog=parseClusterCatalog(catalogFileName)
     
     # Optionally only running on a single cluster
     if args.name != None:
@@ -807,48 +675,7 @@ if __name__ == '__main__':
             raise Exception("Failed to insert %s (keys: %s)" % (obj['name'], obj.keys()))
     conn.commit()
     conn.close()
-        
-    if runningNullTest == True:
-        deltaArr=[]
-        for obj in catalog:
-            if 'zClusterResult' in list(obj.keys()) and obj['zClusterResult'] != None:
-                if 'delta' in list(obj['zClusterResult'].keys()):
-                    deltaArr.append(obj['zClusterResult']['delta'])
-                elif 'SNR' in list(obj['zClusterResult'].keys()):
-                    deltaArr.append(obj['zClusterResult']['SNR'])
-            else:
-                deltaArr.append(0)
-        deltaArr=np.array(deltaArr)
-        #deltaArr[np.less(deltaArr, 0)]=0    # or should we allow -ve?
-        deltaArr.sort()
-        cumulativeRange=np.linspace(0, 100, 401)
-        cumulativeArr=[]
-        for c in cumulativeRange:
-            count=np.greater(deltaArr, c).sum()
-            cumulativeArr.append(count)
-        cumulativeArr=np.array(cumulativeArr, dtype = float)
-        percentileArr=(cumulativeArr/deltaArr.shape[0])*100
-        
-        update_rcParams()
-        plt.figure(figsize=(9,6.5))
-        #fontDict={'size': 18, 'family': 'serif'}
-        ax=plt.axes([0.10, 0.11, 0.88, 0.87])
-        #plt.tick_params(axis='both', which='major', labelsize=15)
-        #plt.tick_params(axis='both', which='minor', labelsize=15)
-        plt.plot(cumulativeRange, percentileArr, 'k', lw = 2)
-        plotMax=100
-        plt.ylabel("Null test detections (% > $\delta$)")#, fontdict = fontDict)
-        plt.xlabel("$\delta$")#, fontdict = fontDict)
-        plt.ylim(0, percentileArr[np.greater(cumulativeRange, 1)].max()*1.1)
-        plt.xlim(1, cumulativeRange[np.where(percentileArr == 0)[0][0]]+2)
-        plt.savefig(outDir+os.path.sep+"nullTest.pdf")
-        plt.close()
-
-        print(">>> Null test stats:")
-        for n in range(2, 9):
-            print("... percentage false detections at delta > %d = %.2f" % (n, percentileArr[np.equal(cumulativeRange, n)][0]))
-
-    # Want this either way
-    writeRedshiftsCatalog(catalog, outFileName)
+    
+    catalogs.writeRedshiftsCatalog(catalog, outFileName)
     
         

@@ -1,28 +1,11 @@
 """ 
-    This module contains tools for handling catalogs, which for us are lists of dictionaries.
 
-    ---
-    
-    Copyright 2017 Matt Hilton (matt.hilton@mykolab.com)
-    
-    This file is part of zCluster.
-
-    zCluster is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    zCluster is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with zCluster.  If not, see <http://www.gnu.org/licenses/>.
+This module contains tools for handling catalogs.
     
 """
 
 from astLib import *
+import astropy.table as atpy
 import numpy as np
 import operator
 import os
@@ -157,6 +140,30 @@ def writeCatalog(catalog, outFileName, keysToWrite, keyFormats, constraintsList,
         outFile.write(line+"\t"+notes+"\n")
     outFile.close()    
 
+#-------------------------------------------------------------------------------------------------------------
+def writeRedshiftsCatalog(catalog, outFileName):
+    """Writes a .fits table with cluster photo-zs in it
+    
+    """
+    
+    tab=atpy.Table()
+    keys=['name', 'RADeg', 'decDeg', 'origRADeg', 'origDecDeg', 'offsetArcmin', 'offsetMpc', 'z', 'delta', 'errDelta']
+    for key in keys:
+        arr=[]
+        for obj in catalog:
+            arr.append(obj[key])
+        tab.add_column(atpy.Column(arr, key))
+    
+    # Since generally we cross match against sourcery tables, we may as well zap the non-results as we don't need
+    # The try... except bit here is because we've also used this routine to write the nullTest catalog, which doesn't have zs
+    try:
+        tab=tab[np.where(tab['z'] > 0.)]
+    except:
+        pass
+    
+    tab.table_name="zCluster"
+    tab.write(outFileName, overwrite = True)
+    
 #-------------------------------------------------------------------------------------------------------------
 def getNEDInfo(obj, nedDir = "NEDResults", radiusDeg = 5.0/60.0, crossMatchRadiusDeg = 2.5/60, refetch = True):
     """Queries NED for matches near each obj (must have keys name, RADeg, decDeg) and returns the nearest 

@@ -240,14 +240,24 @@ if __name__ == '__main__':
     zMax=args.zMax
     
     update_rcParams()
+
+    # Because we want dummy points that aren't transparent in the legend
+    colors=[]
+    for cc in plt.rcParams['axes.prop_cycle']:
+        colors.append(cc['color'])
     
     plt.figure(figsize=(18, 6.5))
 
     plt.subplot(121)
     plt.subplots_adjust(left = 0.065, bottom = 0.11, right = 0.99, top = 0.97, wspace = 0.01, hspace = 0.24)
 
-    plt.plot(zIn[deltaMask], diff_over1plusz[deltaMask], 'D', ms = args.markerSize, alpha = args.alpha, mew = 0, label = '$\delta > %.0f$' % (deltaMin), zorder = 3)    
-    plt.plot(zIn[notMask], diff_over1plusz[notMask], 'D', ms = args.markerSize, mfc = '#888888', alpha = args.alpha, mew = 0, label = '$\delta < %.0f$' % (deltaMin), zorder = 1)
+    plt.plot(zIn[deltaMask], diff_over1plusz[deltaMask], 'D', color = colors[0], ms = args.markerSize, alpha = args.alpha, mew = 0, zorder = 3)    
+    plt.plot(zIn[notMask], diff_over1plusz[notMask], 'D', ms = args.markerSize, color = '#888888', alpha = args.alpha, mew = 0, zorder = 1)
+    
+    # Dummy points that aren't transparent
+    plt.plot([], [], 'D', color = colors[0], label = '$\delta > %.0f$' % (deltaMin))
+    plt.plot([], [], 'D', color = '#888888', label = '$\delta < %.0f$' % (deltaMin))
+    
     yPlotRange=np.linspace(-1, 1, 10)
     xPlotRange=np.linspace(zMin, zMax, 10)
     plt.plot(xPlotRange, [meanMaskedDiff]*len(xPlotRange), 'k--', 
@@ -271,10 +281,8 @@ if __name__ == '__main__':
     plt.ylabel("$(z_{\mathrm{%s}}-z_{\mathrm{c}})$/$(1+z_{\mathrm{%s}})$" % (inLabel, inLabel))
 
     plt.subplot(122)
-    plt.plot(delta[mask], diff_over1plusz[mask], 'D', ms = args.markerSize, alpha = args.alpha, mew = 0, 
-             label = '$\delta$ > $%.0f$' % (deltaMin), zorder = 3)
-    plt.plot(delta[notMask], diff_over1plusz[notMask], 'D', mfc = '#888888', ms = args.markerSize, alpha = args.alpha, mew = 0, 
-             label = '$\delta$ < $%.0f$' % (deltaMin), zorder = 1)
+    plt.plot(delta[mask], diff_over1plusz[mask], 'D', color = colors[0], ms = args.markerSize, alpha = args.alpha, mew = 0, zorder = 3)
+    plt.plot(delta[notMask], diff_over1plusz[notMask], 'D', color = '#888888', ms = args.markerSize, alpha = args.alpha, mew = 0, zorder = 1)
     yPlotRange=np.linspace(-1, 1, 10)
     xPlotRange=np.linspace(0, delta.max()*1.1, 10)
     plt.plot(xPlotRange, [meanMaskedDiff]*len(xPlotRange), 'k--', 

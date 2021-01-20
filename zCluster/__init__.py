@@ -1,32 +1,14 @@
-# -*- coding: utf-8 -*-
-
 """
-    Copyright 2017 Matt Hilton (matt.hilton@mykolab.com)
-    
-    This file is part of zCluster.
 
-    zCluster is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    zCluster is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with zCluster.  If not, see <http://www.gnu.org/licenses/>.
+zCluster - photometric redshift estimation package
 
 """
 
-from . import catalogRetriever
-from . import catalogTools
-from . import clusterFinding
+from . import retrievers
+from . import catalogs
+from . import clusters
 
-__all__=['catalogRetriever', 'catalogTools', 'PhotoRedshiftEngine', 'clusterFinding']
-
-__version__ = "git"
+__all__=['catalogs', 'retrievers', 'PhotoRedshiftEngine', 'clusters']
 
 from ._version import get_versions
 __version__ = get_versions()['version']

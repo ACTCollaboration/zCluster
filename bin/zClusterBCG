@@ -67,7 +67,7 @@ def fetchSDSSImage(obj, refetch = False):
     RADeg=obj['RADeg']
     decDeg=obj['decDeg']                
     #outFileName=sdssCacheDir+os.path.sep+name.replace(" ", "_")+".jpg"
-    outFileName=sdssCacheDir+os.path.sep+catalogTools.makeRADecString(RADeg, decDeg)+".jpg"
+    outFileName=sdssCacheDir+os.path.sep+catalogs.makeRADecString(RADeg, decDeg)+".jpg"
     print("... image path = %s ..." % (outFileName))
     SDSSWidth=1200.0
     SDSSScale=(configDict['plotSizeArcmin']*60.0)/SDSSWidth # 0.396127
@@ -96,7 +96,7 @@ def fetchDESImage(obj, refetch = False):
     name=obj['name']
     RADeg=obj['RADeg']
     decDeg=obj['decDeg']                
-    outFileName=desCacheDir+os.path.sep+catalogTools.makeRADecString(RADeg, decDeg)+".jpg"
+    outFileName=desCacheDir+os.path.sep+catalogs.makeRADecString(RADeg, decDeg)+".jpg"
     print("... image path = %s ..." % (outFileName))
     global DESTiles # We're doing things this way to avoid long set-up time for tile dir
     if os.path.exists(outFileName) == False or refetch == True:
@@ -135,7 +135,7 @@ class CMDImageCombo:
         sizeDeg=configDict['plotSizeArcmin']/60.0
         
         # Load data
-        inJPGPath=cacheDir+os.path.sep+surveyLabel+os.path.sep+catalogTools.makeRADecString(RADeg, decDeg)+".jpg"
+        inJPGPath=cacheDir+os.path.sep+surveyLabel+os.path.sep+catalogs.makeRADecString(RADeg, decDeg)+".jpg"
         #inJPGPath=cacheDir+os.path.sep+surveyLabel+os.path.sep+name.replace(" ", "_")+".jpg"
         if os.path.exists(inJPGPath) == False:
             return None
