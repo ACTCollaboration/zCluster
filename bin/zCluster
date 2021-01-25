@@ -166,7 +166,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
     matches=c.fetchall()
     if len(matches) == 0:
         c.execute("""CREATE TABLE redshifts (name text, RADeg real, decDeg real, origRADeg real, origDecDeg real, 
-                  offsetArcmin real, offsetMpc real, z real, delta real, errDelta real)""")
+                  offsetArcmin real, offsetMpc real, z real, delta real, errDelta real, CS real, A real))""")
     
     # The global database for checking if we've already measured a redshift - read only
     if os.path.exists(outDir+os.path.sep+"redshifts_global.db") == True:
@@ -220,6 +220,8 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
             obj['z']=-99
             obj['delta']=0
             obj['errDelta']=0
+            obj['CS']=-99
+            obj['A']=-99
             if galaxyCatalog is not None:
                 
                 if fitZPOffsets == True:
@@ -246,6 +248,8 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                                                                result['z'], dz = 0.05)
                         result['offsetArcmin']=dMapDict['offsetArcmin']
                         result['offsetMpc']=dMapDict['offsetMpc']
+                        result['CS']=dMapDict['CS']
+                        result['A']=dMapDict['A']
                         newRADeg=dMapDict['cRADeg']
                         newDecDeg=dMapDict['cDecDeg']
                         if newRADeg == RADeg and newDecDeg == decDeg:
@@ -261,13 +265,15 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                     obj['offsetArcmin']=result['offsetArcmin']
                     obj['offsetMpc']=result['offsetMpc']
                     obj['z']=result['z']
+                    obj['CS']=result['CS']
+                    obj['A']=result['A']
                     # Optional: de-bias right here (use with caution)
                     if zDebias is not None:
                         obj['z']=obj['z']+zDebias*(1+obj['z'])
                     obj['delta']=result['delta']
                     obj['errDelta']=result['errDelta']
-                    print("... %s: z = %.2f; delta = %.1f; errDelta = %.1f; offsetArcmin = %.1f; offsetMpc = %.1f ..." 
-                          % (obj['name'], obj['z'], obj['delta'], obj['errDelta'], obj['offsetArcmin'], obj['offsetMpc']))
+                    print("... %s: z = %.2f; delta = %.1f; errDelta = %.1f; offsetArcmin = %.1f; offsetMpc = %.1f; CS = %.1f; A = %.1f ..." 
+                          % (obj['name'], obj['z'], obj['delta'], obj['errDelta'], obj['offsetArcmin'], obj['offsetMpc'], obj['CS'], obj['A']))
                     if writeDensityMaps == True:
                         astImages.saveFITS(objOutDir+os.path.sep+"densityMap_%s.fits" % (obj['name'].replace(" ", "_")), 
                                            dMapDict['map'], dMapDict['wcs']) 
@@ -332,7 +338,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
             # Insert a row of data
             c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
                       (obj['name'], obj['RADeg'], obj['decDeg'], obj['origRADeg'], obj['origDecDeg'], 
-                       obj['offsetArcmin'], obj['offsetMpc'], obj['z'], obj['delta'], obj['errDelta']))
+                       obj['offsetArcmin'], obj['offsetMpc'], obj['z'], obj['delta'], obj['errDelta'], obj['CS'], obj['A']))
             conn.commit() # May want to think about how often we do this...
             
         else:
@@ -344,7 +350,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
             if len(globalMatches) > 0:
                 thisCursor=cGlobal
             thisCursor.execute("""SELECT z, delta, errDelta, RADeg, decDeg, origRADeg, origDecDeg, offsetArcmin, 
-                                offsetMpc FROM redshifts WHERE name = ?""", (obj['name'],))
+                                offsetMpc, CS, A FROM redshifts WHERE name = ?""", (obj['name'],))
             match=thisCursor.fetchone()
             obj['z']=match[0]
             obj['delta']=match[1]
@@ -355,6 +361,8 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
             obj['decDeg']=match[6]
             obj['offsetArcmin']=match[7]
             obj['offsetMpc']=match[8]
+            obj['CS']=match[9]
+            obj['A']=match[10]
  
     return catalog
 
@@ -665,12 +673,12 @@ if __name__ == '__main__':
     matches=c.fetchall()
     if len(matches) == 0:
         c.execute("""CREATE TABLE redshifts (name text, RADeg real, decDeg real, origRADeg real, origDecDeg real,
-                  offsetArcmin real, offsetMpc real, z real, delta real, errDelta real)""")
+                  offsetArcmin real, offsetMpc real, z real, delta real, errDelta real, CS real, A real)""")
     for obj in catalog:
         try:
             c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
                       (obj['name'], obj['RADeg'], obj['decDeg'], obj['origRADeg'], obj['origDecDeg'], obj['offsetArcmin'],
-                       obj['offsetMpc'], obj['z'], obj['delta'], obj['errDelta']))
+                       obj['offsetMpc'], obj['z'], obj['delta'], obj['errDelta'], obj['CS'], obj['A']))
         except:
             raise Exception("Failed to insert %s (keys: %s)" % (obj['name'], obj.keys()))
     conn.commit()
