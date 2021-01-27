@@ -166,7 +166,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
     matches=c.fetchall()
     if len(matches) == 0:
         c.execute("""CREATE TABLE redshifts (name text, RADeg real, decDeg real, origRADeg real, origDecDeg real, 
-                  offsetArcmin real, offsetMpc real, z real, delta real, errDelta real, CS real, A real))""")
+                  offsetArcmin real, offsetMpc real, z real, delta real, errDelta real, CS real, A real)""")
     
     # The global database for checking if we've already measured a redshift - read only
     if os.path.exists(outDir+os.path.sep+"redshifts_global.db") == True:
@@ -336,7 +336,7 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
 
 
             # Insert a row of data
-            c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+            c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
                       (obj['name'], obj['RADeg'], obj['decDeg'], obj['origRADeg'], obj['origDecDeg'], 
                        obj['offsetArcmin'], obj['offsetMpc'], obj['z'], obj['delta'], obj['errDelta'], obj['CS'], obj['A']))
             conn.commit() # May want to think about how often we do this...
@@ -676,7 +676,7 @@ if __name__ == '__main__':
                   offsetArcmin real, offsetMpc real, z real, delta real, errDelta real, CS real, A real)""")
     for obj in catalog:
         try:
-            c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+            c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
                       (obj['name'], obj['RADeg'], obj['decDeg'], obj['origRADeg'], obj['origDecDeg'], obj['offsetArcmin'],
                        obj['offsetMpc'], obj['z'], obj['delta'], obj['errDelta'], obj['CS'], obj['A']))
         except:
