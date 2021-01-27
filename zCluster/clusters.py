@@ -105,6 +105,16 @@ def makeDensityMap(RADeg, decDeg, catalog, z, dz = 0.1, rMaxMpc = 1.5):
             d[y, x]=d[y, x]+v
     d=ndimage.gaussian_filter(d, 2)
     
+    #Centre shift:
+    xpos,ypos=np.where(d==d.max())
+    CS=np.sqrt((xpos-d.shape[1]/2)**2+(ypos-d.shape[0]/2)**2)[0]
+    CSinMpc=CS*0.1
+
+    #Assymetry parameter
+    d1=np.flipud(np.fliplr(d))
+    Adiff= (np.power(d-d1,2))
+    A=np.sqrt((np.power(d-d1, 2).sum())/(2*np.power(d, 2).sum()))
+    
     # We restrict centre finding to within 1.5 Mpc radius
     ys=np.array([np.arange(d.shape[0])]*d.shape[1]).transpose()
     xs=np.array([np.arange(d.shape[1])]*d.shape[0])
@@ -120,7 +130,7 @@ def makeDensityMap(RADeg, decDeg, catalog, z, dz = 0.1, rMaxMpc = 1.5):
     offsetMpc=np.radians(offsetArcmin/60.)*DA
 
     return {'map': d, 'wcs': wcs, 'cRADeg': cRADeg, 'cDecDeg': cDecDeg, 
-            'offsetArcmin': offsetArcmin, 'offsetMpc': offsetMpc}
+            'offsetArcmin': offsetArcmin, 'offsetMpc': offsetMpc, 'CS': CS, 'A': A}
         
 #-------------------------------------------------------------------------------------------------------------
 def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMpc = 0.0, maxDistanceMpc = 1.0, 

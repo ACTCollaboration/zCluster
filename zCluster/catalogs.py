@@ -147,7 +147,7 @@ def writeRedshiftsCatalog(catalog, outFileName):
     """
     
     tab=atpy.Table()
-    keys=['name', 'RADeg', 'decDeg', 'origRADeg', 'origDecDeg', 'offsetArcmin', 'offsetMpc', 'z', 'delta', 'errDelta']
+    keys=['name', 'RADeg', 'decDeg', 'origRADeg', 'origDecDeg', 'offsetArcmin', 'offsetMpc', 'z', 'delta', 'errDelta', 'CS', 'A']
     for key in keys:
         arr=[]
         for obj in catalog:
