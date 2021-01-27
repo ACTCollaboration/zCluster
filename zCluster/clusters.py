@@ -288,7 +288,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     This is obviously a fudge, so use with caution (only used for some surveys - see bin/zCluster).
             
     """
-       
+        
     # Initial sanity check: if we didn't find a decent number of galaxies close to the cluster centre, 
     # the cluster is probably not actually in the optical catalog footprint (e.g., just outside edge of S82)
     gOdds, gRedshifts, angSepArray, tanArray=extractArraysFromGalaxyCatalog(catalog, RADeg, decDeg)
@@ -340,7 +340,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     # Delta calculation with bootstrap error over the whole z range
     # For the first part of the mask, we allow background area == 1/2 of the 3-4 Mpc ring (previous min value was 20)
     # This allows us to get out to survey boundaries but will have large delta error bars
-    validMask=np.greater(bckNzDict['areaMpc2'], minBackgroundAreaMpc2) 
+    validMask=np.greater_equal(bckNzDict['areaMpc2'], minBackgroundAreaMpc2) 
     bckAreaNorm=np.zeros(len(clusterNzDictForSNR['areaMpc2']))
     bckAreaNorm[validMask]=clusterNzDictForSNR['areaMpc2'][validMask]/bckNzDict['areaMpc2'][validMask]
     validMask=np.logical_and(validMask, clusterNzDictForSNR['NzWeightedSum'] > 0)

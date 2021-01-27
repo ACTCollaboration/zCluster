@@ -452,9 +452,10 @@ if __name__ == '__main__':
                         default = False)
     parser.add_argument("-P", "--write-plots", dest="writePlots", action="store_true", 
                         help = """Write out a .pdf plot of n(z) for each cluster.""", default = False)
-    parser.add_argument("-s", "--add-SDSS", dest="addSDSS", action="store_true", help="""If using 
-                        a user-supplied FITS galaxy photometic catalog, add in additional SDSS 
-                        photometry if available.""", default = False)
+    parser.add_argument("-X", "--add-extra-photometry", dest="addExtraPhoto",
+                        help = """If using a user-supplied FITS galaxy photometic catalog, add in additional
+                        photometry from the given database (e.g., SDSSDR12, DECaLS - see 'database'),
+                        if available.""", default = None)
     parser.add_argument("--min-background-area-Mpc2", dest="minBackgroundAreaMpc2", default = 11, type = float,
                         help="""The minimum area of the background region in square Mpc. Candidate redshifts that have
                         less than this minimum background area will be filtered out of the output catalog (default: 11, 
@@ -468,7 +469,7 @@ if __name__ == '__main__':
     parser.add_argument("-C", "--credentials-filename", dest="credentialsFileName", default = None, 
                         help = """The location of a file containing username (first line), password (second line), 
                         for login to e.g., ESO Portal (this option is only currently used for the KIDSDR3
-                        database option)""")
+                        database option).""")
 
     args = parser.parse_args()
 
@@ -540,13 +541,17 @@ if __name__ == '__main__':
     # If we're not given a database, we're using a user-supplied FITS catalog
     # We can supplement that with photometry from a chosen database cross-matched onto that catalog
     if retriever is None:
-        retriever=catalogRetriever.FITSRetriever
-        extraRetriever, extraOptions, extraPassbandSet=getRetriever(args.addExtraPhoto)
+        retriever=retrievers.FITSRetriever
+        extraRetriever, extraOptions, extraPassbandSet=retrievers.getRetriever(args.addExtraPhoto)
+        if cacheDir is not None:
+            extraOptions['altCacheDir']=cacheDir
         retrieverOptions={'fileName': database, 'extraRetriever': extraRetriever, 'extraOptions': extraOptions}
     
     # Redshift priors and passband sets
     zDebias=None    # A fudge used to correct output zs for some surveys (final z = z + zDebias*(1+z))
     ZPOffsets=None
+    zPriorMin=0.1
+    zPriorMax=2.0
     if database == 'S82':
         zPriorMin=0.20
         zPriorMax=1.5
@@ -609,7 +614,7 @@ if __name__ == '__main__':
         logFile.write("zPriorMax: %.3f\n" % (zPriorMax))
         logFile.close()
         
-    if cacheDir != None:
+    if cacheDir is not None:
         retrieverOptions['altCacheDir']=cacheDir
             
     photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, passbandSet = passbandSet, 
