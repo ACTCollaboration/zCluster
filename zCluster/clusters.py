@@ -72,8 +72,8 @@ def makeBlankMap(RADeg, decDeg, sizePix, sizeDeg):
     newHead['CRPIX2']=yRefPix+1
     newHead['CDELT1']=-xOutPixScale
     newHead['CDELT2']=xOutPixScale    # Makes more sense to use same pix scale
-    newHead['CUNIT1']='DEG'
-    newHead['CUNIT2']='DEG'
+    newHead['CUNIT1']='deg'
+    newHead['CUNIT2']='deg'
     wcs=astWCS.WCS(newHead, mode='pyfits')
     
     return np.zeros([int(sizePix), int(sizePix)], dtype = float), wcs
@@ -391,7 +391,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     else:
         print("... background area too small - skipping ...")
         return None
-        
+            
     return {'z': z, 'pz': pzWeightedMean, 'zOdds': zOdds, 'pz_z': zArray, 'delta': delta_at_z, 'errDelta': errDelta_at_z,
             'areaMask': areaMask, 'wcs': wcs}
 
@@ -451,8 +451,8 @@ def estimateAreaMask(RADeg, decDeg, catalog):
     newHead['CRPIX2']=yRefPix+1
     newHead['CDELT1']=-xOutPixScale
     newHead['CDELT2']=xOutPixScale
-    newHead['CUNIT1']='DEG'
-    newHead['CUNIT2']='DEG'
+    newHead['CUNIT1']='deg'
+    newHead['CUNIT2']='deg'
     wcs=astWCS.WCS(newHead, mode='pyfits')
     for obj in catalog:
         x, y=wcs.wcs2pix(obj['RADeg'], obj['decDeg'])

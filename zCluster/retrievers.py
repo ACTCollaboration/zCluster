@@ -1037,7 +1037,7 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
-def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
+def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
     """Retrieves DECaLS DR8 tractor catalogs (if they exist) at the given position. Cuts the catalog to the
     radius specified by halfBoxSizeDeg.
 
