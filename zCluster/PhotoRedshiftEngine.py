@@ -105,7 +105,8 @@ class PhotoRedshiftEngine:
         self.modelSEDDictList=[]
         if templatesDir is None:
             pickleFileName=None
-            SEDDir=resource_filename('zCluster', 'SED/')
+            #SEDDir=resource_filename('zCluster', 'SED/')
+            SEDDir=zCluster.__path__[0]+os.path.sep+'SED'
             self.SEDFiles=glob.glob(SEDDir+os.path.sep+"EAZY_v1.0"+os.path.sep+"*.dat")+ \
                           glob.glob(SEDDir+os.path.sep+"CWW"+os.path.sep+"*.sed")
             #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/uvista_nmf/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.0/*.dat")
@@ -138,6 +139,7 @@ class PhotoRedshiftEngine:
                 try:
                     s.loadFromFile(f)
                 except:
+                    print("Failed to load SED %s" % (s))
                     IPython.embed()
                     sys.exit()
                 t=t+1
