@@ -79,21 +79,44 @@ def makeBlankMap(RADeg, decDeg, sizePix, sizeDeg):
     return np.zeros([int(sizePix), int(sizePix)], dtype = float), wcs
 
 #-------------------------------------------------------------------------------------------------------------
-def makeDensityMap(RADeg, decDeg, catalog, z, dz = 0.1, rMaxMpc = 1.5):
-    """Make a projected density map within +/- dz of the given redshift. The map covers 8 Mpc on a side,
-    projected at the given redshift, with 0.1 Mpc binning. The map is smoothed with a Gaussian kernel with
-    sigma = 0.2 Mpc.
+def makeDensityMap(RADeg, decDeg, catalog, z, dz = 0.1, rMaxMpc = 1.5, sizeMpc = 8.0, MpcPerPix = 0.1,
+                   gaussSmoothPix = 2):
+    """Makes a projected density map within +/- dz of the given redshift, smoothed using a Gaussian kernel,
+    then calculates the centroid location, centroid shift (with respect to the original position), and an
+    asymmetry statistic.
     
-    While we're at it, we find the peak of the density map within rMaxMpc radius of the target position.
-    
-    Returns a dictionary.
+    Args:
+        RADeg (float): RA coordinate (decimal degrees) of the center of the output map.
+        decDeg (float): dec coordinate (decimal degrees) of the center of the output map.
+        z (float): Central redshift at which the projected density will be calculated.
+        dz (float, optional): Sets the integration range z +/- dz over which the projected density is
+            calculated.
+        rMaxMpc (float, optional): The maximum radial distance in Mpc (from RADeg, decDeg) in which the
+            centroid search is performed.
+        sizeMpc (float, optional): The size of the density map (which is square) in projected Mpc.
+        MpcPerPix (float, optional): The pixel size, in projected Mpc, for the output density map.
+        gaussSmoothPix (int, optional): The size of the Gaussian smoothing kernel applied to the output
+            projected density map, in pixels.
+        
+    Returns:
+        A dictionary with keys:
+            - 'map': the output projected density map (2d array)
+            - 'wcs': the output WCS
+            - 'cRADeg': the RA of the centroid (peak) in the density map
+            - 'cDecDeg': the dec of the centroid (peak) in the density map
+            - 'offsetArcmin': size of the offset of the centroid (arcmin) from the original RA, dec
+                coords
+            - 'offsetMpc': size of the offset of the centroid (projected Mpc) from the original RA,
+                dec coordinates
+            - 'CS': centroid shift parameter (Mpc)
+            - 'A': asymmetry parameter
     
     """
     
     # We go out to 4 Mpc for delta
     DA=astCalc.da(z)
-    sizeDeg=np.degrees(4/DA)*2
-    sizePix=int(4/0.1)
+    sizeDeg=np.degrees(sizeMpc/DA)
+    sizePix=int(sizeMpc/MpcPerPix)
     d, wcs=makeBlankMap(RADeg, decDeg, sizePix, sizeDeg)
     for g in catalog:
         x, y=wcs.wcs2pix(g['RADeg'], g['decDeg'])
@@ -103,16 +126,17 @@ def makeDensityMap(RADeg, decDeg, catalog, z, dz = 0.1, rMaxMpc = 1.5):
         v=np.trapz(g['pz'][mask], g['pz_z'][mask])
         if x >= 0 and x < d.shape[1] and y >= 0 and y < d.shape[0]:
             d[y, x]=d[y, x]+v
-    d=ndimage.gaussian_filter(d, 2)
+    d=ndimage.gaussian_filter(d, gaussSmoothPix)
     
-    #Centre shift:
+    # Centre shift
     xpos,ypos=np.where(d==d.max())
     CS=np.sqrt((xpos-d.shape[1]/2)**2+(ypos-d.shape[0]/2)**2)[0]
-    CSinMpc=CS*0.1
+    CSinMpc=CS*MpcPerPix
 
-    #Assymetry parameter
-    d1=np.flipud(np.fliplr(d))
-    Adiff= (np.power(d-d1,2))
+    # Asymmetry parameter
+    d1=np.zeros(d.shape)+d
+    d1=np.flipud(np.fliplr(d1))
+    Adiff=np.power(d-d1, 2)
     A=np.sqrt((np.power(d-d1, 2).sum())/(2*np.power(d, 2).sum()))
     
     # We restrict centre finding to within 1.5 Mpc radius
@@ -125,10 +149,10 @@ def makeDensityMap(RADeg, decDeg, catalog, z, dz = 0.1, rMaxMpc = 1.5):
     rMpcMap=np.radians(rDegMap)*DA
     rMask=np.less(rMpcMap, rMaxMpc)
     y, x=np.where((d*rMask) == (d*rMask).max())
-    cRADeg, cDecDeg=wcs.pix2wcs(y[0], x[0])
+    cRADeg, cDecDeg=wcs.pix2wcs(x[0], y[0])
     offsetArcmin=astCoords.calcAngSepDeg(cRADeg, cDecDeg, RADeg, decDeg)*60
     offsetMpc=np.radians(offsetArcmin/60.)*DA
-
+    
     return {'map': d, 'wcs': wcs, 'cRADeg': cRADeg, 'cDecDeg': cDecDeg, 
             'offsetArcmin': offsetArcmin, 'offsetMpc': offsetMpc, 'CS': CS, 'A': A}
         
