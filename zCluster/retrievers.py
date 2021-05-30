@@ -1,3 +1,5 @@
+
+
 """
 
 This module contains routines for retrieving galaxy catalogs from various photometric surveys.
@@ -113,11 +115,11 @@ def getRetriever(database, maxMagError = 0.2):
         bricksPath=bricksCacheDir+os.path.sep+"survey-bricks.fits.gz"
         if os.path.exists(bricksPath) == False:
             print("... fetching and caching DECaLS survey-bricks.fits.gz ...")
-            urllib.request.urlretrieve("http://portal.nersc.gov/project/cosmo/data/legacysurvey/dr8/survey-bricks.fits.gz", bricksPath)
+            urllib.request.urlretrieve("https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/dr8/survey-bricks.fits.gz", bricksPath)
         bricksDR8Path=bricksCacheDir+os.path.sep+"survey-bricks-dr8-south.fits.gz"
         if os.path.exists(bricksDR8Path) == False:
             print("... fetching and caching DECaLS survey-bricks-dr8-south.fits.gz ...")
-            urllib.request.urlretrieve("https://portal.nersc.gov/project/cosmo/data/legacysurvey/dr8/south/survey-bricks-dr8-south.fits.gz", bricksDR8Path)
+            urllib.request.urlretrieve("https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/dr8/south/survey-bricks-dr8-south.fits.gz", bricksDR8Path)
         bricksTab=atpy.Table().read(bricksPath)
         DR8Tab=atpy.Table().read(bricksDR8Path)
         DR8Tab.rename_column("brickname", "BRICKNAME")
