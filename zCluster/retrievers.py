@@ -1,5 +1,3 @@
-
-
 """
 
 This module contains routines for retrieving galaxy catalogs from various photometric surveys.
