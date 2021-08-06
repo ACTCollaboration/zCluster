@@ -150,8 +150,40 @@ if __name__ == '__main__':
             dMapDict = clusters.makeDensityMap(RADeg, decDeg, galaxyCatalog, z, dz, rMaxMpc = 1.5)
             astImages.saveFITS(args.outDir+os.path.sep+"densityMap_z%s_%.3f_%.3f.fits" % (z, RADeg, decDeg),
                                dMapDict['map'], dMapDict['wcs'])
-    
+            
+    #estimate errors for density map, CS and A
+    for montecarlo1 in range(0,1):
+        print('Starting MC %i of 1000...' % (montecarlo1+1))
+        Aerr = [] ; CSerr = [] ; Mapserr=[]
+        galaxycatalognew=galaxyCatalog
+        for montecarlo in range(0,1000):
+            if montecarlo%100==0:
+                print("************** cycle %s ****************"%(montecarlo))
+            noise = np.random.normal(0, .1) #adds Gaussian noise to galaxy photometry
+            for g in galaxycatalognew:
+                for i in ('u','g','r','i','z'):
+                    g[i]=g[i]+noise                     
+            photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, ZPError = ZPError, passbandSet = passbandSet,
+                                                                templatesDir = templatesDir, ZPOffsets = ZPOffsets)
+            
+            if fitZPOffsets == True:
+                photoRedshiftEngine.calcZeroPointOffsets(galaxycatalognew)
+            photoRedshiftEngine.calcPhotoRedshifts(galaxycatalognew, calcMLRedshiftAndOdds = True) #recompute photo-z's
+            
+            dMapDictwerr = clusters.makeDensityMap(RADeg, decDeg, galaxycatalognew, z, dz, rMaxMpc = 1.5) #make new density map w noise
+            CSerr.append(dMapDictwerr['CS'])
+            Aerr.append(dMapDictwerr['A'])
+            Mapserr.append(dMapDictwerr['map'])
+        Aerror=np.percentile(Aerr, 68) #68th percentile as error
+        CSerror=np.percentile(CSerr, 68)
+        Mapserror=np.percentile(Mapserr,68)
+        #sortmaps=sorted(Mapserr, key=lambda x: x[1])
+        #print(sortmaps[int((68/100)*len(Mapserr))])
+        astImages.saveFITS(args.outDir+os.path.sep+"errorMap_z%s_%.3f_%.3f.fits" % (z, RADeg, decDeg),
+                               Mapserror, dMapDict['wcs'])
+        
     # We may as well print some stats
     print(">>> Summary:")
     print("    N = %d" %  (len(tab['zPhot'])))
     print(">>> Total time: {:.1g} minutes".format((time.time()-start)/60.))
+    print("CS:\t"+str(dMapDict['CS'])+" +- "+str(CSerror)+"\nA:\t"+str(dMapDict['A'])+" +- "+str(Aerror))
