@@ -159,7 +159,7 @@ if __name__ == '__main__':
             
     # Estimate errors for density map, CS and A
     if ErrMap == True:
-        print('Starting MC 1 of 1000...')
+        print("Starting MC 1 of %..."%(MC))
         AErr = [] ; CSErr = [] ; MapErr=[]
         newGalaxyCatalog=galaxyCatalog
         for monteCarlo in range(0,MC):
