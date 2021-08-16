@@ -68,6 +68,8 @@ if __name__ == '__main__':
                         given redshift.""", type = float, default = None)
     parser.add_argument("-DS9", "--write-ds9-regions", dest="writeDS9regions", action="store_true", 
                         help="""Write out a DS9 .reg file for the fetched photometric catalog.""", default = False)
+    parser.add_argument("-ErrMap", "--ErrMap", dest="ErrMap", action="store_true", 
+                        help="""Write out an error map for the density map and errors for CS and A values""", default = False)
 
     args = parser.parse_args()
 
@@ -84,6 +86,7 @@ if __name__ == '__main__':
     writeDensityMaps=args.writeDensityMaps
     z=args.z
     dz=args.dz
+    ErrMap=args.ErrMap
 
     # Set-up cache
     if cacheDir is not None:
@@ -151,33 +154,33 @@ if __name__ == '__main__':
             astImages.saveFITS(args.outDir+os.path.sep+"densityMap_z%s_%.3f_%.3f.fits" % (z, RADeg, decDeg),
                                dMapDict['map'], dMapDict['wcs'])
             
-    #estimate errors for density map, CS and A
-    for montecarlo1 in range(0,1):
+    # Estimate errors for density map, CS and A
+    if ErrMap:
         print('Starting MC %i of 1000...' % (montecarlo1+1))
-        Aerr = [] ; CSerr = [] ; Mapserr=[]
-        galaxycatalognew=galaxyCatalog
-        for montecarlo in range(0,1000):
-            if montecarlo%100==0:
-                print("************** cycle %s ****************"%(montecarlo))
-            for g in galaxycatalognew:
+        AErr = [] ; CSErr = [] ; MapsErr=[]
+        galaxyCatalogNew=galaxyCatalog
+        for monteCarlo in range(0,1000):
+            if monteCarlo%100==0:
+                print("************** cycle %s ****************"%(monteCarlo))
+            for g in galaxyCatalogNew:
                 for i in bands:
                     res = g.get(i, None)
                     if res and i[-3:]!="Err":
-                        g[i]=g[i]+ np.random.normal(0,g[i+'Err'])
+                        g[i]=g[i]+ np.random.normal(0,g[i+'Err']) # Add Gaussian noise to photmetry of each galaxy
             
             if fitZPOffsets == True:
                 photoRedshiftEngine.calcZeroPointOffsets(galaxycatalognew)
-            photoRedshiftEngine.calcPhotoRedshifts(galaxycatalognew, calcMLRedshiftAndOdds = True) #recompute photo-z's
+            photoRedshiftEngine.calcPhotoRedshifts(galaxycatalognew, calcMLRedshiftAndOdds = True) # Recompute photo-z's
             
-            dMapDictwerr = clusters.makeDensityMap(RADeg, decDeg, galaxycatalognew, z, dz, rMaxMpc = 1.5) #make new density map w noise
-            CSerr.append(dMapDictwerr['CS'])
-            Aerr.append(dMapDictwerr['A'])
-            Mapserr.append(dMapDictwerr['map'])
-        Aerror=np.percentile(Aerr, 68.3) #68th percentile as error
-        CSerror=np.percentile(CSerr, 68.3)
-        Mapserror=np.percentile(Mapserr,68.3, axis=0)
+            dMapDictwerr = clusters.makeDensityMap(RADeg, decDeg, galaxyCatalogNew, z, dz, rMaxMpc = 1.5) # Make new density maps with added noise
+            CSErr.append(dMapDictwerr['CS'])
+            AErr.append(dMapDictwerr['A'])
+            MapsErr.append(dMapDictwerr['map'])
+        AError=np.percentile(AErr, 68.3) # 68th percentile as error
+        CSError=np.percentile(CSErr, 68.3)
+        MapsError=np.percentile(MapsErr,68.3, axis=0)
         astImages.saveFITS(args.outDir+os.path.sep+"errorMap_z%s_%.3f_%.3f.fits" % (z, RADeg, decDeg),
-                               Mapserror, dMapDict['wcs'])
+                               MapsError, dMapDict['wcs'])
         
     # We may as well print some stats
     print(">>> Summary:")
