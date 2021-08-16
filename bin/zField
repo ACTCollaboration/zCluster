@@ -156,7 +156,7 @@ if __name__ == '__main__':
             
     # Estimate errors for density map, CS and A
     if ErrMap:
-        print('Starting MC %i of 1000...' % (montecarlo1+1))
+        print('Starting MC 1 of 1000...')
         AErr = [] ; CSErr = [] ; MapsErr=[]
         galaxyCatalogNew=galaxyCatalog
         for monteCarlo in range(0,1000):
@@ -169,8 +169,8 @@ if __name__ == '__main__':
                         g[i]=g[i]+ np.random.normal(0,g[i+'Err']) # Add Gaussian noise to photmetry of each galaxy
             
             if fitZPOffsets == True:
-                photoRedshiftEngine.calcZeroPointOffsets(galaxycatalognew)
-            photoRedshiftEngine.calcPhotoRedshifts(galaxycatalognew, calcMLRedshiftAndOdds = True) # Recompute photo-z's
+                photoRedshiftEngine.calcZeroPointOffsets(galaxyCatalogNew)
+            photoRedshiftEngine.calcPhotoRedshifts(galaxyCatalogNew, calcMLRedshiftAndOdds = True) # Recompute photo-z's
             
             dMapDictwerr = clusters.makeDensityMap(RADeg, decDeg, galaxyCatalogNew, z, dz, rMaxMpc = 1.5) # Make new density maps with added noise
             CSErr.append(dMapDictwerr['CS'])
@@ -186,4 +186,4 @@ if __name__ == '__main__':
     print(">>> Summary:")
     print("    N = %d" %  (len(tab['zPhot'])))
     print(">>> Total time: {:.1g} minutes".format((time.time()-start)/60.))
-    print("CS:\t"+str(dMapDict['CS'])+" +- "+str(CSerror)+"\nA:\t"+str(dMapDict['A'])+" +- "+str(Aerror))
+    print("CS:\t"+str(dMapDict['CS'])+" +- "+str(CSError)+"\nA:\t"+str(dMapDict['A'])+" +- "+str(AError))
