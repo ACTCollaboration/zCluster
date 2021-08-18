@@ -1,10 +1,10 @@
 .. _UsagePage:
 
-======================
-Installation and Usage
-======================
+=========================
+Usage: Quickstart Example
+=========================
 
 
-.. include:: ../README.rst
+.. include:: ../examples/README_EXAMPLE.rst
 
 

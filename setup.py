@@ -10,27 +10,14 @@ from Cython.Distutils import build_ext
 import numpy
 import versioneer
 
-class OverrideInstall(install):
-    """Possibly versioneer-related, but without this class, package data files are getting installed such 
-    that only root can read them. This fixes the permissions so that anyone can read them.
-    
-    """    
-    def run(self):
-        mode=stat.S_IROTH
-        install.run(self) 
-        for filepath in self.get_outputs():
-            if filepath.find("zCluster"+os.path.sep+"SED") != -1:
-                os.chmod(filepath, mode)
-
 cmdclass=versioneer.get_cmdclass()
 cmdclass['build_ext']=build_ext
-cmdclass['install']=OverrideInstall
 
 setup(name='zCluster',
       version=versioneer.get_version(),
       cmdclass=cmdclass,
       url="https://github.com/ACTCollaboration/zCluster",
-      author='Matt Hilton',
+      author='Matt Hilton + zCluster contributors',
       author_email='matt.hilton@mykolab.com',
       classifiers=[],
       description='A code for measuring galaxy cluster photometric redshifts.',
@@ -41,4 +28,10 @@ setup(name='zCluster',
                                  'passbands/*']},
       scripts=['bin/zCluster', 'bin/zField', 'bin/zClusterBCG', 'bin/zClusterComparisonPlot'],
       ext_modules=[Extension("zClusterCython", ["zCluster/zClusterCython.pyx"], include_dirs=[numpy.get_include()])],
+      install_requires=["astropy >= 4.0",
+                        "numpy >= 1.19",
+                        "matplotlib >= 2.0",
+                        "astLib >= 0.11.7",
+                        "scipy >= 1.0",
+                        "cython"]
 )

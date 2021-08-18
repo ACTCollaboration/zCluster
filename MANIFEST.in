@@ -1,5 +1,7 @@
-recursive-include examples *
+include examples/README_EXAMPLE.rst
+include examples/400SDAll.csv
+include examples/400SDSmall.csv
 include COPYING
-include README.md
+include README.rst
 include versioneer.py
 include zCluster/_version.py
