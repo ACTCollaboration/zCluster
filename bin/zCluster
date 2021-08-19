@@ -38,7 +38,6 @@ import astropy.table as atpy
 import datetime
 import urllib.request
 #import multiprocessing as mp
-import IPython
 plt.matplotlib.interactive(False)
 
 #------------------------------------------------------------------------------------------------------------
