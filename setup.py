@@ -33,5 +33,6 @@ setup(name='zCluster',
                         "matplotlib >= 2.0",
                         "astLib >= 0.11.7",
                         "scipy >= 1.0",
-                        "cython"]
+                        "cython",
+                        "requests"]
 )
