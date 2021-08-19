@@ -12,20 +12,21 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
+import os
+import sys
+sys.path.insert(0, os.path.abspath('..'))
 from zCluster import __version__
 
 # -- My stuff ----------------------------------------------------------------
 autoclass_content = 'both'
 add_module_names = False
+autodoc_mock_imports = ["mpi4py"]
 
 # -- Project information -----------------------------------------------------
 
 project = 'zCluster'
-copyright = '2020, Matt Hilton + Atacama Cosmology Telescope Collaboration'
-author = 'Matt Hilton, Kabelo Kesebonye, Phumlani Phakathi + Atacama Cosmology Telescope Collaboration'
+copyright = '2021,zCluster contributors'
+author = 'Matt Hilton + zCluster contributors'
 
 # The short X.Y version
 version = __version__
@@ -46,6 +47,8 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
+    'readthedocs_ext.readthedocs',
+    'sphinxarg.ext'
 ]
 
 # Add any paths that contain templates here, relative to this directory.

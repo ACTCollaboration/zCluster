@@ -20,7 +20,6 @@ import time
 import zCluster
 import requests 
 from astropy.io.votable import parse_single_table 
-import IPython
 
 #-------------------------------------------------------------------------------------------------------------
 CACHE_DIR=os.environ['HOME']+os.path.sep+".zCluster"+os.path.sep+"cache"
@@ -93,6 +92,11 @@ def getRetriever(database, maxMagError = 0.2):
         connection=ea.connect(section = 'desdr')
         retriever=DESDR1Retriever
         retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
+    elif database == 'DESDR2':
+        import easyaccess as ea
+        connection=ea.connect(section = 'desdr')
+        retriever=DESDR2Retriever
+        retrieverOptions={'maxMagError': maxMagError, 'connection': connection}
     elif database == 'KiDSDR4':
         passbandSet='KiDS-VIKING'
         retriever=KiDSDR4Retriever
@@ -104,7 +108,15 @@ def getRetriever(database, maxMagError = 0.2):
     elif database == 'CFHTLenS':
         retriever=CFHTLenSRetriever
         retrieverOptions={'maxMagError': maxMagError}
-    elif database == 'DECaLS':
+    elif database.find("DECaLS") != -1:
+        if database == "DECaLS":
+            raise Exception("Specify either 'DECaLSDR8' or 'DECaLSDR9' instead of DECaLS")
+        if database == 'DECaLSDR8':
+            DR="DR8"
+            retriever=DECaLSDR8Retriever
+        elif database == 'DECaLSDR9':
+            DR="DR9"
+            retriever=DECaLSDR9Retriever
         passbandSet='DECaLS'
         # For DECaLS, need the bricks files that define survey on the sky
         # These were previously included in zCluster, but now we fetch over web and cache
@@ -113,16 +125,15 @@ def getRetriever(database, maxMagError = 0.2):
         bricksPath=bricksCacheDir+os.path.sep+"survey-bricks.fits.gz"
         if os.path.exists(bricksPath) == False:
             print("... fetching and caching DECaLS survey-bricks.fits.gz ...")
-            urllib.request.urlretrieve("https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/dr8/survey-bricks.fits.gz", bricksPath)
-        bricksDR8Path=bricksCacheDir+os.path.sep+"survey-bricks-dr8-south.fits.gz"
-        if os.path.exists(bricksDR8Path) == False:
-            print("... fetching and caching DECaLS survey-bricks-dr8-south.fits.gz ...")
-            urllib.request.urlretrieve("https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/dr8/south/survey-bricks-dr8-south.fits.gz", bricksDR8Path)
+            urllib.request.urlretrieve("https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/%s/survey-bricks.fits.gz" % (DR.lower()), bricksPath)
+        bricksDRPath=bricksCacheDir+os.path.sep+"survey-bricks-%s-south.fits.gz" % (DR.lower())
+        if os.path.exists(bricksDRPath) == False:
+            print("... fetching and caching DECaLS survey-bricks-%s-south.fits.gz ..." % (DR.lower()))
+            urllib.request.urlretrieve("https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/%s/south/survey-bricks-%s-south.fits.gz" % (DR.lower(), DR.lower()), bricksDRPath)
         bricksTab=atpy.Table().read(bricksPath)
-        DR8Tab=atpy.Table().read(bricksDR8Path)
-        DR8Tab.rename_column("brickname", "BRICKNAME")
-        retriever=DECaLSRetriever
-        retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab, 'DR8Tab': DR8Tab}
+        DRTab=atpy.Table().read(bricksDRPath)
+        DRTab.rename_column("brickname", "BRICKNAME")
+        retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab, 'DRTab': DRTab}
     elif database == 'CFHTDeep':
         retriever=CFHTDeepRetriever
     elif database == 'CFHTWide':
@@ -420,12 +431,22 @@ def DESDR1Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {})
     return DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = halfBoxSizeDeg, optionsDict = optionsDict)
 
 #-------------------------------------------------------------------------------------------------------------
+def DESDR2Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
+    """Retrieves DES DR2 photometry at the given position. This assumes you have easyaccess installed
+    (https://pypi.python.org/pypi/easyaccess/1.0.7) and have registered for a login to access the DES
+    Oracle database
+    
+    """
+    
+    return DESRetriever(RADeg, decDeg, DR = 'DR2', halfBoxSizeDeg = halfBoxSizeDeg, optionsDict = optionsDict)
+
+#-------------------------------------------------------------------------------------------------------------
 def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
     """Retrieves DES photometry. Assumes you have easyaccess installed
     (https://pypi.python.org/pypi/easyaccess/1.0.7) and the necessary login to access either public or
     proprietary tables in the DES Oracle database.
     
-    Use DR = 'DR1' to access the public photometry, DR = 'Y3' to access the current 'Gold' photometry
+    Use DR = 'DR1' or 'DR2' to access the public photometry, DR = 'Y3' to access the current 'Gold' photometry
     
     """
 
@@ -452,7 +473,7 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
     if DR == 'Y3' or DR == 'Y3+WISE':
         magKey="SOF_CM_MAG_CORRECTED_$BAND"
         magErrKey="SOF_CM_MAG_ERR_$BAND"
-    elif DR == 'DR1':
+    elif DR == 'DR1' or DR == 'DR2':
         magKey="MAG_AUTO_$BAND_DERED"
         magErrKey="MAGERR_AUTO_$BAND"
     else:
@@ -465,8 +486,8 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
         # Y3 Gold v2.2
         if DR == 'Y3':
             query="SELECT COADD_OBJECT_ID, RA, DEC, DNF_ZMC_SOF, BPZ_ZMC_SOF, SOF_CM_MAG_CORRECTED_G, SOF_CM_MAG_CORRECTED_R, SOF_CM_MAG_CORRECTED_I, SOF_CM_MAG_CORRECTED_Z, SOF_CM_MAG_ERR_G, SOF_CM_MAG_ERR_R, SOF_CM_MAG_ERR_I, SOF_CM_MAG_ERR_Z FROM Y3_GOLD_2_2 WHERE FLAGS_FOOTPRINT = 1 and FLAGS_FOREGROUND = 0 and bitand(FLAGS_GOLD, 62) = 0 and EXTENDED_CLASS_MASH_SOF = 3 and SOF_CM_MAG_I between 16 and 24 AND RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
-        elif DR == 'DR1':
-            query="SELECT RA, DEC, MAG_AUTO_G_DERED, MAG_AUTO_R_DERED, MAG_AUTO_I_DERED, MAG_AUTO_Z_DERED, MAGERR_AUTO_G, MAGERR_AUTO_R, MAGERR_AUTO_I, MAGERR_AUTO_Z FROM DR1_MAIN WHERE WAVG_SPREAD_MODEL_I + 3.0*WAVG_SPREADERR_MODEL_I > 0.005 and WAVG_SPREAD_MODEL_I + 1.0*WAVG_SPREADERR_MODEL_I > 0.003 and WAVG_SPREAD_MODEL_I - 1.0*WAVG_SPREADERR_MODEL_I > 0.001 and WAVG_SPREAD_MODEL_I > -1 and IMAFLAGS_ISO_I = 0 and MAG_AUTO_I < 24 and RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
+        elif DR == 'DR1' or DR == 'DR2':
+            query="SELECT RA, DEC, MAG_AUTO_G_DERED, MAG_AUTO_R_DERED, MAG_AUTO_I_DERED, MAG_AUTO_Z_DERED, MAGERR_AUTO_G, MAGERR_AUTO_R, MAGERR_AUTO_I, MAGERR_AUTO_Z FROM %s_MAIN WHERE WAVG_SPREAD_MODEL_I + 3.0*WAVG_SPREADERR_MODEL_I > 0.005 and WAVG_SPREAD_MODEL_I + 1.0*WAVG_SPREADERR_MODEL_I > 0.003 and WAVG_SPREAD_MODEL_I - 1.0*WAVG_SPREADERR_MODEL_I > 0.001 and WAVG_SPREAD_MODEL_I > -1 and IMAFLAGS_ISO_I = 0 and MAG_AUTO_I < 24 and RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f" % (DR, RAMin, RAMax, decMin, decMax)
         elif DR == 'Y3+WISE':
             query="SELECT D.COADD_OBJECT_ID, D.RA, D.DEC, DNF_ZMC_SOF, BPZ_ZMC_SOF, SOF_CM_MAG_CORRECTED_G, SOF_CM_MAG_CORRECTED_R, SOF_CM_MAG_CORRECTED_I, SOF_CM_MAG_CORRECTED_Z, SOF_CM_MAG_ERR_G, SOF_CM_MAG_ERR_R, SOF_CM_MAG_ERR_I, SOF_CM_MAG_ERR_Z, W1MPRO, W1SIGMPRO, W2MPRO, W2SIGMPRO FROM Y3_GOLD_2_2 D LEFT OUTER JOIN DES_ADMIN.Y3A2_WISE_DES W ON D.COADD_OBJECT_ID = W.COADD_OBJECT_ID WHERE FLAGS_FOOTPRINT = 1 and FLAGS_FOREGROUND = 0 and bitand(FLAGS_GOLD, 62) = 0 and EXTENDED_CLASS_MASH_SOF = 3 and SOF_CM_MAG_I between 16 and 24 AND D.RA BETWEEN %.6f AND %.6f AND D.DEC BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
         else:
@@ -1037,7 +1058,7 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
-def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
+def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
     """Retrieves DECaLS DR8 tractor catalogs (if they exist) at the given position. Cuts the catalog to the
     radius specified by halfBoxSizeDeg.
 
@@ -1054,15 +1075,16 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {})
         os.makedirs(cacheDir, exist_ok = True)
 
     # Organised such that after this, have subdir with degrees RA (e.g. 000/ is 0 < RADeg < 1 degree)
-    basePath="https://portal.nersc.gov/project/cosmo/data/legacysurvey/dr8/south/tractor/"
+    #basePath="https://portal.nersc.gov/project/cosmo/data/legacysurvey/dr8/south/tractor/"
+    basePath="https://portal.nersc.gov/project/cosmo/data/legacysurvey/%s/south/tractor/" % (DR.lower())
 
-    outFileName=cacheDir+os.path.sep+"DECaLSDR8_%.4f_%.4f_%.2f.fits" % (RADeg, decDeg,
+    outFileName=cacheDir+os.path.sep+"DECaLS%s_%.4f_%.4f_%.2f.fits" % (DR, RADeg, decDeg,
                                                                             halfBoxSizeDeg)
     
-    print("... getting DECaLS photometry ...")
+    print("... getting DECaLS %s photometry ..." % (DR))
 
     bricksTab=optionsDict['bricksTab']
-    DR8Tab=optionsDict['DR8Tab']
+    DRTab=optionsDict['DRTab']
 
     # Find matching tractor catalogs and download/cache .fits table files
     # Previously this would fail for very small search areas - hence added centre coords search
@@ -1083,10 +1105,10 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {})
     count=0
     tractorTabs=[]
     try:
-        matchTab=atpy.join(matchTab, DR8Tab, keys = 'BRICKNAME')
+        matchTab=atpy.join(matchTab, DRTab, keys = 'BRICKNAME')
     except:
         # Not in DECaLS?
-        print("... no match between bricks and DR8 tables - %s ..." % (outFileName))
+        print("... no match between bricks and %s tables - %s ..." % (DR, outFileName))
         return None
     for mrow in matchTab:
         subDir="%03d" % np.floor(mrow['RA'])
@@ -1124,19 +1146,25 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {})
         
         # DECaLS redshifts go very wrong when there are stars bright in W1, W2 in the vicinity
         # This should fix - we'll also throw out PSF-shaped sources too
-        tab=tab[np.where(tab['brightblob'] == 0)]
+        try:
+            tab=tab[np.where(tab['brightblob'] == 0)]
+        except:
+            # Use maskbits 1, 11, 12, 13 for DR9
+            # [still use brightblob for DR8 for now to be consistent with past results, but it's basically the same anyway]
+            tab=tab[tab['maskbits'] != 2**1]
+            tab=tab[tab['maskbits'] < 2**11]
         # Below is clean but loses us some clusters that look ok (we can't do proper bitwise anyway with atpy table?)
         #tab=tab[np.where(tab['maskbits'] == 0)] 
         tab=tab[np.where(tab['type'] != 'PSF')]
         tab=tab[np.where(tab['type'] != 'PSF ')] # Trailing space
-
+        
         # WISE fluxes are available...
         bands=['g', 'r', 'z', "w1", "w2"]# , 'Y']
-
+        
         # Convert nanomaggies to mags and do extinction correction
         bricksInTab=np.unique(tab['brickname'])
         for brickName in bricksInTab:
-            brickExtTab=DR8Tab[np.where(DR8Tab['BRICKNAME'] == brickName)]
+            brickExtTab=DRTab[np.where(DRTab['BRICKNAME'] == brickName)]
             brickIndices=np.where(tab['brickname'] == brickName)
             brickMask=np.zeros(len(tab), dtype = bool)
             brickMask[brickIndices]=True
@@ -1181,6 +1209,28 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {})
         catalog=None
     
     return catalog
+
+#-------------------------------------------------------------------------------------------------------------
+def DECaLSDR8Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
+    """Retrieves DECaLS DR8 tractor catalogs (if they exist) at the given position. Cuts the catalog to the
+    radius specified by halfBoxSizeDeg.
+
+    """
+    
+    stuff=DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 'DR8', optionsDict = optionsDict)
+
+    return stuff
+
+#-------------------------------------------------------------------------------------------------------------
+def DECaLSDR9Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
+    """Retrieves DECaLS DR8 tractor catalogs (if they exist) at the given position. Cuts the catalog to the
+    radius specified by halfBoxSizeDeg.
+
+    """
+    
+    stuff=DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 'DR9', optionsDict = optionsDict)
+    
+    return stuff
 
 #-------------------------------------------------------------------------------------------------------------
 def SDSSDR7Retriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):

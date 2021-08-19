@@ -3,14 +3,18 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to zCluster's documentation!
-====================================
+zCluster - a tool for measuring photometric redshifts for galaxy clusters
+=========================================================================
+
+.. include:: ../README.rst
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
+   install
    usage
+   commands
    reference
 
 Indices and tables
