@@ -3,5 +3,6 @@ include examples/400SDAll.csv
 include examples/400SDSmall.csv
 include COPYING
 include README.rst
+include INSTALL.rst
 include versioneer.py
 include zCluster/_version.py
