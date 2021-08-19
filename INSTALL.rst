@@ -8,11 +8,8 @@ brackets, later versions also probably work):
 * matplotlib (2.1.1)
 * astLib (0.11.7)
 * astropy (4.0)
-* IPython (7.2.0)
 * mastcasjobs (for PS1; https://github.com/rlwastro/mastcasjobs)
 * casjobs (for PS1; https://github.com/dfm/casjobs)
-
-`IPython` isn't really required, but is used for debugging.
 
 To run on DES photometry, there is an additional dependency:
 

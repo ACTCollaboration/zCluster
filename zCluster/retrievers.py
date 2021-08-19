@@ -20,7 +20,6 @@ import time
 import zCluster
 import requests 
 from astropy.io.votable import parse_single_table 
-import IPython
 
 #-------------------------------------------------------------------------------------------------------------
 CACHE_DIR=os.environ['HOME']+os.path.sep+".zCluster"+os.path.sep+"cache"
@@ -1158,10 +1157,10 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
         #tab=tab[np.where(tab['maskbits'] == 0)] 
         tab=tab[np.where(tab['type'] != 'PSF')]
         tab=tab[np.where(tab['type'] != 'PSF ')] # Trailing space
-
+        
         # WISE fluxes are available...
         bands=['g', 'r', 'z', "w1", "w2"]# , 'Y']
-
+        
         # Convert nanomaggies to mags and do extinction correction
         bricksInTab=np.unique(tab['brickname'])
         for brickName in bricksInTab:
@@ -1220,6 +1219,8 @@ def DECaLSDR8Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, opt
     
     stuff=DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 'DR8', optionsDict = optionsDict)
 
+    return stuff
+
 #-------------------------------------------------------------------------------------------------------------
 def DECaLSDR9Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
     """Retrieves DECaLS DR8 tractor catalogs (if they exist) at the given position. Cuts the catalog to the
@@ -1229,6 +1230,8 @@ def DECaLSDR9Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, opt
     
     stuff=DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 'DR9', optionsDict = optionsDict)
     
+    return stuff
+
 #-------------------------------------------------------------------------------------------------------------
 def SDSSDR7Retriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
     """Retrieves SDSS DR7 main photometry at the given position.
