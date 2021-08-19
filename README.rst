@@ -6,7 +6,7 @@ and galaxy density maps for any point in the sky using the included `zField` too
 * **License:** `GPL v3 <COPYING>`_
 * **Authors:** Matt Hilton, with contributions from Kabelo Kesebonye, Phumlani Phakathi,
   Denisha Pillay, and Damien Ragavan (not all reflected on GitHub).
-* **Installation:** ``pip install zCluster [not yet]``
+* **Installation:** ``pip install zCluster``
 * **Support:** Please use the `GitHub issues page <https://github.com/ACTCollaboration/zCluster/issues>`_, 
   and/or contact `Matt Hilton <mailto:matt.hilton@mykolab.com>`_.
   
