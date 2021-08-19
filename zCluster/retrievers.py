@@ -1147,7 +1147,13 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
         
         # DECaLS redshifts go very wrong when there are stars bright in W1, W2 in the vicinity
         # This should fix - we'll also throw out PSF-shaped sources too
-        tab=tab[np.where(tab['brightblob'] == 0)]
+        try:
+            tab=tab[np.where(tab['brightblob'] == 0)]
+        except:
+            # Use maskbits 1, 11, 12, 13 for DR9
+            # [still use brightblob for DR8 for now to be consistent with past results, but it's basically the same anyway]
+            tab=tab[tab['maskbits'] != 2**1]
+            tab=tab[tab['maskbits'] < 2**11]
         # Below is clean but loses us some clusters that look ok (we can't do proper bitwise anyway with atpy table?)
         #tab=tab[np.where(tab['maskbits'] == 0)] 
         tab=tab[np.where(tab['type'] != 'PSF')]
