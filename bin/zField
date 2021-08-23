@@ -164,7 +164,7 @@ if __name__ == '__main__':
             for g in newGalaxyCatalog:
                 for i in bands:
                     res = g.get(i, None)
-                    if res and i[-3:]!="Err":
+                    if res and i[-3:]!="Err" and g[i]!=99:
                         g[i]=g[i]+ np.random.normal(0,g[i+'Err']) # Add Gaussian noise to photmetry of each galaxy
             
             if fitZPOffsets == True:
