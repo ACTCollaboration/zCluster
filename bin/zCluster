@@ -38,7 +38,6 @@ import astropy.table as atpy
 import datetime
 import urllib.request
 #import multiprocessing as mp
-import IPython
 plt.matplotlib.interactive(False)
 
 #------------------------------------------------------------------------------------------------------------
@@ -384,11 +383,10 @@ def getRoughFootprint(database):
         return None
     
     return RAMin, RAMax, decMin, decMax
-    
-#-------------------------------------------------------------------------------------------------------------
-if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser("zCluster")
+#-------------------------------------------------------------------------------------------------------------
+def makeParser():
+    parser=argparse.ArgumentParser("zCluster")
     parser.add_argument("catalogFileName", help="""A .fits table or a .csv file with at least the columns 
                         'name', 'RADeg', 'decDeg'.""")
     parser.add_argument("database", help="""The photometric database to use. Options are 'SDSSDR12', 'S82' 
@@ -470,9 +468,15 @@ if __name__ == '__main__':
                         help = """The location of a file containing username (first line), password (second line), 
                         for login to e.g., ESO Portal (this option is only currently used for the KIDSDR3
                         database option).""")
+    
+    return parser
+    
+#-------------------------------------------------------------------------------------------------------------
+if __name__ == '__main__':
 
-    args = parser.parse_args()
-
+    parser=makeParser()
+    args=parser.parse_args()
+    
     catalogFileName=args.catalogFileName
     database=args.database
     outLabel=args.outLabel

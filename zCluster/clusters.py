@@ -18,7 +18,6 @@ from PIL import Image
 from PIL import ImageDraw
 import zClusterCython
 import pylab as plt
-import IPython
 
 #------------------------------------------------------------------------------------------------------------
 def getPixelAreaDeg2Map(mapData, wcs):
@@ -415,7 +414,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     else:
         print("... background area too small - skipping ...")
         return None
-            
+    
     return {'z': z, 'pz': pzWeightedMean, 'zOdds': zOdds, 'pz_z': zArray, 'delta': delta_at_z, 'errDelta': errDelta_at_z,
             'areaMask': areaMask, 'wcs': wcs}
 

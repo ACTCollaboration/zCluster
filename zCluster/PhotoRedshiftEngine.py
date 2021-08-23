@@ -15,7 +15,6 @@ import string
 import glob
 import pickle
 import time
-import IPython
 
 class PhotoRedshiftEngine:
     """A class that calculates galaxy photo-zs, adding photo-z info to a catalog (list of dictionaries)
@@ -136,12 +135,7 @@ class PhotoRedshiftEngine:
             self.templateIndex=[]
             for f in self.SEDFiles:
                 s=astSED.SED()
-                try:
-                    s.loadFromFile(f)
-                except:
-                    print("Failed to load SED %s" % (s))
-                    IPython.embed()
-                    sys.exit()
+                s.loadFromFile(f)
                 t=t+1
                 for z in self.zRange:
                     s.redshift(z)
