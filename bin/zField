@@ -40,6 +40,8 @@ if __name__ == '__main__':
                         here.""")
     parser.add_argument("-o", "--output-directory", dest="outDir", help="""Label to use for the preferred output
                         directory.""", default = "zFieldOutput")
+    parser.add_argument("-l", "--label", dest="label", help="""Optional label to use for output files (default
+                        is to use the given RA, dec coordinates in the output file names).""", default = None)
     parser.add_argument("-t", "--templates-directory", dest="templatesDir", help="""Specify a directory containing
                         a custom set of spectral templates.""",
                         default = None)
@@ -62,8 +64,8 @@ if __name__ == '__main__':
                         default = False)
     parser.add_argument("-z", "--redshift", dest="z", help="""Galaxy redshift at which to make a density map""", type = float,
                         default = None)
-    parser.add_argument("-delta_z", "--delta-z", dest="dz", help="""Make a projected density map within +/- dz of the
-                        given redshift.""", type = float, default = None)
+    parser.add_argument("-dz", "--delta-z", dest="dz", help="""Make a projected density map within +/- dz of the
+                        given redshift (default: 0.1).""", type = float, default = 0.1)
     parser.add_argument("-DS9", "--write-ds9-regions", dest="writeDS9regions", action="store_true", 
                         help="""Write out a DS9 .reg file for the fetched photometric catalog.""", default = False)
     parser.add_argument("-ErrMap", "--ErrMap", dest="ErrMap", action="store_true", 
@@ -97,9 +99,15 @@ if __name__ == '__main__':
         if os.path.exists(retrievers.CACHE_DIR) == False:
                 os.makedirs(retrievers.CACHE_DIR, exist_ok = True)
 
+    # Optional output label
+    if args.label is not None:
+        outputLabel=args.label
+    else:
+        outputLabel="%.3f_%.3f" % (RADeg, decDeg)
+
     # Set-up where we will write output
     os.makedirs(args.outDir, exist_ok = True)
-    outFileName=args.outDir+os.path.sep+"zField_catalog_%.3f_%.3f.fits" % (RADeg, decDeg)
+    outFileName=args.outDir+os.path.sep+"zField_catalog_%s.fits" % (outputLabel)
     
     # Method for fetching catalogs
     retriever, retrieverOptions, passbandSet=retrievers.getRetriever(database, maxMagError = 0.2)
@@ -144,7 +152,7 @@ if __name__ == '__main__':
     tab.write(outFileName, overwrite = True)
     
     if args.writeDS9regions == True:
-        catalogs.catalog2DS9(galaxyCatalog, args.outDir+os.path.sep+"{0:}_{1:.3f}_{2:.3f}.reg".format(database, RADeg, decDeg),
+        catalogs.catalog2DS9(galaxyCatalog, args.outDir+os.path.sep+"%s_%s.reg" % (database, outputLabel),
                                  idKeyToUse = 'id', addInfo = [{'key': 'r', 'fmt': '%.3f'}, {'key': 'zPhot', 'fmt': '%.2f'}])
         
     if writeDensityMaps == True:
@@ -152,7 +160,7 @@ if __name__ == '__main__':
             raise Exception("-z and -delta_z need to be given when using the -d option")
         else:
             dMapDict = clusters.makeDensityMap(RADeg, decDeg, galaxyCatalog, z, dz, rMaxMpc = 1.5)
-            astImages.saveFITS(args.outDir+os.path.sep+"densityMap_z%s_%.3f_%.3f.fits" % (z, RADeg, decDeg),
+            astImages.saveFITS(args.outDir+os.path.sep+"densityMap_z%s_%s.fits" % (z, outputLabel),
                                dMapDict['map'], dMapDict['wcs'])
             
     # Estimate errors for density map, CS and A
@@ -178,7 +186,7 @@ if __name__ == '__main__':
         AError=np.percentile(AErr, 68.3) # 68th percentile as error
         CSError=np.percentile(CSErr, 68.3)
         MapError=np.percentile(MapErr,68.3, axis=0)
-        astImages.saveFITS(args.outDir+os.path.sep+"errorMap_z%s_%.3f_%.3f.fits" % (z, RADeg, decDeg),
+        astImages.saveFITS(args.outDir+os.path.sep+"errorMap_z%s_%s.fits" % (z, outputLabel),
                                MapError, dMapDict['wcs'])
         print(">>> CS:\t"+str(dMapDict['CS'])+" +- "+str(CSError)+"\n A:\t"+str(dMapDict['A'])+" +- "+str(AError))
         

@@ -387,87 +387,85 @@ def getRoughFootprint(database):
 #-------------------------------------------------------------------------------------------------------------
 def makeParser():
     parser=argparse.ArgumentParser("zCluster")
-    parser.add_argument("catalogFileName", help="""A .fits table or a .csv file with at least the columns 
-                        'name', 'RADeg', 'decDeg'.""")
-    parser.add_argument("database", help="""The photometric database to use. Options are 'SDSSDR12', 'S82' 
-                        (for SDSS DR7 Stripe 82 co-add); 'CFHTLenS'; 'DESDR1' [experimental], 
-                        'DESY3' [experimental; requires access to proprietary DES data]; 'PS1' [experimental]; 
-                        'DECaLS' (DR8); or the path to a .fits table with columns in the 
-                        appropriate format ('ID', 'RADeg', 'decDeg', and magnitude column names in the form 
-                        'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.).""")
-    parser.add_argument("-o", "--output-label", dest="outLabel", help="""Label to use for outputs  
-                        (default: catalogFileName_database, stripped of file extension). 
-                        A redshift catalog called zCluster_outLabel.fits will be created. Cached
-                        results for each entry in the input cluster catalog and associated plots will
-                        be written into the directory outLabel/, together with a log file that
-                        records the arguments used for running zCluster.""", default = None)
-    parser.add_argument("-w", "--weights-type", dest="weightsType", help="""Radial weighting type. Options
-                        are 'NFW', 'flat', or 'radial' (default: NFW).""", default = 'NFW')
-    parser.add_argument("-R", "--max-radius-Mpc", dest="maxRMpc", help="""Maximum radius in Mpc within 
-                        which to calculate delta statistic for each cluster (default: 0.5).""", 
+    parser.add_argument("catalogFileName", help="A .fits table or a .csv file with at least the columns\
+                        'name', 'RADeg', 'decDeg'.")
+    parser.add_argument("database", help="The photometric database to use. Options are 'SDSSDR12', 'S82'\
+                        (for SDSS DR7 Stripe 82 co-add); 'CFHTLenS'; 'DESDR1', 'DESDR2',\
+                        'DESY3' [experimental; requires access to proprietary DES data]; 'PS1' [experimental];\
+                        'DECaLSDR8', 'DECaLSDR9'; or the path to a .fits table with columns in the\
+                        appropriate format ('ID', 'RADeg', 'decDeg', and magnitude column names in the form\
+                        'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.).")
+    parser.add_argument("-o", "--output-label", dest="outLabel", help="Label to use for outputs\
+                        (default: catalogFileName_database, stripped of file extension).\
+                        A redshift catalog called zCluster_outLabel.fits will be created. Cached\
+                        results for each entry in the input cluster catalog and associated plots will\
+                        be written into the directory outLabel/, together with a log file that\
+                        records the arguments used for running zCluster.", default = None)
+    parser.add_argument("-w", "--weights-type", dest="weightsType", help="Radial weighting type. Options\
+                        are 'NFW', 'flat', or 'radial' (default: NFW).", default = 'NFW')
+    parser.add_argument("-R", "--max-radius-Mpc", dest="maxRMpc", help="Maximum radius in Mpc within\
+                        which to calculate delta statistic for each cluster (default: 0.5).", 
                         default = 0.5)
-    parser.add_argument("-m", "--mask", dest="mask", help="""Path to mask image (FITS format with WCS)
-                        that defines valid survey area.""", default = None)
-    parser.add_argument("-a", "--algorithm", dest="algorithm", help="""Algorithm to use for the maximum likelihood
-                        redshift. Options are 'max' or 'odds' (default: odds).""", 
+    parser.add_argument("-m", "--mask", dest="mask", help="Path to mask image (FITS format with WCS)\
+                        that defines valid survey area.", default = None)
+    parser.add_argument("-a", "--algorithm", dest="algorithm", help="Algorithm to use for the maximum likelihood\
+                        redshift. Options are 'max' or 'odds' (default: odds).", 
                         default = 'odds')
-    parser.add_argument("-i", "--max-iter", dest="maxIter", help="""Maximum number of iterations for finding
-                        the cluster redshift and optical position based on projected density map (default: 1).""", 
+    parser.add_argument("-i", "--max-iter", dest="maxIter", help="Maximum number of iterations for finding\
+                        the cluster redshift and optical position based on projected density map (default: 1).",
                         default = 1, type = int)
-    parser.add_argument("-c", "--cachedir", dest="cacheDir", default = None, help="""Cache directory location
-                        (default: $HOME/.zCluster/cache). Downloaded photometric catalogs will be stored 
-                        here.""")
-    parser.add_argument("-M", "--mpi", dest="MPIEnabled", action="store_true", help="""Enable MPI. If you
-                        want to use this, run zCluster using something like: mpirun --np 4 zCluster ...""", 
+    parser.add_argument("-c", "--cachedir", dest="cacheDir", default = None, help="Cache directory location\
+                        (default: $HOME/.zCluster/cache). Downloaded photometric catalogs will be stored\
+                        here.")
+    parser.add_argument("-M", "--mpi", dest="MPIEnabled", action="store_true", help="Enable MPI. If you\
+                        want to use this, run zCluster using something like: mpirun --np 4 zCluster ...",
                         default = False)
-    parser.add_argument("-e", "--max-mag-error", dest="maxMagError", help="""Maximum acceptable 
-                        photometric error (in magnitudes; default: 0.25).""", default = 0.25)
+    parser.add_argument("-e", "--max-mag-error", dest="maxMagError", help="Maximum acceptable\
+                        photometric error (in magnitudes; default: 0.25).", default = 0.25)
     parser.add_argument("-E", "--photometric-zero-point-error", dest="ZPError", type = float, 
-                        help="""Global photometric zero point uncertainty in magnitudes, applied to all bands 
-                        (default: 0). Added in quadrature to the photometric uncertainties in the catalog.""", 
+                        help="Global photometric zero point uncertainty in magnitudes, applied to all bands\
+                        (default: 0). Added in quadrature to the photometric uncertainties in the catalog.", 
                         default = 0.0)
     parser.add_argument("-f", "--fit-for-zero-point-offsets", dest="fitZPOffsets", 
-                        help="""If the input catalog contains a z_spec column, use those galaxies to fit
-                        for magnitude zero point offsets. These will then be applied when estimating galaxy
-                        photometric redshifts.""", 
+                        help="If the input catalog contains a z_spec column, use those galaxies to fit\
+                        for magnitude zero point offsets. These will then be applied when estimating galaxy\
+                        photometric redshifts.", 
                         default = False, action = "store_true")
-    parser.add_argument("-z", "--z-prior-min", dest="zPriorMin", help="""Set minimum redshift of prior.""", 
+    parser.add_argument("-z", "--z-prior-min", dest="zPriorMin", help="Set minimum redshift of prior.",
                         default = None)
-    parser.add_argument("-Z", "--z-prior-max", dest="zPriorMax", help="""Set maximum redshift of prior.""", 
+    parser.add_argument("-Z", "--z-prior-max", dest="zPriorMax", help="Set maximum redshift of prior.",
                         default = None)
-    parser.add_argument("-b", "--brighter-absmag-cut", dest="absMagCut", help="""Set bright absolute magnitude cut.""", 
+    parser.add_argument("-b", "--brighter-absmag-cut", dest="absMagCut", help="Set bright absolute magnitude cut.",
                         default = -24.)
     parser.add_argument("-n", "--name", dest="name", help="Find photo-z of only the named cluster in the catalog.")
-    parser.add_argument("-t", "--templates-directory", dest="templatesDir", help="""Specify a directory containing
-                        a custom set of spectral templates.""", 
-                        default = None)
+    parser.add_argument("-t", "--templates-directory", dest="templatesDir", help="Specify a directory containing\
+                        a custom set of spectral templates.",  default = None)
     parser.add_argument("-d", "--write-density-maps", dest="writeDensityMaps", action="store_true", 
-                        help="""Write out a .fits image projected density map (within delta z = +/- 0.1 of the best 
-                        fit redshift) for each cluster.""",
-                        default = False)
+                        help="Write out a .fits image projected density map (within delta z = +/- 0.1 of the best\
+                        fit redshift) for each cluster.", default = False)
     parser.add_argument("-W", "--write-galaxy-catalogs", dest="writeGalaxyCatalogs", action="store_true", 
-                        help="""Write out a .fits format galaxy catalog and DS9 .reg file for each cluster.""", 
+                        help="Write out a .fits format galaxy catalog and DS9 .reg file for each cluster.",
                         default = False)
     parser.add_argument("-P", "--write-plots", dest="writePlots", action="store_true", 
-                        help = """Write out a .pdf plot of n(z) for each cluster.""", default = False)
+                        help = "Write out a .pdf plot of n(z) for each cluster.", default = False)
     parser.add_argument("-X", "--add-extra-photometry", dest="addExtraPhoto",
-                        help = """If using a user-supplied FITS galaxy photometic catalog, add in additional
-                        photometry from the given database (e.g., SDSSDR12, DECaLS - see 'database'),
-                        if available.""", default = None)
+                        help = "If using a user-supplied FITS galaxy photometic catalog, add in additional\
+                        photometry from the given database (e.g., SDSSDR12, DECaLS - see 'database'),\
+                        if available.", default = None)
     parser.add_argument("--min-background-area-Mpc2", dest="minBackgroundAreaMpc2", default = 11, type = float,
-                        help="""The minimum area of the background region in square Mpc. Candidate redshifts that have
-                        less than this minimum background area will be filtered out of the output catalog (default: 11, 
-                        which corresponds to 50%% of the background area for the standard 3-4 Mpc annulus used).""")
-    parser.add_argument("-B", "--background-catalog", dest="bckCatalogFileName", help="""A .fits table with columns 
-                        in the appropriate format ('ID', 'RADeg', 'decDeg', and magnitude column names in the form 
-                        'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.) to be used as the background sample for delta estimates.
-                        If this is given, the area covered by the background catalog must be given also (-A flag)""")
-    parser.add_argument("-A", "--background-area-deg2", dest="bckAreaDeg2", default = None, help="""The area, 
-                        in square degrees, covered by the background galaxy catalog given using the -B flag.""")
+                        help="The minimum area of the background region in square Mpc. Candidate redshifts that have\
+                        less than this minimum background area will be filtered out of the output catalog (default: 11,\
+                        which corresponds to 50%% of the background area for the standard 3-4 Mpc annulus used).")
+    parser.add_argument("-B", "--background-catalog", dest="bckCatalogFileName", help="A .fits table with columns\
+                        in the appropriate format ('ID', 'RADeg', 'decDeg', and magnitude column names in the form\
+                        'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.) to be used as the background sample for delta estimates.\
+                        If this is given, the area covered by the background catalog must be given also (-A flag)")
+    parser.add_argument("-A", "--background-area-deg2", dest="bckAreaDeg2", default = None, help="The area,\
+                        in square degrees, covered by the background galaxy catalog given using the -B flag.")
     parser.add_argument("-C", "--credentials-filename", dest="credentialsFileName", default = None, 
-                        help = """The location of a file containing username (first line), password (second line), 
-                        for login to e.g., ESO Portal (this option is only currently used for the KIDSDR3
-                        database option).""")
+                        help = "The location of a file containing username (first line), password (second line),\
+                        for login to e.g., ESO Portal (this option is only currently used for the KIDSDR3\
+                        database option).")
     
     return parser
     
