@@ -34,7 +34,7 @@ if __name__ == '__main__':
                         'DESY3' [experimental; requires access to proprietary DES data]; 'PS1' [experimental]; 
                         'DECaLS' (DR8) [experimental]; or the path to a .fits table with columns in the 
                         appropriate format ('ID', 'RADeg', 'decDeg', and magnitude column names in the form 
-                        'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.).""", default = 'DECaLS')
+                        'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.).""", default = 'DECaLSDR8')
     parser.add_argument("-c", "--cachedir", dest="cacheDir",help="""Cache directory location
                         (default: $HOME/.zCluster/cache). Downloaded photometric catalogs will be stored
                         here.""")
