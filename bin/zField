@@ -160,7 +160,7 @@ if __name__ == '__main__':
             raise Exception("-z and -delta_z need to be given when using the -d option")
         else:
             dMapDict = clusters.makeDensityMap(RADeg, decDeg, galaxyCatalog, z, dz, rMaxMpc = 1.5)
-            astImages.saveFITS(args.outDir+os.path.sep+"densityMap_z%s_%s.fits" % (z, outputLabel),
+            astImages.saveFITS(args.outDir+os.path.sep+"densityMap_z%.2f_%s.fits" % (z, outputLabel),
                                dMapDict['map'], dMapDict['wcs'])
             
     # Estimate errors for density map, CS and A
@@ -186,7 +186,7 @@ if __name__ == '__main__':
         AError=np.percentile(AErr, 68.3) # 68th percentile as error
         CSError=np.percentile(CSErr, 68.3)
         MapError=np.percentile(MapErr,68.3, axis=0)
-        astImages.saveFITS(args.outDir+os.path.sep+"errorMap_z%s_%s.fits" % (z, outputLabel),
+        astImages.saveFITS(args.outDir+os.path.sep+"errorMap_z%.2f_%s.fits" % (z, outputLabel),
                                MapError, dMapDict['wcs'])
         print(">>> CS:\t"+str(dMapDict['CS'])+" +- "+str(CSError)+"\n A:\t"+str(dMapDict['A'])+" +- "+str(AError))
         
