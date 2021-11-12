@@ -1,3 +1,5 @@
+.. image:: https://readthedocs.org/projects/zcluster/badge/?version=latest
+
 **zCluster** is a package for measuring galaxy cluster photometric redshifts using
 data from large public surveys. It can also produce photometric redshift estimates
 and galaxy density maps for any point in the sky using the included `zField` tool.

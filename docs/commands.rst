@@ -21,3 +21,17 @@ zCluster
    cluster catalog.
 
 
+.. _zFieldCommand:
+    
+zField
+--------
+
+.. argparse::
+   :filename: ../bin/zField
+   :func: makeParser
+   :prog: zField
+   
+   :program:`zField` estimates galaxy photometric redshifts for objects in a user-supplied
+   direction on the sky.
+
+

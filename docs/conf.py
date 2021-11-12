@@ -25,7 +25,7 @@ autodoc_mock_imports = ["mpi4py"]
 # -- Project information -----------------------------------------------------
 
 project = 'zCluster'
-copyright = '2021,zCluster contributors'
+copyright = '2021, zCluster contributors'
 author = 'Matt Hilton + zCluster contributors'
 
 # The short X.Y version
