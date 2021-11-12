@@ -18,7 +18,6 @@ from zCluster import clusters
 from zCluster import catalogs
 import urllib
 import time
-import IPython
 
 #------------------------------------------------------------------------------------------------------------
 def makeParser():
