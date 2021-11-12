@@ -25,7 +25,8 @@ For details of the algorithm, its performance, and the output of the code, refer
 results based on SDSS, S82, and CFHTLenS, and/or 
 `Hilton et al. (2021) <https://ui.adsabs.harvard.edu/abs/2021ApJS..253....3H/abstract>`_, which presents
 results based on DECaLS DR8. The other surveys listed above are work in progress (so use with caution; PS1 in 
-particular is problematic). 
+particular is problematic). `Pillay et al. (2021) <https://ui.adsabs.harvard.edu/abs/2021arXiv211104340P/abstract>`_
+presents the first use of the package for producing projected galaxy density maps.
 
 If you find **zCluster** useful in your work, please cite whichever one
 of the above papers that you think is appropriate (together, of course, with the appropriate papers
