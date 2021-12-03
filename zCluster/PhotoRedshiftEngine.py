@@ -377,6 +377,7 @@ class PhotoRedshiftEngine:
     
         return [z, odds]
 
+
     def estimateStellarMasses(self, galaxyCatalog, stellarMassModelDir, z = None):
         """Given a directory containing BC03-format stellar population models, estimate
         the stellar mass of galaxies in the given catalog.
@@ -388,8 +389,8 @@ class PhotoRedshiftEngine:
                 population models (BC03 format for now).
             z (:obj:`float`, optional): If given, the redshift will be fixed to this value
                 and applied to all the galaxies in the catalog (this is what you want for
-                galaxy clusters, and is quick). If None, then the maximum likelihood
-                redshift of each individual galaxy will be used (this will be slow,
+                galaxy clusters, and is quicker). If None, then the maximum likelihood
+                redshift of each individual galaxy will be used (this will be very slow,
                 but actually isn't implemented yet...).
 
         Returns:
@@ -401,42 +402,7 @@ class PhotoRedshiftEngine:
             raise Exception("Stellar mass estimation at individual galaxy maximum likelihood redshifts is not implemented yet.")
 
         # Make model SEDs - this is very time consuming and needs a lot of speeding up...
-        print(">>> Setting up stellar population models")
-        t0=time.time()
-        EBMinusVList=np.linspace(0, 0.48, 13).tolist()
-        modelSEDDictList=[]
-        # Restrict to solar only
-        modelSEDFileNames=glob.glob("%s/bc03_m62*.gplm" % (stellarMassModelDir))
-        # All metallicities
-        #modelSEDFileNames=glob.glob("%s/bc03_*.gplm" % (stellarMassModelDir))
-        count=0
-        for modelSEDFileName in modelSEDFileNames:
-            count=count+1
-            print("... %d/%d ..." % (count, len(modelSEDFileNames)))
-            modelSED=astSED.BC03Model(modelSEDFileName)
-            # Only use ages less than age of the Universe
-            ages=np.array(modelSED.ages)[np.less(modelSED.ages, astCalc.tz(z))]
-            # Only load the mass file once per model SED - this is a bottle neck if we repeat for every age!
-            modelMassDict=sm.loadBC03MassFile(modelSEDFileName)
-            #t00=time.time()
-            for ageGyr in ages:
-                s=modelSED.getSED(ageGyr, z = z)
-                for EBMinusV in EBMinusVList:
-                    if EBMinusV > 0:
-                        s.extinctionCalzetti(EBMinusV) # modifies z0flux, so this should be okay
-                    modelSEDDict=s.getSEDDict(self.passbandsList)
-                    modelSEDDict['labels']="label"
-                    modelSEDDict['EBMinusV']=EBMinusV
-                    modelSEDDict['ageGyr']=ageGyr
-                    modelSEDDict['z']=z
-                    modelSEDDict['fileName']=modelSED.fileName
-                    modelSEDDict['metallicity']=sm.getMetallicity("BC03", modelSED.fileName)
-                    modelSEDDict['tauGyr']=sm.getTauGyr("BC03", modelSED.fileName)
-                    modelSEDDict['modelListIndex']=count
-                    modelSEDDict['stellarMass']=interpolate.splev(modelSEDDict['ageGyr'], modelMassDict['tckMass'])
-                    modelSEDDictList.append(modelSEDDict)
-        t1=time.time()
-        print("... took %.3f sec" % (t1-t0))
+        modelSEDDictList=sm.setUpStellarMassSEDs(stellarMassModelDir, self.passbandsList, z)
 
         # Fit each observed SED
         wantedKeys=['log10StellarMass']

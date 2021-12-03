@@ -212,4 +212,4 @@ if __name__ == '__main__':
     # We may as well print some stats
     print(">>> Summary:")
     print("    N = %d" %  (len(tab['zPhot'])))
-    print(">>> Total time: {:.1g} minutes".format((time.time()-start)/60.))
+    print(">>> Total time: %.1f sec" % (time.time()-start))
