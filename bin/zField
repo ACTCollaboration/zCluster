@@ -71,6 +71,12 @@ def makeParser():
     parser.add_argument("-MC", "--monte-carlo-samples", dest="MC",
                         help="Number of Monte Carlo samples to use when estimating uncertainties on the\
                         projected galaxy density map", type = int, default = 1000)
+    parser.add_argument("-S", "--stellar-mass-model-dir", dest="stellarMassModelDir", default = None,
+                        help = "If given, estimate stellar masses for galaxies using the (for now) BC03-format\
+                        stellar population models in the given directory. If -z (--redshift) is given, stellar\
+                        masses will be estimated at the given redshift. Otherwise, the stellar masses will be\
+                        estimated at the maximum likelihood redshift of each galaxy (although that isn't\
+                        actually implemented yet).")
 
     return parser
 
@@ -144,8 +150,15 @@ if __name__ == '__main__':
         photoRedshiftEngine.calcZeroPointOffsets(galaxyCatalog)
     photoRedshiftEngine.calcPhotoRedshifts(galaxyCatalog, calcMLRedshiftAndOdds = True)
     
+    # Optional stellar mass estimates
+    if args.stellarMassModelDir is not None:
+        photoRedshiftEngine.estimateStellarMasses(galaxyCatalog, args.stellarMassModelDir, z = z)
+
+    # Write catalog and region file
     wantedKeys=['id', 'RADeg', 'decDeg', 'zPhot', 'odds']
-    wantedKeys=np.concatenate((wantedKeys,bands))
+    if args.stellarMassModelDir is not None:
+        wantedKeys.append('log10StellarMass')
+    wantedKeys=wantedKeys+bands
     tab=atpy.Table()
     for key in wantedKeys:
         arr=[]
