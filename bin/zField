@@ -103,6 +103,12 @@ if __name__ == '__main__':
     ErrMap=args.ErrMap
     MC=args.MC
 
+    # Memory saving - we don't care about carrying around p(z) if we're not writing density maps
+    if args.writeDensityMaps == False:
+        returnPZ=False
+    else:
+        returnPZ=True
+
     # Set-up cache
     if cacheDir is not None:
         if os.path.exists(cacheDir) == False:
@@ -138,8 +144,10 @@ if __name__ == '__main__':
         print("No galaxies found at the given position.")
         sys.exit()
     
-    photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, ZPError = ZPError, passbandSet = passbandSet,
-                                                                templatesDir = templatesDir, ZPOffsets = ZPOffsets)
+    photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, ZPError = ZPError,
+                                                                passbandSet = passbandSet,
+                                                                templatesDir = templatesDir,
+                                                                ZPOffsets = ZPOffsets)
     bands=photoRedshiftEngine.bands
     bandErrs=[]
     for b in bands:
@@ -148,7 +156,7 @@ if __name__ == '__main__':
 
     if fitZPOffsets == True:
         photoRedshiftEngine.calcZeroPointOffsets(galaxyCatalog)
-    photoRedshiftEngine.calcPhotoRedshifts(galaxyCatalog, calcMLRedshiftAndOdds = True)
+    photoRedshiftEngine.calcPhotoRedshifts(galaxyCatalog, calcMLRedshiftAndOdds = True, returnPZ = returnPZ)
     
     # Optional stellar mass estimates
     if args.stellarMassModelDir is not None:

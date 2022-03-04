@@ -259,7 +259,7 @@ class PhotoRedshiftEngine:
         print("... offsets found: %s mag." % (str(self.ZPOffsets)))
 
     
-    def calcPhotoRedshifts(self, galaxyCatalog, calcMLRedshiftAndOdds = False):
+    def calcPhotoRedshifts(self, galaxyCatalog, calcMLRedshiftAndOdds = False, returnPZ = True):
         """Calculates photometric redshifts and adds to the galaxy catalog in place.
         
         NOTE: since normally we're normally only interested in p(z), this only returns
@@ -329,8 +329,9 @@ class PhotoRedshiftEngine:
                 zp, odds=self.calculateMLRedshiftAndOdds(pz, dzOdds = 0.2)
                 galaxy['zPhot']=zp
                 galaxy['odds']=odds
-            galaxy['pz']=pz
-            galaxy['pz_z']=self.zRange
+            if returnPZ == True:
+                galaxy['pz']=pz
+                galaxy['pz_z']=self.zRange
         t1=time.time()
         
 
