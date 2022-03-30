@@ -89,12 +89,12 @@ if __name__ == '__main__':
 
     RADeg=args.RADeg
     decDeg=args.decDeg
-    maxRDeg=args.maxRDeg
+    maxRDeg=float(args.maxRDeg)
     ZPError=args.ZPError
     templatesDir=args.templatesDir
-    absMagCut=args.absMagCut
+    absMagCut=float(args.absMagCut)
     database=args.database
-    maxMagError=args.maxMagError
+    maxMagError=float(args.maxMagError)
     fitZPOffsets=args.fitZPOffsets
     cacheDir=args.cacheDir
     writeDensityMaps=args.writeDensityMaps
