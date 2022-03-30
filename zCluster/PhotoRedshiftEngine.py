@@ -7,6 +7,7 @@ This module contains a class for estimating galaxy photometric redshifts using a
 import os
 import numpy as np
 import zCluster
+from zCluster import stellarmass as sm
 from astLib import *
 from scipy import stats
 from scipy import interpolate
@@ -258,7 +259,7 @@ class PhotoRedshiftEngine:
         print("... offsets found: %s mag." % (str(self.ZPOffsets)))
 
     
-    def calcPhotoRedshifts(self, galaxyCatalog, calcMLRedshiftAndOdds = False):
+    def calcPhotoRedshifts(self, galaxyCatalog, calcMLRedshiftAndOdds = False, returnPZ = True):
         """Calculates photometric redshifts and adds to the galaxy catalog in place.
         
         NOTE: since normally we're normally only interested in p(z), this only returns
@@ -328,8 +329,9 @@ class PhotoRedshiftEngine:
                 zp, odds=self.calculateMLRedshiftAndOdds(pz, dzOdds = 0.2)
                 galaxy['zPhot']=zp
                 galaxy['odds']=odds
-            galaxy['pz']=pz
-            galaxy['pz_z']=self.zRange
+            if returnPZ == True:
+                galaxy['pz']=pz
+                galaxy['pz_z']=self.zRange
         t1=time.time()
         
 
@@ -375,4 +377,50 @@ class PhotoRedshiftEngine:
             odds=zOdds[zOdds.tolist().index(zOdds.max())]    
     
         return [z, odds]
-    
+
+
+    def estimateStellarMasses(self, galaxyCatalog, stellarMassModelDir, z = None):
+        """Given a directory containing BC03-format stellar population models, estimate
+        the stellar mass of galaxies in the given catalog.
+
+        Args:
+            galaxyCatalog (:obj:`list`): Galaxy catalog as a list of dictionaries, i.e.,
+                in the format returned by self.calcPhotoRedshifts().
+            stellarMassModelDir (:obj:`str`): Path to a directory containing the stellar
+                population models (BC03 format for now).
+            z (:obj:`float`, optional): If given, the redshift will be fixed to this value
+                and applied to all the galaxies in the catalog (this is what you want for
+                galaxy clusters, and is quicker). If None, then the maximum likelihood
+                redshift of each individual galaxy will be used (this will be very slow,
+                but actually isn't implemented yet...).
+
+        Returns:
+            None ['log10StellarMass' key is added in-place to each galaxy in galaxyCatalog]
+
+        """
+
+        if z is None:
+            raise Exception("Stellar mass estimation at individual galaxy maximum likelihood redshifts is not implemented yet.")
+
+        # Make model SEDs - this is very time consuming and needs a lot of speeding up...
+        modelSEDDictList=sm.setUpStellarMassSEDs(stellarMassModelDir, self.passbandsList, z)
+
+        # Fit each observed SED
+        wantedKeys=['log10StellarMass']
+        count=0
+        DL=astCalc.dl(z)
+        print(">>> Estimating stellar masses")
+        for objDict in galaxyCatalog:
+            count=count+1
+            print("... %d/%d ..." % (count, len(galaxyCatalog)))
+            mags=[]
+            magErrs=[]
+            for band in self.bands:
+                mags.append(objDict[band])
+                magErrs.append(objDict[band+"Err"])
+            obsSEDDict=astSED.mags2SEDDict(mags, magErrs, self.passbandsList)
+            distNorm=4*np.pi*np.power(DL*3.08567758e24, 2)
+            fitResult=sm.fitSEDDictAndCalcStellarMass(obsSEDDict, modelSEDDictList, distNorm)
+            # Insert monte-carlo error estimation here...
+            for key in wantedKeys:
+                objDict[key]=fitResult[key]

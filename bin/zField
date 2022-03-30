@@ -71,6 +71,12 @@ def makeParser():
     parser.add_argument("-MC", "--monte-carlo-samples", dest="MC",
                         help="Number of Monte Carlo samples to use when estimating uncertainties on the\
                         projected galaxy density map", type = int, default = 1000)
+    parser.add_argument("-S", "--stellar-mass-model-dir", dest="stellarMassModelDir", default = None,
+                        help = "If given, estimate stellar masses for galaxies using the (for now) BC03-format\
+                        stellar population models in the given directory. If -z (--redshift) is given, stellar\
+                        masses will be estimated at the given redshift. Otherwise, the stellar masses will be\
+                        estimated at the maximum likelihood redshift of each galaxy (although that isn't\
+                        actually implemented yet).")
 
     return parser
 
@@ -83,12 +89,12 @@ if __name__ == '__main__':
 
     RADeg=args.RADeg
     decDeg=args.decDeg
-    maxRDeg=args.maxRDeg
+    maxRDeg=float(args.maxRDeg)
     ZPError=args.ZPError
     templatesDir=args.templatesDir
-    absMagCut=args.absMagCut
+    absMagCut=float(args.absMagCut)
     database=args.database
-    maxMagError=args.maxMagError
+    maxMagError=float(args.maxMagError)
     fitZPOffsets=args.fitZPOffsets
     cacheDir=args.cacheDir
     writeDensityMaps=args.writeDensityMaps
@@ -96,6 +102,12 @@ if __name__ == '__main__':
     dz=args.dz
     ErrMap=args.ErrMap
     MC=args.MC
+
+    # Memory saving - we don't care about carrying around p(z) if we're not writing density maps
+    if args.writeDensityMaps == False:
+        returnPZ=False
+    else:
+        returnPZ=True
 
     # Set-up cache
     if cacheDir is not None:
@@ -132,8 +144,10 @@ if __name__ == '__main__':
         print("No galaxies found at the given position.")
         sys.exit()
     
-    photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, ZPError = ZPError, passbandSet = passbandSet,
-                                                                templatesDir = templatesDir, ZPOffsets = ZPOffsets)
+    photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, ZPError = ZPError,
+                                                                passbandSet = passbandSet,
+                                                                templatesDir = templatesDir,
+                                                                ZPOffsets = ZPOffsets)
     bands=photoRedshiftEngine.bands
     bandErrs=[]
     for b in bands:
@@ -142,10 +156,17 @@ if __name__ == '__main__':
 
     if fitZPOffsets == True:
         photoRedshiftEngine.calcZeroPointOffsets(galaxyCatalog)
-    photoRedshiftEngine.calcPhotoRedshifts(galaxyCatalog, calcMLRedshiftAndOdds = True)
+    photoRedshiftEngine.calcPhotoRedshifts(galaxyCatalog, calcMLRedshiftAndOdds = True, returnPZ = returnPZ)
     
+    # Optional stellar mass estimates
+    if args.stellarMassModelDir is not None:
+        photoRedshiftEngine.estimateStellarMasses(galaxyCatalog, args.stellarMassModelDir, z = z)
+
+    # Write catalog and region file
     wantedKeys=['id', 'RADeg', 'decDeg', 'zPhot', 'odds']
-    wantedKeys=np.concatenate((wantedKeys,bands))
+    if args.stellarMassModelDir is not None:
+        wantedKeys.append('log10StellarMass')
+    wantedKeys=wantedKeys+bands
     tab=atpy.Table()
     for key in wantedKeys:
         arr=[]
@@ -199,4 +220,4 @@ if __name__ == '__main__':
     # We may as well print some stats
     print(">>> Summary:")
     print("    N = %d" %  (len(tab['zPhot'])))
-    print(">>> Total time: {:.1g} minutes".format((time.time()-start)/60.))
+    print(">>> Total time: %.1f sec" % (time.time()-start))
