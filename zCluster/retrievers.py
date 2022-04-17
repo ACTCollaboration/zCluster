@@ -1154,10 +1154,17 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
             tab=tab[tab['maskbits'] != 2**1]
             tab=tab[tab['maskbits'] < 2**11]
         # Below is clean but loses us some clusters that look ok (we can't do proper bitwise anyway with atpy table?)
-        #tab=tab[np.where(tab['maskbits'] == 0)] 
-        tab=tab[np.where(tab['type'] != 'PSF')]
-        tab=tab[np.where(tab['type'] != 'PSF ')] # Trailing space
-        
+        #tab=tab[np.where(tab['maskbits'] == 0)]
+        # Added getStars option for when we want to use this code for making
+        if 'getStars' in optionsDict.keys() and optionsDict['getStars'] == True:
+            starMask=np.logical_or(tab['type'] == 'PSF', tab['type'] == 'PSF ') # some catalogs have trailing space
+            tab=tab[starMask]
+            # Keep only Gaia objects - so we really, really get star-like objects
+            tab=tab[tab['ref_cat'] == 'G2']
+        else:
+            tab=tab[np.where(tab['type'] != 'PSF')]
+            tab=tab[np.where(tab['type'] != 'PSF ')] # Trailing space
+
         # WISE fluxes are available...
         bands=['g', 'r', 'z', "w1", "w2"]# , 'Y']
         
