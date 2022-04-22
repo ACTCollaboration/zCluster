@@ -186,8 +186,8 @@ if __name__ == '__main__':
         if z is None:
             raise Exception("Redshift needs to be specified using -z when using the -d option")
         else:
-            rMaxMpc=astCalc.da(z)*np.tan(np.radians(maxRDeg))
-            dMapDict = clusters.makeDensityMap(RADeg, decDeg, galaxyCatalog, z, dz, rMaxMpc = rMaxMpc)
+            sizeMpc=astCalc.da(z)*np.tan(np.radians(maxRDeg))*2
+            dMapDict = clusters.makeDensityMap(RADeg, decDeg, galaxyCatalog, z, dz, sizeMpc = sizeMpc)
             astImages.saveFITS(args.outDir+os.path.sep+"densityMap_z%.2f_%s.fits" % (z, outputLabel),
                                dMapDict['map'], dMapDict['wcs'])
             
@@ -206,8 +206,8 @@ if __name__ == '__main__':
             if fitZPOffsets == True:
                 photoRedshiftEngine.calcZeroPointOffsets(newGalaxyCatalog)
             photoRedshiftEngine.calcPhotoRedshifts(newGalaxyCatalog, calcMLRedshiftAndOdds = True) # Recompute photo-z's
-            rMaxMpc=astCalc.da(z)*np.tan(np.radians(maxRDeg))
-            dMapDictwerr = clusters.makeDensityMap(RADeg, decDeg, newGalaxyCatalog, z, dz, rMaxMpc = rMaxMpc) # Make new density maps with added noise
+            sizeMpc=astCalc.da(z)*np.tan(np.radians(maxRDeg))*2
+            dMapDictwerr = clusters.makeDensityMap(RADeg, decDeg, newGalaxyCatalog, z, dz, sizeMpc = sizeMpc) # Make new density maps with added noise
             CSErr.append(dMapDictwerr['CS'])
             AErr.append(dMapDictwerr['A'])
             MapErr.append(dMapDictwerr['map'])
