@@ -187,9 +187,12 @@ if __name__ == '__main__':
             raise Exception("Redshift needs to be specified using -z when using the -d option")
         else:
             sizeMpc=astCalc.da(z)*np.tan(np.radians(maxRDeg))*2
-            dMapDict = clusters.makeDensityMap(RADeg, decDeg, galaxyCatalog, z, dz, sizeMpc = sizeMpc)
-            astImages.saveFITS(args.outDir+os.path.sep+"densityMap_z%.2f_%s.fits" % (z, outputLabel),
-                               dMapDict['map'], dMapDict['wcs'])
+            dMapDict=clusters.makeDensityMap(RADeg, decDeg, galaxyCatalog, z, dz, sizeMpc = sizeMpc,
+                                             outFITSFileName = args.outDir+os.path.sep+"densityMap_z%.2f_%s.fits" % (z, outputLabel),
+                                             outPlotFileName = args.outDir+os.path.sep+"densityMap_z%.2f_%s.png" % (z, outputLabel))
+            #astImages.saveFITS(args.outDir+os.path.sep+"densityMap_z%.2f_%s.fits" % (z, outputLabel),
+                               #dMapDict['map'], dMapDict['wcs'])
+
             
     # Estimate errors for density map, CS and A
     if ErrMap == True:

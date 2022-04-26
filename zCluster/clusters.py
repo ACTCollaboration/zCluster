@@ -79,7 +79,7 @@ def makeBlankMap(RADeg, decDeg, sizePix, sizeDeg):
 
 #-------------------------------------------------------------------------------------------------------------
 def makeDensityMap(RADeg, decDeg, catalog, z, dz = 0.1, rMaxMpc = 1.5, sizeMpc = 8.0, MpcPerPix = 0.1,
-                   gaussSmoothPix = 2):
+                   gaussSmoothPix = 2, outFITSFileName = None, outPlotFileName = None):
     """Makes a projected density map within +/- dz of the given redshift, smoothed using a Gaussian kernel,
     then calculates the centroid location, centroid shift (with respect to the original position), and an
     asymmetry statistic.
@@ -96,6 +96,11 @@ def makeDensityMap(RADeg, decDeg, catalog, z, dz = 0.1, rMaxMpc = 1.5, sizeMpc =
         MpcPerPix (float, optional): The pixel size, in projected Mpc, for the output density map.
         gaussSmoothPix (int, optional): The size of the Gaussian smoothing kernel applied to the output
             projected density map, in pixels.
+        outFITSFileName (str, optional): If given, write the density map as a FITS file to the given
+            location.
+        makePlot (str, optional): If given, write a plot of the density map to the given location (the
+            file format is determined by the extension, and supported formats depend on the matplotlib
+            backend used).
         
     Returns:
         A dictionary with keys:
@@ -152,9 +157,18 @@ def makeDensityMap(RADeg, decDeg, catalog, z, dz = 0.1, rMaxMpc = 1.5, sizeMpc =
     offsetArcmin=astCoords.calcAngSepDeg(cRADeg, cDecDeg, RADeg, decDeg)*60
     offsetMpc=np.radians(offsetArcmin/60.)*DA
     
+    if outFileName is not None:
+        astImages.saveFITS(outFITSFileName, d, wcs)
+
+    if outPlotFileName is not None:
+        print("make a nice plot")
+        import IPython
+        IPython.embed()
+        sys.exit()
+
     return {'map': d, 'wcs': wcs, 'cRADeg': cRADeg, 'cDecDeg': cDecDeg, 
             'offsetArcmin': offsetArcmin, 'offsetMpc': offsetMpc, 'CS': CS, 'A': A}
-        
+
 #-------------------------------------------------------------------------------------------------------------
 def makeWeightedNz(RADeg, decDeg, catalog, zPriorMax, weightsType, minDistanceMpc = 0.0, maxDistanceMpc = 1.0, 
                    applySanityCheckRadius = True, sanityCheckRadiusArcmin = 1.0, areaMask = None, wcs = None):

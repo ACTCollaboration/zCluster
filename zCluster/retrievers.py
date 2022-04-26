@@ -1125,6 +1125,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
                     outFile.write("wget -nc %s\n" % (url))
                 print("... WARNING: failed to fetch from %s" % (url))
         try:
+            print("... reading from cache: %s ..." % (fileName))
             tractorTab=atpy.Table.read(fileName)
             tractorTabs.append(tractorTab)
         except:
