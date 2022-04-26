@@ -157,14 +157,28 @@ def makeDensityMap(RADeg, decDeg, catalog, z, dz = 0.1, rMaxMpc = 1.5, sizeMpc =
     offsetArcmin=astCoords.calcAngSepDeg(cRADeg, cDecDeg, RADeg, decDeg)*60
     offsetMpc=np.radians(offsetArcmin/60.)*DA
     
-    if outFileName is not None:
+    if outFITSFileName is not None:
         astImages.saveFITS(outFITSFileName, d, wcs)
 
     if outPlotFileName is not None:
-        print("make a nice plot")
-        import IPython
-        IPython.embed()
-        sys.exit()
+        axes=[0, 0, 1, 1]
+        axesLabels="sexagesimal"    # Avoid dealing with axis flips
+        figSize=(8.25, 8.25)
+        fig=plt.figure(figsize = figSize, dpi = 300)
+        p=astPlots.ImagePlot(d, wcs, cutLevels = [d.min(), d.max()],
+                             colorMapName = 'magma', axes = axes,
+                             axesLabels = axesLabels)
+
+        if sizeMpc > 40:
+            scaleBarMpc=5
+        elif sizeMpc > 10 and sizeMpc < 40:
+            scaleBarMpc=2
+        elif sizeMpc < 10:
+            scaleBarMpc=1
+        scaleBarMpc=5#int(round(sizeMpc/5))
+        scaleBarSizeArcmin=np.degrees(scaleBarMpc/astCalc.da(z))*60
+        p.addScaleBar('SE', scaleBarSizeArcmin*60.0, color='cyan', fontSize=16, width=2.0, label = "%d Mpc" % (scaleBarMpc))
+        plt.savefig(outPlotFileName)
 
     return {'map': d, 'wcs': wcs, 'cRADeg': cRADeg, 'cDecDeg': cDecDeg, 
             'offsetArcmin': offsetArcmin, 'offsetMpc': offsetMpc, 'CS': CS, 'A': A}
