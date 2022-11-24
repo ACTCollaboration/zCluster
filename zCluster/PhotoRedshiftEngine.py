@@ -259,7 +259,8 @@ class PhotoRedshiftEngine:
         print("... offsets found: %s mag." % (str(self.ZPOffsets)))
 
     
-    def calcPhotoRedshifts(self, galaxyCatalog, calcMLRedshiftAndOdds = False, returnPZ = True):
+    def calcPhotoRedshifts(self, galaxyCatalog, calcMLRedshiftAndOdds = False, returnPZ = True,
+                           storeBestFitSEDModels = False):
         """Calculates photometric redshifts and adds to the galaxy catalog in place.
         
         NOTE: since normally we're normally only interested in p(z), this only returns
@@ -312,6 +313,11 @@ class PhotoRedshiftEngine:
             # This extracts chiSq as function of redshift for the best-fit template only, if we wanted it
             #chiSq=chiSq[self.templateIndex == self.templateIndex[np.argmin(chiSq)]]
             #pz=np.exp(-chiSq/2)
+
+            # This is useful if we want to add rest frame color calculation
+            if storeBestFitSEDModels == True:
+                galaxy['bestFitSED']=self.modelSEDDictList[self.templateIndex[np.argmin(chiSq)]]['SED']
+
             # This uses all templates at once
             chiSqProb=np.exp(-chiSq/2)#stats.chisqprob(chiSq, len(self.bands)-2)
             chiSqProb=chiSqProb.reshape([self.numModels, self.zRange.shape[0]])
