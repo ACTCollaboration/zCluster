@@ -108,6 +108,9 @@ def getRetriever(database, maxMagError = 0.2):
     elif database == 'CFHTLenS':
         retriever=CFHTLenSRetriever
         retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'DELVEDR2':
+        retriever=DELVEDR2Retriever
+        retrieverOptions={'maxMagError': maxMagError}
     elif database.find("DECaLS") != -1:
         if database == "DECaLS":
             raise Exception("Specify either 'DECaLSDR8' or 'DECaLSDR9' instead of DECaLS")
@@ -117,6 +120,9 @@ def getRetriever(database, maxMagError = 0.2):
         elif database == 'DECaLSDR9':
             DR="DR9"
             retriever=DECaLSDR9Retriever
+        elif database == "DECaLSDR10":
+            DR="DR10"
+            retriever=DECaLSDR10Retriever
         passbandSet='DECaLS'
         # For DECaLS, need the bricks files that define survey on the sky
         # These were previously included in zCluster, but now we fetch over web and cache
@@ -1231,7 +1237,7 @@ def DECaLSDR8Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, opt
 
 #-------------------------------------------------------------------------------------------------------------
 def DECaLSDR9Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
-    """Retrieves DECaLS DR8 tractor catalogs (if they exist) at the given position. Cuts the catalog to the
+    """Retrieves DECaLS DR9 tractor catalogs (if they exist) at the given position. Cuts the catalog to the
     radius specified by halfBoxSizeDeg.
 
     """
@@ -1239,6 +1245,58 @@ def DECaLSDR9Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, opt
     stuff=DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 'DR9', optionsDict = optionsDict)
     
     return stuff
+
+#-------------------------------------------------------------------------------------------------------------
+def DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
+    """Retrieves DECaLS DR10 tractor catalogs (if they exist) at the given position. Cuts the catalog to the
+    radius specified by halfBoxSizeDeg.
+
+    """
+
+    stuff=DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 'DR10', optionsDict = optionsDict)
+
+    return stuff
+
+#-------------------------------------------------------------------------------------------------------------
+def DELVEDR2Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
+    """DELVE DR2 retriever, using NOAO datalab.
+
+    """
+
+    from dl import queryClient as qc
+    RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
+    result=qc.query(sql='select ra, dec, mag_auto_g, mag_auto_r, mag_auto_i, mag_auto_z, magerr_auto_g, magerr_auto_r,\
+                    magerr_auto_i, magerr_auto_z, extinction_g, extinction_r, extinction_i, extinction_z from delve_dr2.objects where\
+                    extended_class_r > 1 and RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f' % (RAMin, RAMax, decMin, decMax))
+
+    catalog=[]
+    count=0
+    bands=['g', 'r', 'i', 'z']
+    for row in result.split('\n')[1:]:
+        count=count+1
+        objDict={}
+        objDict['id']=count
+        bits=row.split(',')
+        if len(bits) > 1:
+            objDict['RADeg']=float(bits[0])
+            objDict['decDeg']=float(bits[1])
+            # Inc. extinction correction
+            objDict['g']=float(bits[2])-float(bits[10])
+            objDict['r']=float(bits[3])-float(bits[11])
+            objDict['i']=float(bits[4])-float(bits[12])
+            objDict['z']=float(bits[5])-float(bits[13])
+            objDict['gErr']=float(bits[6])
+            objDict['rErr']=float(bits[7])
+            objDict['iErr']=float(bits[8])
+            objDict['zErr']=float(bits[9])
+            if 'maxMagError' in list(optionsDict.keys()):
+                keep=checkMagErrors(objDict, optionsDict['maxMagError'], bands = bands)
+            else:
+                keep=True
+            if keep == True:
+                catalog.append(objDict)
+
+    return catalog
 
 #-------------------------------------------------------------------------------------------------------------
 def SDSSDR7Retriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):

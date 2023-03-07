@@ -147,10 +147,11 @@ def writePlot(objName, result, zPriorMax, plotsDir):
         plt.close()
 
 #-------------------------------------------------------------------------------------------------------------
-def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir, zPriorMin,
-                 zPriorMax, weightsType, maxRMpc, zMethod, bckCatalogFileName, bckAreaDeg2,
-                 maskPath = None, writeGalaxyCatalogs = False, writeDensityMaps = False, writePlots = False, 
-                 rank = 0, zDebias = None, fitZPOffsets = False, maxIter = 5, minBackgroundAreaMpc2 = 11):
+def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outDir, zPriorMin,\
+                 zPriorMax, weightsType, maxRMpc, zMethod, bckCatalogFileName, bckAreaDeg2,\
+                 maskPath = None, writeGalaxyCatalogs = False, writeDensityMaps = False, writePlots = False,\
+                 rank = 0, zDebias = None, fitZPOffsets = False, maxIter = 5, minBackgroundAreaMpc2 = 11,\
+                 fetchAndCacheOnly = False):
     """Runs zCluster algorithm on each object in catalog.
     
     """
@@ -210,6 +211,8 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
             stuff="retry"
             while stuff == "retry":
                 stuff=retriever(obj['RADeg'], obj['decDeg'], optionsDict = retrieverOptions)
+            if fetchAndCacheOnly == True:
+                continue
             galaxyCatalog=stuff
             # Default values... will get filled if sucessful
             obj['origRADeg']=obj['RADeg']
@@ -417,6 +420,12 @@ def makeParser():
     parser.add_argument("-c", "--cachedir", dest="cacheDir", default = None, help="Cache directory location\
                         (default: $HOME/.zCluster/cache). Downloaded photometric catalogs will be stored\
                         here.")
+    parser.add_argument("-F", "--fetch-only-and-cache", dest="fetchOnlyAndCache",
+                        help="Only fetch and cache galaxy catalogs - i.e., do not run photo-z estimation.\
+                        This is useful if you are running on a compute cluster where compute nodes do\
+                        not have internet access (allows a first run with -F, followed by a second run\
+                        under MPI to compute the photo-zs in parallel).",
+                        default = False, action = "store_true")
     parser.add_argument("-M", "--mpi", dest="MPIEnabled", action="store_true", help="Enable MPI. If you\
                         want to use this, run zCluster using something like: mpirun --np 4 zCluster ...",
                         default = False)
@@ -655,7 +664,8 @@ if __name__ == '__main__':
                          maskPath = maskPath, writeGalaxyCatalogs = writeGalaxyCatalogs, 
                          writeDensityMaps = args.writeDensityMaps, writePlots = writePlots, 
                          rank = rank, zDebias = zDebias, fitZPOffsets = args.fitZPOffsets,
-                         maxIter = maxIter, minBackgroundAreaMpc2 = args.minBackgroundAreaMpc2)
+                         maxIter = maxIter, minBackgroundAreaMpc2 = args.minBackgroundAreaMpc2,
+                         fetchOnlyAndCache = args.fetchOnlyAndCache)
     
     # If running under MPI, gather everything back together
     # Rank 0 process will continue with plots
