@@ -1065,7 +1065,7 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
 
 #-------------------------------------------------------------------------------------------------------------
 def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
-    """Retrieves DECaLS DR8 tractor catalogs (if they exist) at the given position. Cuts the catalog to the
+    """Retrieves DECaLS DRx tractor catalogs (if they exist) at the given position. Cuts the catalog to the
     radius specified by halfBoxSizeDeg.
 
     """
@@ -1172,8 +1172,10 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
             tab=tab[np.where(tab['type'] != 'PSF')]
             tab=tab[np.where(tab['type'] != 'PSF ')] # Trailing space
 
-        # WISE fluxes are available...
+        # WISE fluxes are available... i-band added in DECaLS DR10
         bands=['g', 'r', 'z', "w1", "w2"]# , 'Y']
+        if DR == 'DR10':
+            bands.append('i')
         
         # Convert nanomaggies to mags and do extinction correction
         bricksInTab=np.unique(tab['brickname'])

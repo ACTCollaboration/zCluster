@@ -420,7 +420,7 @@ def makeParser():
     parser.add_argument("-c", "--cachedir", dest="cacheDir", default = None, help="Cache directory location\
                         (default: $HOME/.zCluster/cache). Downloaded photometric catalogs will be stored\
                         here.")
-    parser.add_argument("-F", "--fetch-only-and-cache", dest="fetchOnlyAndCache",
+    parser.add_argument("-F", "--fetch-only-and-cache", dest="fetchAndCacheOnly",
                         help="Only fetch and cache galaxy catalogs - i.e., do not run photo-z estimation.\
                         This is useful if you are running on a compute cluster where compute nodes do\
                         not have internet access (allows a first run with -F, followed by a second run\
@@ -665,7 +665,7 @@ if __name__ == '__main__':
                          writeDensityMaps = args.writeDensityMaps, writePlots = writePlots, 
                          rank = rank, zDebias = zDebias, fitZPOffsets = args.fitZPOffsets,
                          maxIter = maxIter, minBackgroundAreaMpc2 = args.minBackgroundAreaMpc2,
-                         fetchOnlyAndCache = args.fetchOnlyAndCache)
+                         fetchAndCacheOnly = args.fetchAndCacheOnly)
     
     # If running under MPI, gather everything back together
     # Rank 0 process will continue with plots
