@@ -28,8 +28,10 @@ class PhotoRedshiftEngine:
         """Sets up the stuff we would otherwise calculate every time, i.e., the templates.
         
         """
-                                
-        # Redshift grid on which to calculate p(z)
+
+        if zStep < 0:
+            print("... WARNING: zStep was negative - forced to be positive")
+            zStep=abs(zStep)
         self.zRange=np.linspace(zMin, zMax, int(((zMax+zStep)-zMin)/zStep))
 
         # Set up passbands
@@ -423,8 +425,12 @@ class PhotoRedshiftEngine:
             mags=[]
             magErrs=[]
             for band in self.bands:
-                mags.append(objDict[band])
-                magErrs.append(objDict[band+"Err"])
+                if band in list(objDict.keys()):
+                    mags.append(objDict[band])
+                    magErrs.append(objDict[band+"Err"])
+                else:
+                    mags.append(99)
+                    magErrs.append(99)
             obsSEDDict=astSED.mags2SEDDict(mags, magErrs, self.passbandsList)
             distNorm=4*np.pi*np.power(DL*3.08567758e24, 2)
             fitResult=sm.fitSEDDictAndCalcStellarMass(obsSEDDict, modelSEDDictList, distNorm)

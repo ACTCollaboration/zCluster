@@ -445,7 +445,7 @@ def makeParser():
     parser.add_argument("-Z", "--z-prior-max", dest="zPriorMax", help="Set maximum redshift of prior.",
                         default = None)
     parser.add_argument("-b", "--brighter-absmag-cut", dest="absMagCut", help="Set bright absolute magnitude cut.",
-                        default = -24.)
+                        default = -24., type = float)
     parser.add_argument("-n", "--name", dest="name", help="Find photo-z of only the named cluster in the catalog.")
     parser.add_argument("-t", "--templates-directory", dest="templatesDir", help="Specify a directory containing\
                         a custom set of spectral templates.",  default = None)

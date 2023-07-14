@@ -113,7 +113,7 @@ def getRetriever(database, maxMagError = 0.2):
         retrieverOptions={'maxMagError': maxMagError}
     elif database.find("DECaLS") != -1:
         if database == "DECaLS":
-            raise Exception("Specify either 'DECaLSDR8' or 'DECaLSDR9' instead of DECaLS")
+            raise Exception("Specify either 'DECaLSDR8', 'DECaLSDR9', or 'DECaLSDR10' instead of DECaLS")
         if database == 'DECaLSDR8':
             DR="DR8"
             retriever=DECaLSDR8Retriever
@@ -123,6 +123,8 @@ def getRetriever(database, maxMagError = 0.2):
         elif database == "DECaLSDR10":
             DR="DR10"
             retriever=DECaLSDR10Retriever
+        else:
+            raise Exception("Didn't understand DECaLS database choice")
         passbandSet='DECaLS'
         # For DECaLS, need the bricks files that define survey on the sky
         # These were previously included in zCluster, but now we fetch over web and cache
