@@ -28,8 +28,10 @@ class PhotoRedshiftEngine:
         """Sets up the stuff we would otherwise calculate every time, i.e., the templates.
         
         """
-                                
-        # Redshift grid on which to calculate p(z)
+
+        if zStep < 0:
+            print("... WARNING: zStep was negative - forced to be positive")
+            zStep=abs(zStep)
         self.zRange=np.linspace(zMin, zMax, int(((zMax+zStep)-zMin)/zStep))
 
         # Set up passbands
