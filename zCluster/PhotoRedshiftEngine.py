@@ -425,8 +425,12 @@ class PhotoRedshiftEngine:
             mags=[]
             magErrs=[]
             for band in self.bands:
-                mags.append(objDict[band])
-                magErrs.append(objDict[band+"Err"])
+                if band in list(objDict.keys()):
+                    mags.append(objDict[band])
+                    magErrs.append(objDict[band+"Err"])
+                else:
+                    mags.append(99)
+                    magErrs.append(99)
             obsSEDDict=astSED.mags2SEDDict(mags, magErrs, self.passbandsList)
             distNorm=4*np.pi*np.power(DL*3.08567758e24, 2)
             fitResult=sm.fitSEDDictAndCalcStellarMass(obsSEDDict, modelSEDDictList, distNorm)

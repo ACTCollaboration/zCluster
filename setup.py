@@ -6,12 +6,12 @@ from setuptools import setup
 from setuptools import Extension
 from setuptools.command.install import install
 import stat
-from Cython.Distutils import build_ext
+#from Cython.Distutils import build_ext
 import numpy
 import versioneer
 
 cmdclass=versioneer.get_cmdclass()
-cmdclass['build_ext']=build_ext
+#cmdclass['build_ext']=build_ext
 
 setup(name='zCluster',
       version=versioneer.get_version(),
@@ -27,12 +27,12 @@ setup(name='zCluster',
       package_data={'zCluster': ['data/*', 'SED/CWW/*', 'SED/BR07/*', 'SED/EAZY_v1.0/*', 
                                  'passbands/*']},
       scripts=['bin/zCluster', 'bin/zField', 'bin/zClusterBCG', 'bin/zClusterComparisonPlot'],
-      ext_modules=[Extension("zClusterCython", ["zCluster/zClusterCython.pyx"], include_dirs=[numpy.get_include()])],
+      #ext_modules=[Extension("zClusterCython", ["zCluster/zClusterCython.pyx"], include_dirs=[numpy.get_include()])],
       install_requires=["astropy >= 4.0",
                         "numpy >= 1.19",
                         "matplotlib >= 2.0",
                         "astLib >= 0.11.7",
                         "scipy >= 1.0",
-                        "cython",
+                        #"cython",
                         "requests"]
 )

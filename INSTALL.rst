@@ -28,7 +28,6 @@ The latest tagged version of **zCluster** can be installed using ``pip``:
 
    pip install zCluster
 
-Note that you will need to have ``cython`` and ``numpy`` installed already (for the moment).
 Other dependencies will be installed by ``pip``.
 
 You may also install using the standard ``setup.py`` script, e.g., as root:
