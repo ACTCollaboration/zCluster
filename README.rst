@@ -18,7 +18,7 @@ and galaxy density maps for any point in the sky using the included `zField` too
 * SDSS Stripe 82 (from SDSS DR7)
 * CFHTLenS
 * PS1 (DR2)
-* DECaLS (DR8, DR9)
+* DECaLS (DR8 - DR10)
 * DES (DR1, DR2 and Y3 internal)
 * KiDS (DR4)
 
