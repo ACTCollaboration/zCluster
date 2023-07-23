@@ -328,7 +328,12 @@ class PhotoRedshiftEngine:
             pz=np.max(chiSqProb, axis = 0)
             # Mag prior
             absMag=magAB[self.magPriorBand]-5.0*np.log10(1e5*self.dlRange)
-            pPrior=np.array(np.greater(absMag, self.magPriorCut), dtype = float)
+            if type(self.magPriorCut) == float:
+                pPrior=np.array(np.greater(absMag, self.magPriorCut), dtype = float)
+            elif len(self.magPriorCut) == 2:
+                pPrior=np.array(np.logical_and(np.greater(absMag, self.magPriorCut[0]), np.less(absMag, self.magPriorCut[1]), dtype = float))
+            else:
+                raise Exception("magPriorCut should have only 1 or 2 elements")
             pz=pz*pPrior
             # Normalise
             pzNorm=np.trapz(pz, self.zRange)

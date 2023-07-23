@@ -444,8 +444,11 @@ def makeParser():
                         default = None)
     parser.add_argument("-Z", "--z-prior-max", dest="zPriorMax", help="Set maximum redshift of prior.",
                         default = None)
-    parser.add_argument("-b", "--brighter-absmag-cut", dest="absMagCut", help="Set bright absolute magnitude cut.",
-                        default = -24., type = float)
+    parser.add_argument("-b", "--absmag-cut", dest="absMagCut",
+                        help="Set absolute (r-band) magnitude cut to use in magnitude-based prior. If a single number\
+                        is given, p(z) for objects brighter than this limit will be set to 0. If a\
+                        list of numbers is given (e.g., [-15,-24]), p(z) will be set to 0\
+                        for objects outside of the absolute magnitude range.", default = -24.)
     parser.add_argument("-n", "--name", dest="name", help="Find photo-z of only the named cluster in the catalog.")
     parser.add_argument("-t", "--templates-directory", dest="templatesDir", help="Specify a directory containing\
                         a custom set of spectral templates.",  default = None)
@@ -494,7 +497,14 @@ if __name__ == '__main__':
     MPIEnabled=args.MPIEnabled
     maxMagError=float(args.maxMagError)
     #magsBrighterMStarCut=float(args.magsBrighterMStarCut)
-    absMagCut=float(args.absMagCut)
+    try:
+        absMagCut=float(args.absMagCut)
+    except:
+        vals=args.absMagCut.replace("[", "").replace("]", "").split(",")
+        if len(vals) != 2:
+            raise Exception("If you want to give a range for --absmag-cut, write as e.g. [-15,-23]")
+        absMagCut=[float(vals[0]), float(vals[1])]
+        absMagCut.sort() # Bright mag comes first
     writeGalaxyCatalogs=args.writeGalaxyCatalogs
     writePlots=args.writePlots
     maskPath=args.mask
