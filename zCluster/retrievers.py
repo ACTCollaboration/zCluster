@@ -932,7 +932,7 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
         # For some reason, SDSS changed their whole web API in ~May 2016 without calling it a new DR
         #url='http://skyserver.sdss.org/dr12/en/tools/search/x_sql.aspx'        
         #url='http://skyserver.sdss.org/dr12/en/tools/search/x_results.aspx'
-        url='http://skyserver.sdss.org/dr12/en/tools/search/x_results.aspx?searchtool=SQL&TaskName=Skyserver.Search.SQL&syntax=NoSyntax&ReturnHtml=false&'
+        url='https://skyserver.sdss.org/dr12/en/tools/search/x_results.aspx?searchtool=SQL&TaskName=Skyserver.Search.SQL&syntax=NoSyntax&ReturnHtml=false&'
         outFileName=cacheDir+os.path.sep+"SDSSDR12_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
         lineSkip=2		
    
@@ -996,7 +996,7 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
             try:
                 response=urllib.request.urlopen(url+'%s' % (params))
             except:
-                print("Network down? Waiting 30 sec...")
+                print("Network down? Waiting 30 sec... - if this persists, probably the query URL has changed.")
                 time.sleep(30)
 
         # Some faffing about here because of python2 -> python3 
