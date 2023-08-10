@@ -305,25 +305,25 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                             gobj['r-z']=gobj['r']-gobj['z']
 
                     wantedKeys=['id', 'RADeg', 'decDeg', 'u', 'uErr', 'g', 'gErr', 'r', 'rErr', 'i', 
-                                'iErr', 'z', 'zErr', 'Ks', 'KsErr', 'zPhot', 'odds', 'r-i', 'r-z']
-                    if os.path.exists(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_"))) == True:
-                        os.remove(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_")))
+                                'iErr', 'z', 'zErr', 'Ks', 'KsErr', 'w1', 'w1Err', 'w2', 'w2Err', 'r-i', 'r-z', 'zPhot', 'odds']
                     tab=atpy.Table()
                     for key in wantedKeys:
                         arr=[]
+                        allSentinelVals=True
                         for gobj in galaxyCatalog:
                             try:
                                 arr.append(gobj[key])
+                                allSentinelVals=False
                             except:
                                 arr.append(99)
-                        tab.add_column(atpy.Column(np.array(arr), key))
+                        if allSentinelVals == False:
+                            tab[key]=arr
                     # NOTE: to cut down on disk space this takes, include only galaxies within some radius
                     # Chosen one is just over 1.5 Mpc at z = 0.1
-                    tab.add_column(atpy.Column(astCoords.calcAngSepDeg(obj['RADeg'], obj['decDeg'], 
-                                                                    np.array(tab['RADeg']), np.array(tab['decDeg'])), "rDeg"))
+                    tab['rDeg']=astCoords.calcAngSepDeg(obj['RADeg'], obj['decDeg'], tab['RADeg'].data, tab['decDeg'].data)
                     #tab=tab[np.where(tab['rDeg'] < 14./60.0)]
                     tab.table_name="zCluster"
-                    tab.write(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_")))
+                    tab.write(objOutDir+os.path.sep+"galaxyCatalog_%s.fits" % (obj['name'].replace(" ", "_")), overwrite = True)
                     try:
                         catalogs.catalog2DS9(galaxyCatalog, 
                                                  objOutDir+os.path.sep+"galaxyCatalog_%s.reg" % (obj['name'].replace(" ", "_")), 
