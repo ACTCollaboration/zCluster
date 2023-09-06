@@ -1296,6 +1296,9 @@ def DL_DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None,
             result=None
             print("... WARNING: datalab query failed to get %s" % (outFileName))
     else:
+        if 'fetchAndCacheOnly' in optionsDict.keys() and optionsDict['fetchAndCacheOnly'] == True:
+            print("... already retrieved: %s ..." % (outFileName))
+            return None
         print("... reading from cache: %s ..." % (outFileName))
         result=atpy.Table().read(outFileName)
 
@@ -1305,6 +1308,8 @@ def DL_DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None,
     # DECaLS redshifts go very wrong when there are stars bright in W1, W2 in the vicinity
     # This should fix - we'll also throw out PSF-shaped sources too
     tab=result
+    if len(tab) == 0:
+        return None
     tab=tab[tab['maskbits'] != 2**1]
     tab=tab[tab['maskbits'] < 2**11]
     tab=tab[np.where(tab['type'] != 'PSF')]

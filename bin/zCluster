@@ -637,6 +637,8 @@ if __name__ == '__main__':
         
     if cacheDir is not None:
         retrieverOptions['altCacheDir']=cacheDir
+
+    retrieverOptions['fetchAndCacheOnly']=args.fetchAndCacheOnly
             
     photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, passbandSet = passbandSet, 
                                                                 ZPError = ZPError, ZPOffsets = ZPOffsets,
