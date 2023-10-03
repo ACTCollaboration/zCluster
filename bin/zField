@@ -16,6 +16,7 @@ from zCluster import retrievers
 from zCluster import PhotoRedshiftEngine
 from zCluster import clusters
 from zCluster import catalogs
+import pickle
 import urllib
 import time
 
@@ -77,6 +78,10 @@ def makeParser():
                         masses will be estimated at the given redshift. Otherwise, the stellar masses will be\
                         estimated at the maximum likelihood redshift of each galaxy (although that isn't\
                         actually implemented yet).")
+    parser.add_argument("-p", "--pickle-galaxy-catalog", dest="pickleGalaxyCatalog", default = False,
+                        action = "store_true", help = "If given, pickle the galaxy catalog after estimating\
+                        photo-zs. Use this if you want to e.g. read p(z) for each galaxy from disk for some\
+                        other analysis.")
 
     return parser
 
@@ -161,6 +166,16 @@ if __name__ == '__main__':
     # Optional stellar mass estimates
     if args.stellarMassModelDir is not None:
         photoRedshiftEngine.estimateStellarMasses(galaxyCatalog, args.stellarMassModelDir, z = z)
+
+    # Dump pickle file for p(z), optional
+    if args.pickleGalaxyCatalog is True:
+        pickleFileName=args.outDir+os.path.sep+"galaxyCatalog.pkl"
+        with open(pickleFileName, "wb") as pickleFile:
+            pickler=pickle.Pickler(pickleFile)
+            pickler.dump(galaxyCatalog)
+    # with open(pickleFileName, "rb") as pickleFile:
+    #     unpickler=pickle.Unpickler(pickleFile)
+    #     galaxyCatalog=unpickler.load()
 
     # Write catalog and region file
     wantedKeys=['id', 'RADeg', 'decDeg', 'zPhot', 'odds']
