@@ -19,6 +19,10 @@ import subprocess
 import time
 import zCluster
 import requests 
+try:
+    from dl import queryClient as qc
+except:
+    print("WARNING: Failed to import dl module - retrievers that use NOAO Data Lab will not work.")
 from astropy.io.votable import parse_single_table 
 
 #-------------------------------------------------------------------------------------------------------------
@@ -111,7 +115,11 @@ def getRetriever(database, maxMagError = 0.2):
     elif database == 'DELVEDR2':
         retriever=DELVEDR2Retriever
         retrieverOptions={'maxMagError': maxMagError}
-    elif database.find("DECaLS") != -1:
+    elif database == 'DL_DECaLSDR10':
+        retriever=DL_DECaLSDR10Retriever
+        passbandSet='DECaLS'
+        retrieverOptions={'maxMagError': maxMagError}
+    elif database.find("DECaLS") != -1 and database != 'DECaLSDR10DL':
         if database == "DECaLS":
             raise Exception("Specify either 'DECaLSDR8', 'DECaLSDR9', or 'DECaLSDR10' instead of DECaLS")
         if database == 'DECaLSDR8':
@@ -924,7 +932,7 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
         # For some reason, SDSS changed their whole web API in ~May 2016 without calling it a new DR
         #url='http://skyserver.sdss.org/dr12/en/tools/search/x_sql.aspx'        
         #url='http://skyserver.sdss.org/dr12/en/tools/search/x_results.aspx'
-        url='http://skyserver.sdss.org/dr12/en/tools/search/x_results.aspx?searchtool=SQL&TaskName=Skyserver.Search.SQL&syntax=NoSyntax&ReturnHtml=false&'
+        url='https://skyserver.sdss.org/dr12/en/tools/search/x_results.aspx?searchtool=SQL&TaskName=Skyserver.Search.SQL&syntax=NoSyntax&ReturnHtml=false&'
         outFileName=cacheDir+os.path.sep+"SDSSDR12_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
         lineSkip=2		
    
@@ -988,7 +996,7 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
             try:
                 response=urllib.request.urlopen(url+'%s' % (params))
             except:
-                print("Network down? Waiting 30 sec...")
+                print("Network down? Waiting 30 sec... - if this persists, probably the query URL has changed.")
                 time.sleep(30)
 
         # Some faffing about here because of python2 -> python3 
@@ -1260,6 +1268,76 @@ def DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, op
     stuff=DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 'DR10', optionsDict = optionsDict)
 
     return stuff
+
+#-------------------------------------------------------------------------------------------------------------
+def DL_DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
+    """DECaLS DR10 retriever, using NOAO datalab.
+
+    """
+
+    makeCacheDir()
+    if 'altCacheDir' in list(optionsDict.keys()):
+        cacheDir=optionsDict['altCacheDir']
+    else:
+        cacheDir=CACHE_DIR
+    if os.path.exists(cacheDir) == False:
+        os.makedirs(cacheDir, exist_ok = True)
+
+    outFileName=cacheDir+os.path.sep+"DL_DECaLSDR10_%.4f_%.4f_%.2f.fits" % (RADeg, decDeg, halfBoxSizeDeg)
+    if os.path.exists(outFileName) == False:
+        RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
+        try:
+            result=qc.query(sql='select objid, ra, dec, dered_mag_g, dered_mag_r, dered_mag_i, dered_mag_z, dered_mag_w1, dered_mag_w2,\
+                                 snr_g, snr_r, snr_i, snr_z, snr_w1, snr_w2, type, maskbits from ls_dr10.tractor where\
+                                 RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f' % (RAMin, RAMax, decMin, decMax),
+                            fmt = 'table')
+            result.write(outFileName, overwrite = True)
+        except:
+            result=None
+            print("... WARNING: datalab query failed to get %s" % (outFileName))
+    else:
+        if 'fetchAndCacheOnly' in optionsDict.keys() and optionsDict['fetchAndCacheOnly'] == True:
+            print("... already retrieved: %s ..." % (outFileName))
+            return None
+        print("... reading from cache: %s ..." % (outFileName))
+        result=atpy.Table().read(outFileName)
+
+    if result is None:
+        return None
+
+    # DECaLS redshifts go very wrong when there are stars bright in W1, W2 in the vicinity
+    # This should fix - we'll also throw out PSF-shaped sources too
+    tab=result
+    if len(tab) == 0:
+        return None
+    tab=tab[tab['maskbits'] != 2**1]
+    tab=tab[tab['maskbits'] < 2**11]
+    tab=tab[np.where(tab['type'] != 'PSF')]
+    tab=tab[np.where(tab['type'] != 'PSF ')] # Trailing space - probably not an issue on datalab
+
+    # WISE fluxes are available... i-band added in DECaLS DR10
+    bands=['g', 'r', 'i', 'z', "w1", "w2"]
+    catalog=[]
+    for row in tab:
+        photDict={}
+        photDict['id']=row['objid']
+        photDict['RADeg']=row['ra']
+        photDict['decDeg']=row['dec']
+        for b in bands:
+            if row['snr_%s' % (b)] > 0:
+                photDict[b]=row['dered_mag_%s' % (b)]
+                photDict[b+"Err"]=1/row['snr_%s' % (b)]
+            else:
+                photDict[b]=99.0
+                photDict[b+'Err']=99.0
+        if 'maxMagError' in list(optionsDict.keys()):
+            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
+        else:
+            keep=True
+        if keep == True:
+            catalog.append(photDict)
+
+    return catalog
 
 #-------------------------------------------------------------------------------------------------------------
 def DELVEDR2Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):

@@ -24,7 +24,12 @@ class PhotoRedshiftEngine:
     """
     
     def __init__(self, absMagCut, passbandSet = 'SDSS+Ks', zMin = 0.01, zMax = 3.0, zStep = 0.01, 
-                 ZPError = 0.0, ZPOffsets = None, templatesDir = None):
+                 ZPError = 0.0, ZPOffsets = None, templatesDir = None, EBMinusVList = [0.0],
+                 emLinesScaleList = [0.0]):
+                 # EBMinusVList = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5],
+                 # emLinesScaleList = [0.0, 1.0, 2.0, 4.0, 6.0, 8.0, 10.0]):
+                 # EBMinusVList = list(np.linspace(0, 0.48, 13))):
+                 # EBMinusVList = list(np.linspace(0, 1.5, 16)),):
         """Sets up the stuff we would otherwise calculate every time, i.e., the templates.
         
         """
@@ -133,7 +138,7 @@ class PhotoRedshiftEngine:
                 self.templateIndex=unpickler.load()
                 self.modelFlux2=self.modelFlux**2
         else:
-            self.numModels=len(self.SEDFiles)
+            self.numModels=len(self.SEDFiles)*len(EBMinusVList)*len(emLinesScaleList)
             i=0
             t=0
             self.templateIndex=[]
@@ -141,17 +146,23 @@ class PhotoRedshiftEngine:
                 s=astSED.SED()
                 s.loadFromFile(f)
                 t=t+1
-                for z in self.zRange:
-                    s.redshift(z)
-                    modelSEDDict=s.getSEDDict(self.passbandsList)
-                    modelSEDDict['E(B-V)']=None
-                    modelSEDDict['ageGyr']=0.0
-                    modelSEDDict['z']=z
-                    modelSEDDict['fileName']=f 
-                    modelSEDDict['modelListIndex']=i
-                    modelSEDDict['SED']=s.copy()
-                    self.modelSEDDictList.append(modelSEDDict)       
-                    self.templateIndex.append(t)
+                for emScaleFactor in emLinesScaleList:
+                    if emScaleFactor > 0:
+                        s.addEmissionLines(emScaleFactor)
+                    for EBMinusV in EBMinusVList:
+                        if EBMinusV > 0:
+                            s.extinctionCalzetti(EBMinusV) # modifies z0flux, so this should be okay
+                        for z in self.zRange:
+                            s.redshift(z)
+                            modelSEDDict=s.getSEDDict(self.passbandsList)
+                            modelSEDDict['E(B-V)']=EBMinusV
+                            modelSEDDict['ageGyr']=0.0
+                            modelSEDDict['z']=z
+                            modelSEDDict['fileName']=f
+                            modelSEDDict['modelListIndex']=i
+                            # modelSEDDict['SED']=s.copy() # Only add this if we need [e.g. rest frame colours] - uses lots of RAM
+                            self.modelSEDDictList.append(modelSEDDict)
+                            self.templateIndex.append(t)
                 i=i+1
                 del s
             self.templateIndex=np.array(self.templateIndex)                
