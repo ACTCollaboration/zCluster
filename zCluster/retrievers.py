@@ -142,14 +142,14 @@ def getRetriever(database, maxMagError = 0.2):
         if os.path.exists(bricksPath) == False:
             print("... fetching and caching DECaLS survey-bricks.fits.gz ...")
             urllib.request.urlretrieve("https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/%s/survey-bricks.fits.gz" % (DR.lower()), bricksPath)
-        bricksDRPath=bricksCacheDir+os.path.sep+"survey-bricks-%s-south.fits.gz" % (DR.lower())
-        if os.path.exists(bricksDRPath) == False:
-            print("... fetching and caching DECaLS survey-bricks-%s-south.fits.gz ..." % (DR.lower()))
-            urllib.request.urlretrieve("https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/%s/south/survey-bricks-%s-south.fits.gz" % (DR.lower(), DR.lower()), bricksDRPath)
+        # bricksDRPath=bricksCacheDir+os.path.sep+"survey-bricks-%s-south.fits.gz" % (DR.lower())
+        # if os.path.exists(bricksDRPath) == False:
+            # print("... fetching and caching DECaLS survey-bricks-%s-south.fits.gz ..." % (DR.lower()))
+            # urllib.request.urlretrieve("https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/%s/south/survey-bricks-%s-south.fits.gz" % (DR.lower(), DR.lower()), bricksDRPath)
         bricksTab=atpy.Table().read(bricksPath)
-        DRTab=atpy.Table().read(bricksDRPath)
-        DRTab.rename_column("brickname", "BRICKNAME")
-        retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab, 'DRTab': DRTab}
+        # DRTab=atpy.Table().read(bricksDRPath)
+        # DRTab.rename_column("brickname", "BRICKNAME")
+        retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab}#, 'DRTab': DRTab}
     elif database == 'CFHTDeep':
         retriever=CFHTDeepRetriever
     elif database == 'CFHTWide':
@@ -1100,7 +1100,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
     print("... getting DECaLS %s photometry ..." % (DR))
 
     bricksTab=optionsDict['bricksTab']
-    DRTab=optionsDict['DRTab']
+    # DRTab=optionsDict['DRTab']
 
     # Find matching tractor catalogs and download/cache .fits table files
     # Previously this would fail for very small search areas - hence added centre coords search
@@ -1120,12 +1120,12 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
     matchTab=bricksTab[np.where(mask)]
     count=0
     tractorTabs=[]
-    try:
-        matchTab=atpy.join(matchTab, DRTab, keys = 'BRICKNAME')
-    except:
-        # Not in DECaLS?
-        print("... no match between bricks and %s tables - %s ..." % (DR, outFileName))
-        return None
+    # try:
+    #     matchTab=atpy.join(matchTab, DRTab, keys = 'BRICKNAME')
+    # except:
+    #     # Not in DECaLS?
+    #     print("... no match between bricks and %s tables - %s ..." % (DR, outFileName))
+    #     return None
     for mrow in matchTab:
         subDir="%03d" % np.floor(mrow['RA'])
         url=basePath+subDir
@@ -1190,7 +1190,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
         # Convert nanomaggies to mags and do extinction correction
         bricksInTab=np.unique(tab['brickname'])
         for brickName in bricksInTab:
-            brickExtTab=DRTab[np.where(DRTab['BRICKNAME'] == brickName)]
+            # brickExtTab=DRTab[np.where(DRTab['BRICKNAME'] == brickName)]
             brickIndices=np.where(tab['brickname'] == brickName)
             brickMask=np.zeros(len(tab), dtype = bool)
             brickMask[brickIndices]=True
