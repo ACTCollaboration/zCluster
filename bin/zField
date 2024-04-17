@@ -165,7 +165,7 @@ if __name__ == '__main__':
     
     # Optional stellar mass estimates
     if args.stellarMassModelDir is not None:
-        photoRedshiftEngine.estimateStellarMasses(galaxyCatalog, args.stellarMassModelDir, z = z)
+        photoRedshiftEngine.estimateIndividualStellarMasses(galaxyCatalog, args.stellarMassModelDir, z = z)
 
     # Dump pickle file for p(z), optional
     if args.pickleGalaxyCatalog is True:
