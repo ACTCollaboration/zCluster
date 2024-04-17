@@ -453,9 +453,9 @@ class PhotoRedshiftEngine:
             # Insert monte-carlo error estimation here...
             for key in wantedKeys:
                 objDict[key]=fitResult[key]
-
-
-
+                
+                    
+    
     #Testing for individual galaxy z's
 
     def estimateIndividualStellarMasses(self, galaxyCatalog, stellarMassModelDir, z = None):
@@ -509,12 +509,14 @@ class PhotoRedshiftEngine:
                 fitResult=sm.fitSEDDictAndCalcStellarMass(obsSEDDict, modelSEDDictList, distNorm)
                 # Insert monte-carlo error estimation here...
                 for key in wantedKeys:
-                    galaxy[key]=fitResult[key]            
+                    galaxy[key]=fitResult[key]
+
+                
                 
         
         else:
             modelSEDDictList=sm.setUpStellarMassSEDs(stellarMassModelDir, self.passbandsList, z)
-            #Fit each observed SED
+            # Fit each observed SED
             wantedKeys=['log10StellarMass']
             count=0
             DL=astCalc.dl(z)
@@ -537,8 +539,9 @@ class PhotoRedshiftEngine:
                 # Insert monte-carlo error estimation here...
                 for key in wantedKeys:
                     objDict[key]=fitResult[key]
-
              
+
         
         
 
+    
