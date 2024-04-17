@@ -513,31 +513,32 @@ class PhotoRedshiftEngine:
                 
         
         else:
-             modelSEDDictList=sm.setUpStellarMassSEDs(stellarMassModelDir, self.passbandsList, z)
+            modelSEDDictList=sm.setUpStellarMassSEDs(stellarMassModelDir, self.passbandsList, z)
+            #Fit each observed SED
+            wantedKeys=['log10StellarMass']
+            count=0
+            DL=astCalc.dl(z)
+            print(">>> Estimating stellar masses")
+            for objDict in galaxyCatalog:
+                count=count+1
+                print("... %d/%d ..." % (count, len(galaxyCatalog)))
+                mags=[]
+                magErrs=[]
+                for band in self.bands:
+                    if band in list(objDict.keys()):
+                        mags.append(objDict[band])
+                        magErrs.append(objDict[band+"Err"])
+                    else:
+                        mags.append(99)
+                        magErrs.append(99)
+                obsSEDDict=astSED.mags2SEDDict(mags, magErrs, self.passbandsList)
+                distNorm=4*np.pi*np.power(DL*3.08567758e24, 2)
+                fitResult=sm.fitSEDDictAndCalcStellarMass(obsSEDDict, modelSEDDictList, distNorm)
+                # Insert monte-carlo error estimation here...
+                for key in wantedKeys:
+                    objDict[key]=fitResult[key]
 
              
-        # Fit each observed SED
-        wantedKeys=['log10StellarMass']
-        count=0
-        DL=astCalc.dl(z)
-        print(">>> Estimating stellar masses")
-        for objDict in galaxyCatalog:
-            count=count+1
-            print("... %d/%d ..." % (count, len(galaxyCatalog)))
-            mags=[]
-            magErrs=[]
-            for band in self.bands:
-                if band in list(objDict.keys()):
-                    mags.append(objDict[band])
-                    magErrs.append(objDict[band+"Err"])
-                else:
-                    mags.append(99)
-                    magErrs.append(99)
-            obsSEDDict=astSED.mags2SEDDict(mags, magErrs, self.passbandsList)
-            distNorm=4*np.pi*np.power(DL*3.08567758e24, 2)
-            fitResult=sm.fitSEDDictAndCalcStellarMass(obsSEDDict, modelSEDDictList, distNorm)
-            # Insert monte-carlo error estimation here...
-            for key in wantedKeys:
-                objDict[key]=fitResult[key]
+        
         
 
