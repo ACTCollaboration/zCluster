@@ -23,6 +23,10 @@ try:
     from dl import queryClient as qc
 except:
     print("WARNING: Failed to import dl module - retrievers that use NOAO Data Lab will not work.")
+try:
+    import pyvo
+except:
+    print("WARNING: Failed to import pyvo module - retrievers that use TAP access (e.g. RubinDP0) will not work.")
 from astropy.io.votable import parse_single_table 
 
 #-------------------------------------------------------------------------------------------------------------
@@ -150,6 +154,20 @@ def getRetriever(database, maxMagError = 0.2):
         # DRTab=atpy.Table().read(bricksDRPath)
         # DRTab.rename_column("brickname", "BRICKNAME")
         retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab}#, 'DRTab': DRTab}
+    elif database == 'RubinDP0':
+        RSP_TAP_SERVICE='https://data.lsst.cloud/api/tap'
+        homeDir=os.path.expanduser('~')
+        tokenFileName=os.path.join(homeDir,'.rsp-tap.token')
+        if os.path.exists(tokenFileName) == False:
+            raise Exception("You need to create file %s containing a valid token string - see https://rsp.lsst.io/guides/auth/creating-user-tokens.html for how to create a token" % (tokenFileName))
+        with open(tokenFileName, 'r') as f:
+            tokenStr=f.readline()
+        cred=pyvo.auth.CredentialStore()
+        cred.set_password("x-oauth-basic", tokenStr)
+        credential=cred.get("ivo://ivoa.net/sso#BasicAA")
+        rspTAP=pyvo.dal.TAPService(RSP_TAP_SERVICE, credential)
+        retrieverOptions={'TAP': rspTAP}
+        retriever=RubinDP0Retriever
     elif database == 'CFHTDeep':
         retriever=CFHTDeepRetriever
     elif database == 'CFHTWide':
@@ -1330,6 +1348,52 @@ def DL_DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None,
             else:
                 photDict[b]=99.0
                 photDict[b+'Err']=99.0
+        if 'maxMagError' in list(optionsDict.keys()):
+            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
+        else:
+            keep=True
+        if keep == True:
+            catalog.append(photDict)
+
+    return catalog
+
+#-------------------------------------------------------------------------------------------------------------
+def RubinDP0Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
+    """Retrieve Rubin DP0 catalog data, assuming we have an API access token.
+
+    """
+
+    tap=optionsDict['TAP']
+    # RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
+    strCenterCoords=str(RADeg)+", "+str(decDeg)
+    strRadius=str(halfBoxSizeDeg)
+    bands=['g', 'r', 'i', 'z']
+    query="SELECT objectId, coord_ra, coord_dec "
+    for band in bands:
+        query=query+", %s_cModelFlux, %s_cModelFluxErr"% (band, band)
+    query=query+" FROM dp02_dc2_catalogs.Object"
+    query=query+" WHERE CONTAINS(POINT('ICRS', coord_ra, coord_dec), CIRCLE('ICRS', "+strCenterCoords+", "+strRadius+")) = 1 "
+    # query=query+" WHERE coord_ra BETWEEN %.6f and %.6f AND coord_dec BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
+    query=query+" AND r_cModelFluxErr/r_cModelFlux > 5"
+    query=query+" AND detect_isPrimary = 1 and r_extendedness = 1"
+    tab=tap.run_sync(query).to_table()
+
+    catalog=[]
+    for row in tab:
+        photDict={}
+        photDict['id']=row['objectId']
+        photDict['RADeg']=row['coord_ra']
+        photDict['decDeg']=row['coord_dec']
+        for b in bands:
+            f=row['%s_cModelFlux' % (b)]
+            ferr=row['%s_cModelFluxErr' % (b)]
+            photDict[b]=99.0
+            photDict[b+'Err']=99.0
+            if ferr > 0:
+                snr=f/ferr
+                if snr > 0:
+                    photDict[b]=-2.5*np.log10(f)+31.4
+                    photDict[b+"Err"]=1/snr # do this properly later
         if 'maxMagError' in list(optionsDict.keys()):
             keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
         else:
