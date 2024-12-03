@@ -1291,6 +1291,7 @@ def DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, op
 def DL_DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
     """DECaLS DR10 retriever, using NOAO datalab.
 
+
     """
 
     makeCacheDir()
@@ -1306,6 +1307,7 @@ def DL_DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None,
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
         try:
             result=qc.query(sql='select objid, ra, dec, dered_mag_g, dered_mag_r, dered_mag_i, dered_mag_z, dered_mag_w1, dered_mag_w2,\
+                                 flux_ivar_g, flux_ivar_r, flux_ivar_i, flux_ivar_z, flux_ivar_w1, flux_ivar_w2,\
                                  snr_g, snr_r, snr_i, snr_z, snr_w1, snr_w2, type, maskbits from ls_dr10.tractor where\
                                  RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f' % (RAMin, RAMax, decMin, decMax),
                             fmt = 'table')
@@ -1341,10 +1343,13 @@ def DL_DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None,
         photDict['id']=row['objid']
         photDict['RADeg']=row['ra']
         photDict['decDeg']=row['dec']
+        # Photometric uncertainties now the same as regular DECaLS retriever
         for b in bands:
             if row['snr_%s' % (b)] > 0:
                 photDict[b]=row['dered_mag_%s' % (b)]
-                photDict[b+"Err"]=1/row['snr_%s' % (b)]
+                flux=np.power(10, (photDict[b]-22.5)/-2.5)  # nanomaggies
+                fluxErr=np.sqrt(1./row['flux_ivar_%s' % (b)])
+                photDict[b+'Err']=1./(flux/fluxErr)
             else:
                 photDict[b]=99.0
                 photDict[b+'Err']=99.0
@@ -1364,7 +1369,6 @@ def RubinDP0Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
     """
 
     tap=optionsDict['TAP']
-    # RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
     strCenterCoords=str(RADeg)+", "+str(decDeg)
     strRadius=str(halfBoxSizeDeg)
     bands=['g', 'r', 'i', 'z']
@@ -1373,7 +1377,6 @@ def RubinDP0Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
         query=query+", %s_cModelFlux, %s_cModelFluxErr"% (band, band)
     query=query+" FROM dp02_dc2_catalogs.Object"
     query=query+" WHERE CONTAINS(POINT('ICRS', coord_ra, coord_dec), CIRCLE('ICRS', "+strCenterCoords+", "+strRadius+")) = 1 "
-    # query=query+" WHERE coord_ra BETWEEN %.6f and %.6f AND coord_dec BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
     query=query+" AND r_cModelFluxErr/r_cModelFlux > 5"
     query=query+" AND detect_isPrimary = 1 and r_extendedness = 1"
     tab=tap.run_sync(query).to_table()
