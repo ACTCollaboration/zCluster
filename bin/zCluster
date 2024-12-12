@@ -123,11 +123,11 @@ def writePlot(objName, result, zPriorMax, plotsDir):
 
         ax=plt.axes([0.125, 0.125, 0.845, 0.79])
             
-        plt.plot(result['pz_z'], result['zOdds'], 'k', label = '$n_{\Delta z}(z)$')
+        plt.plot(result['pz_z'], result['zOdds'], 'k', label = '$n_{\\Delta z}(z)$')
         plt.plot(result['pz_z'], pz, 'k:', label = '$n(z)$')
 
         plotMax=max([pz.max(), result['zOdds'].max()])
-        plt.ylabel("$n_{\Delta z}(z)$ | $n(z)$ (normalised)")
+        plt.ylabel("$n_{\\Delta z}(z)$ | $n(z)$ (normalised)")
         plt.xlabel("$z$")
         y=np.linspace(result['zOdds'].min(), plotMax*1.5, 4)
         plt.plot([result['z']]*len(y), y, 'k--')
