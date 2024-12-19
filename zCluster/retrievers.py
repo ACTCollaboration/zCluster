@@ -74,6 +74,9 @@ def getRetriever(database, maxMagError = 0.2):
     elif database == 'SDSSDR12':
         retriever=SDSSDR12Retriever
         retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'SDSSDR16':
+        retriever=SDSSDR16Retriever
+        retrieverOptions={'maxMagError': maxMagError}
     elif database == 'PS1':
         passbandSet='PS1'
         import mastcasjobs
@@ -952,7 +955,12 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
         #url='http://skyserver.sdss.org/dr12/en/tools/search/x_results.aspx'
         url='https://skyserver.sdss.org/dr12/en/tools/search/x_results.aspx?searchtool=SQL&TaskName=Skyserver.Search.SQL&syntax=NoSyntax&ReturnHtml=false&'
         outFileName=cacheDir+os.path.sep+"SDSSDR12_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
-        lineSkip=2		
+        lineSkip=2
+    elif DR == 16:
+        # DR12 server has some fatal error (not at our end, according to error message) so trying this
+        url='https://skyserver.sdss.org/dr16/en/tools/search/x_results.aspx?searchtool=SQL&TaskName=Skyserver.Search.SQL&syntax=NoSyntax&ReturnHtml=false&'
+        outFileName=cacheDir+os.path.sep+"SDSSDR16_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
+        lineSkip=2
    
     outFileName=outFileName.replace(".csv", "_%s.csv" % (tableName))
                                     
@@ -1481,6 +1489,15 @@ def SDSSDR12Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
     """
     
     stuff=SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 12, optionsDict = optionsDict)
+    return stuff
+
+#-------------------------------------------------------------------------------------------------------------
+def SDSSDR16Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
+    """Retrieves SDSS DR16 photometry at the given position.
+
+    """
+
+    stuff=SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 16, optionsDict = optionsDict)
     return stuff
 
 #-------------------------------------------------------------------------------------------------------------
