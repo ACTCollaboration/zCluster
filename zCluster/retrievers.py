@@ -859,7 +859,7 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
         #query="""select m.objID, m.raMean, m.decMean, m.gKronMag, m.rKronMag, m.iKronMag, m.zKronMag, m.yKronMag, m.gKronMagErr, m.rKronMagErr, m.iKronMagErr, m.zKronMagErr, m.yKronMagErr, m.iPSFMag from StackObjectView m where m.raMean > %.6f and m.raMean < %.6f and m.decMean > %.6f and m.decMean < %.6f""" % (RAMin, RAMax, decMin, decMax)
         #query="""select objID, raMean, decMean, gKronMag, rKronMag, iKronMag, zKronMag, yKronMag, gKronMagErr, rKronMagErr, iKronMagErr, zKronMagErr, yKronMagErr, iPSFMag, primaryDetection from StackObjectView where raMean > %.6f and raMean < %.6f and decMean > %.6f and decMean < %.6f""" % (RAMin, RAMax, decMin, decMax)
-        query="""select objID, raMean, decMean, gAperMag, rAperMag, iAperMag, zAperMag, yAperMag, gAperMagErr, rAperMagErr, iAperMagErr, zAperMagErr, yAperMagErr, iPSFMag, primaryDetection from StackObjectView where raMean > %.6f and raMean < %.6f and decMean > %.6f and decMean < %.6f""" % (RAMin, RAMax, decMin, decMax)
+        query="""select objID, raMean, decMean, gApMag, rApMag, iApMag, zApMag, yApMag, gApMagErr, rApMagErr, iApMagErr, zApMagErr, yApMagErr, iPSFMag, primaryDetection from StackObjectView where raMean > %.6f and raMean < %.6f and decMean > %.6f and decMean < %.6f""" % (RAMin, RAMax, decMin, decMax)
         #query="""select o.objID, o.raMean, o.decMean,
         #m.gKronMag, m.rKronMag, m.iKronMag, m.zKronMag, m.yKronMag, m.gKronMagErr, m.rKronMagErr, m.iKronMagErr, m.zKronMagErr, m.yKronMagErr, m.iPSFMag
         #from fGetNearbyObjEq(%.6f, %.6f, %.6f) nb
@@ -867,19 +867,18 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
         #inner join StackObject m on o.objid=m.objid and o.uniquePspsOBid=m.uniquePspsOBid""" % (RADeg, decDeg, halfBoxSizeDeg*60)
         jobs=optionsDict['jobs']
         #jobs=mastcasjobs.MastCasJobs(context="PanSTARRS_DR2")
-        results=jobs.quick(query, task_name="python cone search")
-        tab=fixcolnames(pyascii.read(results))
+        tab=jobs.quick(query, task_name="python cone search")
         tab.write(outFileName, overwrite = True)
     else:
         tab=atpy.Table().read(outFileName)
-        
+
     # Parse table into catalog
     if len(tab) == 0:
         catalog=None
     else:
         # Star-galaxy cut (see: https://outerspace.stsci.edu/display/PANSTARRS/How+to+separate+stars+and+galaxies)
         #tab=tab[(tab['iPSFMag']-tab['iKronMag']) > 0.05]
-        tab=tab[tab['primaryDetection'] == 1]
+        tab=tab[np.array(tab['primaryDetection'], dtype = int) == 1] # Because bytes, not int
         EBMinusV=getEBMinusV(RADeg, decDeg, optionsDict = optionsDict) # assume same across field
         catalog=[]
         idCount=0
@@ -891,8 +890,8 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
             photDict['RADeg']=row['raMean']
             photDict['decDeg']=row['decMean']
             for b in bands:
-                photDict[b]=row['%sAperMag' % (b)]
-                photDict['%sErr' % (b)]=row['%sAperMagErr' %  (b)]
+                photDict[b]=row['%sApMag' % (b)]
+                photDict['%sErr' % (b)]=row['%sApMagErr' %  (b)]
 
             # Correct for dust extinction
             # Taken from: http://www.mso.anu.edu.au/~brad/filters.html
