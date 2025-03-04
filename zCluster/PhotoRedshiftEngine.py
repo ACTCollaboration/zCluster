@@ -128,6 +128,8 @@ class PhotoRedshiftEngine:
             self.SEDFiles=self.SEDFiles+glob.glob(templatesDir+os.path.sep+"*.dat")
             self.SEDFiles=self.SEDFiles+glob.glob(templatesDir+os.path.sep+"*.sed")
             self.SEDFiles=self.SEDFiles+glob.glob(templatesDir+os.path.sep+"*spec.txt")
+            if len(self.SEDFiles) == 0:
+                raise Exception("No SED templates found - check path")
         # Because getting EOF errors under MPI
         pickleFileName=None
         if pickleFileName is not None and os.path.exists(pickleFileName):

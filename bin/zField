@@ -109,9 +109,8 @@ if __name__ == '__main__':
     MC=args.MC
 
     # Memory saving - we don't care about carrying around p(z) if we're not writing density maps
-    if args.writeDensityMaps == False:
-        returnPZ=False
-    else:
+    returnPZ=False
+    if args.writeDensityMaps == True or args.pickleGalaxyCatalog == True:
         returnPZ=True
 
     # Set-up cache

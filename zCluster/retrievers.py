@@ -23,6 +23,10 @@ try:
     from dl import queryClient as qc
 except:
     print("WARNING: Failed to import dl module - retrievers that use NOAO Data Lab will not work.")
+try:
+    import pyvo
+except:
+    print("WARNING: Failed to import pyvo module - retrievers that use TAP access (e.g. RubinDP0) will not work.")
 from astropy.io.votable import parse_single_table 
 
 #-------------------------------------------------------------------------------------------------------------
@@ -69,6 +73,9 @@ def getRetriever(database, maxMagError = 0.2):
         retriever=SDSSDR10Retriever
     elif database == 'SDSSDR12':
         retriever=SDSSDR12Retriever
+        retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'SDSSDR16':
+        retriever=SDSSDR16Retriever
         retrieverOptions={'maxMagError': maxMagError}
     elif database == 'PS1':
         passbandSet='PS1'
@@ -142,14 +149,28 @@ def getRetriever(database, maxMagError = 0.2):
         if os.path.exists(bricksPath) == False:
             print("... fetching and caching DECaLS survey-bricks.fits.gz ...")
             urllib.request.urlretrieve("https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/%s/survey-bricks.fits.gz" % (DR.lower()), bricksPath)
-        bricksDRPath=bricksCacheDir+os.path.sep+"survey-bricks-%s-south.fits.gz" % (DR.lower())
-        if os.path.exists(bricksDRPath) == False:
-            print("... fetching and caching DECaLS survey-bricks-%s-south.fits.gz ..." % (DR.lower()))
-            urllib.request.urlretrieve("https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/%s/south/survey-bricks-%s-south.fits.gz" % (DR.lower(), DR.lower()), bricksDRPath)
+        # bricksDRPath=bricksCacheDir+os.path.sep+"survey-bricks-%s-south.fits.gz" % (DR.lower())
+        # if os.path.exists(bricksDRPath) == False:
+            # print("... fetching and caching DECaLS survey-bricks-%s-south.fits.gz ..." % (DR.lower()))
+            # urllib.request.urlretrieve("https://portal.nersc.gov/cfs/cosmo/data/legacysurvey/%s/south/survey-bricks-%s-south.fits.gz" % (DR.lower(), DR.lower()), bricksDRPath)
         bricksTab=atpy.Table().read(bricksPath)
-        DRTab=atpy.Table().read(bricksDRPath)
-        DRTab.rename_column("brickname", "BRICKNAME")
-        retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab, 'DRTab': DRTab}
+        # DRTab=atpy.Table().read(bricksDRPath)
+        # DRTab.rename_column("brickname", "BRICKNAME")
+        retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab}#, 'DRTab': DRTab}
+    elif database == 'RubinDP0':
+        RSP_TAP_SERVICE='https://data.lsst.cloud/api/tap'
+        homeDir=os.path.expanduser('~')
+        tokenFileName=os.path.join(homeDir,'.rsp-tap.token')
+        if os.path.exists(tokenFileName) == False:
+            raise Exception("You need to create file %s containing a valid token string - see https://rsp.lsst.io/guides/auth/creating-user-tokens.html for how to create a token" % (tokenFileName))
+        with open(tokenFileName, 'r') as f:
+            tokenStr=f.readline()
+        cred=pyvo.auth.CredentialStore()
+        cred.set_password("x-oauth-basic", tokenStr)
+        credential=cred.get("ivo://ivoa.net/sso#BasicAA")
+        rspTAP=pyvo.dal.TAPService(RSP_TAP_SERVICE, credential)
+        retrieverOptions={'TAP': rspTAP}
+        retriever=RubinDP0Retriever
     elif database == 'CFHTDeep':
         retriever=CFHTDeepRetriever
     elif database == 'CFHTWide':
@@ -838,7 +859,7 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
         #query="""select m.objID, m.raMean, m.decMean, m.gKronMag, m.rKronMag, m.iKronMag, m.zKronMag, m.yKronMag, m.gKronMagErr, m.rKronMagErr, m.iKronMagErr, m.zKronMagErr, m.yKronMagErr, m.iPSFMag from StackObjectView m where m.raMean > %.6f and m.raMean < %.6f and m.decMean > %.6f and m.decMean < %.6f""" % (RAMin, RAMax, decMin, decMax)
         #query="""select objID, raMean, decMean, gKronMag, rKronMag, iKronMag, zKronMag, yKronMag, gKronMagErr, rKronMagErr, iKronMagErr, zKronMagErr, yKronMagErr, iPSFMag, primaryDetection from StackObjectView where raMean > %.6f and raMean < %.6f and decMean > %.6f and decMean < %.6f""" % (RAMin, RAMax, decMin, decMax)
-        query="""select objID, raMean, decMean, gAperMag, rAperMag, iAperMag, zAperMag, yAperMag, gAperMagErr, rAperMagErr, iAperMagErr, zAperMagErr, yAperMagErr, iPSFMag, primaryDetection from StackObjectView where raMean > %.6f and raMean < %.6f and decMean > %.6f and decMean < %.6f""" % (RAMin, RAMax, decMin, decMax)
+        query="""select objID, raMean, decMean, gApMag, rApMag, iApMag, zApMag, yApMag, gApMagErr, rApMagErr, iApMagErr, zApMagErr, yApMagErr, iPSFMag, primaryDetection from StackObjectView where raMean > %.6f and raMean < %.6f and decMean > %.6f and decMean < %.6f""" % (RAMin, RAMax, decMin, decMax)
         #query="""select o.objID, o.raMean, o.decMean,
         #m.gKronMag, m.rKronMag, m.iKronMag, m.zKronMag, m.yKronMag, m.gKronMagErr, m.rKronMagErr, m.iKronMagErr, m.zKronMagErr, m.yKronMagErr, m.iPSFMag
         #from fGetNearbyObjEq(%.6f, %.6f, %.6f) nb
@@ -846,19 +867,18 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
         #inner join StackObject m on o.objid=m.objid and o.uniquePspsOBid=m.uniquePspsOBid""" % (RADeg, decDeg, halfBoxSizeDeg*60)
         jobs=optionsDict['jobs']
         #jobs=mastcasjobs.MastCasJobs(context="PanSTARRS_DR2")
-        results=jobs.quick(query, task_name="python cone search")
-        tab=fixcolnames(pyascii.read(results))
+        tab=jobs.quick(query, task_name="python cone search")
         tab.write(outFileName, overwrite = True)
     else:
         tab=atpy.Table().read(outFileName)
-        
+
     # Parse table into catalog
     if len(tab) == 0:
         catalog=None
     else:
         # Star-galaxy cut (see: https://outerspace.stsci.edu/display/PANSTARRS/How+to+separate+stars+and+galaxies)
         #tab=tab[(tab['iPSFMag']-tab['iKronMag']) > 0.05]
-        tab=tab[tab['primaryDetection'] == 1]
+        tab=tab[np.array(tab['primaryDetection'], dtype = int) == 1] # Because bytes, not int
         EBMinusV=getEBMinusV(RADeg, decDeg, optionsDict = optionsDict) # assume same across field
         catalog=[]
         idCount=0
@@ -870,8 +890,8 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
             photDict['RADeg']=row['raMean']
             photDict['decDeg']=row['decMean']
             for b in bands:
-                photDict[b]=row['%sAperMag' % (b)]
-                photDict['%sErr' % (b)]=row['%sAperMagErr' %  (b)]
+                photDict[b]=row['%sApMag' % (b)]
+                photDict['%sErr' % (b)]=row['%sApMagErr' %  (b)]
 
             # Correct for dust extinction
             # Taken from: http://www.mso.anu.edu.au/~brad/filters.html
@@ -934,7 +954,12 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
         #url='http://skyserver.sdss.org/dr12/en/tools/search/x_results.aspx'
         url='https://skyserver.sdss.org/dr12/en/tools/search/x_results.aspx?searchtool=SQL&TaskName=Skyserver.Search.SQL&syntax=NoSyntax&ReturnHtml=false&'
         outFileName=cacheDir+os.path.sep+"SDSSDR12_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
-        lineSkip=2		
+        lineSkip=2
+    elif DR == 16:
+        # DR12 server has some fatal error (not at our end, according to error message) so trying this
+        url='https://skyserver.sdss.org/dr16/en/tools/search/x_results.aspx?searchtool=SQL&TaskName=Skyserver.Search.SQL&syntax=NoSyntax&ReturnHtml=false&'
+        outFileName=cacheDir+os.path.sep+"SDSSDR16_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
+        lineSkip=2
    
     outFileName=outFileName.replace(".csv", "_%s.csv" % (tableName))
                                     
@@ -1100,7 +1125,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
     print("... getting DECaLS %s photometry ..." % (DR))
 
     bricksTab=optionsDict['bricksTab']
-    DRTab=optionsDict['DRTab']
+    # DRTab=optionsDict['DRTab']
 
     # Find matching tractor catalogs and download/cache .fits table files
     # Previously this would fail for very small search areas - hence added centre coords search
@@ -1120,12 +1145,12 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
     matchTab=bricksTab[np.where(mask)]
     count=0
     tractorTabs=[]
-    try:
-        matchTab=atpy.join(matchTab, DRTab, keys = 'BRICKNAME')
-    except:
-        # Not in DECaLS?
-        print("... no match between bricks and %s tables - %s ..." % (DR, outFileName))
-        return None
+    # try:
+    #     matchTab=atpy.join(matchTab, DRTab, keys = 'BRICKNAME')
+    # except:
+    #     # Not in DECaLS?
+    #     print("... no match between bricks and %s tables - %s ..." % (DR, outFileName))
+    #     return None
     for mrow in matchTab:
         subDir="%03d" % np.floor(mrow['RA'])
         url=basePath+subDir
@@ -1190,7 +1215,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
         # Convert nanomaggies to mags and do extinction correction
         bricksInTab=np.unique(tab['brickname'])
         for brickName in bricksInTab:
-            brickExtTab=DRTab[np.where(DRTab['BRICKNAME'] == brickName)]
+            # brickExtTab=DRTab[np.where(DRTab['BRICKNAME'] == brickName)]
             brickIndices=np.where(tab['brickname'] == brickName)
             brickMask=np.zeros(len(tab), dtype = bool)
             brickMask[brickIndices]=True
@@ -1273,6 +1298,7 @@ def DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, op
 def DL_DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
     """DECaLS DR10 retriever, using NOAO datalab.
 
+
     """
 
     makeCacheDir()
@@ -1288,6 +1314,7 @@ def DL_DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None,
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
         try:
             result=qc.query(sql='select objid, ra, dec, dered_mag_g, dered_mag_r, dered_mag_i, dered_mag_z, dered_mag_w1, dered_mag_w2,\
+                                 flux_ivar_g, flux_ivar_r, flux_ivar_i, flux_ivar_z, flux_ivar_w1, flux_ivar_w2,\
                                  snr_g, snr_r, snr_i, snr_z, snr_w1, snr_w2, type, maskbits from ls_dr10.tractor where\
                                  RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f' % (RAMin, RAMax, decMin, decMax),
                             fmt = 'table')
@@ -1323,13 +1350,60 @@ def DL_DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None,
         photDict['id']=row['objid']
         photDict['RADeg']=row['ra']
         photDict['decDeg']=row['dec']
+        # Photometric uncertainties now the same as regular DECaLS retriever
         for b in bands:
             if row['snr_%s' % (b)] > 0:
                 photDict[b]=row['dered_mag_%s' % (b)]
-                photDict[b+"Err"]=1/row['snr_%s' % (b)]
+                flux=np.power(10, (photDict[b]-22.5)/-2.5)  # nanomaggies
+                fluxErr=np.sqrt(1./row['flux_ivar_%s' % (b)])
+                photDict[b+'Err']=1./(flux/fluxErr)
             else:
                 photDict[b]=99.0
                 photDict[b+'Err']=99.0
+        if 'maxMagError' in list(optionsDict.keys()):
+            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
+        else:
+            keep=True
+        if keep == True:
+            catalog.append(photDict)
+
+    return catalog
+
+#-------------------------------------------------------------------------------------------------------------
+def RubinDP0Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
+    """Retrieve Rubin DP0 catalog data, assuming we have an API access token.
+
+    """
+
+    tap=optionsDict['TAP']
+    strCenterCoords=str(RADeg)+", "+str(decDeg)
+    strRadius=str(halfBoxSizeDeg)
+    bands=['g', 'r', 'i', 'z']
+    query="SELECT objectId, coord_ra, coord_dec "
+    for band in bands:
+        query=query+", %s_cModelFlux, %s_cModelFluxErr"% (band, band)
+    query=query+" FROM dp02_dc2_catalogs.Object"
+    query=query+" WHERE CONTAINS(POINT('ICRS', coord_ra, coord_dec), CIRCLE('ICRS', "+strCenterCoords+", "+strRadius+")) = 1 "
+    query=query+" AND r_cModelFluxErr/r_cModelFlux > 5"
+    query=query+" AND detect_isPrimary = 1 and r_extendedness = 1"
+    tab=tap.run_sync(query).to_table()
+
+    catalog=[]
+    for row in tab:
+        photDict={}
+        photDict['id']=row['objectId']
+        photDict['RADeg']=row['coord_ra']
+        photDict['decDeg']=row['coord_dec']
+        for b in bands:
+            f=row['%s_cModelFlux' % (b)]
+            ferr=row['%s_cModelFluxErr' % (b)]
+            photDict[b]=99.0
+            photDict[b+'Err']=99.0
+            if ferr > 0:
+                snr=f/ferr
+                if snr > 0:
+                    photDict[b]=-2.5*np.log10(f)+31.4
+                    photDict[b+"Err"]=1/snr # do this properly later
         if 'maxMagError' in list(optionsDict.keys()):
             keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
         else:
@@ -1414,6 +1488,15 @@ def SDSSDR12Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
     """
     
     stuff=SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 12, optionsDict = optionsDict)
+    return stuff
+
+#-------------------------------------------------------------------------------------------------------------
+def SDSSDR16Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
+    """Retrieves SDSS DR16 photometry at the given position.
+
+    """
+
+    stuff=SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 16, optionsDict = optionsDict)
     return stuff
 
 #-------------------------------------------------------------------------------------------------------------

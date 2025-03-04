@@ -8,6 +8,7 @@ import versioneer
 
 setup(name='zCluster',
       version=versioneer.get_version(),
+      cmdclass=versioneer.get_cmdclass(),
       author='Matt Hilton + zCluster contributors',
       author_email='matt.hilton@wits.ac.za',
       packages=['zCluster'],

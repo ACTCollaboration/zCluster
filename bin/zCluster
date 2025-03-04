@@ -123,11 +123,11 @@ def writePlot(objName, result, zPriorMax, plotsDir):
 
         ax=plt.axes([0.125, 0.125, 0.845, 0.79])
             
-        plt.plot(result['pz_z'], result['zOdds'], 'k', label = '$n_{\Delta z}(z)$')
+        plt.plot(result['pz_z'], result['zOdds'], 'k', label = '$n_{\\Delta z}(z)$')
         plt.plot(result['pz_z'], pz, 'k:', label = '$n(z)$')
 
         plotMax=max([pz.max(), result['zOdds'].max()])
-        plt.ylabel("$n_{\Delta z}(z)$ | $n(z)$ (normalised)")
+        plt.ylabel("$n_{\\Delta z}(z)$ | $n(z)$ (normalised)")
         plt.xlabel("$z$")
         y=np.linspace(result['zOdds'].min(), plotMax*1.5, 4)
         plt.plot([result['z']]*len(y), y, 'k--')
@@ -608,6 +608,12 @@ if __name__ == '__main__':
         # But they don't get rid of bias on cluster photo-zs
         ZPOffsets=np.array([0.02271222, -0.05051711, -0.02465597, -0.00406835, 0.05406105])
         zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
+    elif database == 'DL_DECaLSDR10' or database == 'DECaLSDR10':
+        # WARNING: This is hacky of course, but fastest way to test...
+        # ZPOffsets values below from fit with 1 million SDSS spec-zs
+        zPriorMin=0.05
+        zPriorMax=2.0
+        ZPOffsets=np.array([0.04087833, -0.04830536, -0.03361726, -0.02293858, 0.03046254, 0.07543627])
 
     # Allow prior overrides from command line
     if args.zPriorMax is not None:

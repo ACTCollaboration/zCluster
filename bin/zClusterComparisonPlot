@@ -106,6 +106,8 @@ if __name__ == '__main__':
                         zClusterCatalog), given in the format yMin:yMax.""", default = "-0.55:0.55")
     parser.add_argument("-A", "--alpha", dest="alpha", help="""Alpha value transparency to use for shading
                         data points in the plots (default: 1.0).""", default = 1.0, type = float)
+    parser.add_argument("-f", "--fit-bias", dest="fitBias", default = False, action = "store_true",
+                        help="""If given, fit for redshift dependent bias""")
     args = parser.parse_args()
 
     inCatalogFileName=args.inCatalog
@@ -182,7 +184,39 @@ if __name__ == '__main__':
     delta=tab['delta']
     diff=tab['zDiff']
     diff_over1plusz=diff/(1+tab['zIn'])
-            
+
+    if args.fitBias == True:
+        print(">>> Fitting for z-dependent bias:")
+        zBinEdges=np.linspace(0, 2, 21)
+        zBinCentres=(zBinEdges[:-1]+zBinEdges[1:])/2
+        debiasVals=np.linspace(-0.1, 0.1, 201)
+        bestTestStat=1e6
+        for test_zDebias in debiasVals:
+            debiased_zOut=zOut+test_zDebias*(1+zOut)
+            medDiff=-99*np.ones(len(zBinEdges)-1)
+            for i in range(len(zBinEdges)-1):
+                binMin=zBinEdges[i]
+                binMax=zBinEdges[i+1]
+                mask=np.logical_and(zIn >= binMin, zIn < binMax)
+                if mask.sum() > 0:
+                    medDiff[i]=np.median(zIn[mask]-debiased_zOut[mask])
+            valid=medDiff != -99
+            testStat=abs(np.median(medDiff[np.logical_and(zBinCentres < 1.3, zBinCentres > 0.1)]))
+            if testStat < bestTestStat:
+                bestTestStat=testStat
+                zDebias=test_zDebias
+        print("... zDebias = %.3f ; testStat = %.4f" % (zDebias, bestTestStat))
+        print("... applying this correction to all that follows")
+        zOut=zOut+zDebias*(1+zOut)
+        diff=zIn-zOut
+        diff_over1plusz=diff/(1+zIn)
+        # Write out debiased zs table
+        # print("... written debiased output catalog")
+        outTab['z']=outTab['z']+zDebias*(1+outTab['z'])
+        debias_outCatalogFileName=os.path.abspath(outCatalogFileName)
+        outDir=os.path.dirname(debias_outCatalogFileName)
+        outTab.write(outDir+os.path.sep+"debiased_"+os.path.basename(debias_outCatalogFileName), overwrite = True)
+
     # Stats based on delta cut by z
     zCutsList=[[0.1, 0.5], [0.5, 1.0], [1.0, 2.0], [args.zMin, args.zMax]]
     if deltaMin != None:
