@@ -343,7 +343,8 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
 
 
             # Insert a row of data
-            c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+            c.execute("INSERT INTO redshifts (name, RADeg, decDeg, origRADeg, origDecDeg, offsetArcmin, offsetMpc,\
+                       z, delta, errDelta, CS, A) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                       (obj['name'], obj['RADeg'], obj['decDeg'], obj['origRADeg'], obj['origDecDeg'], 
                        obj['offsetArcmin'], obj['offsetMpc'], obj['z'], obj['delta'], obj['errDelta'], obj['CS'], obj['A']))
             conn.commit() # May want to think about how often we do this...
@@ -363,9 +364,9 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
             obj['delta']=match[1]
             obj['errDelta']=match[2]
             obj['RADeg']=match[3]
-            obj['origRADeg']=match[4]
-            obj['origDecDeg']=match[5]
-            obj['decDeg']=match[6]
+            obj['decDeg']=match[4]
+            obj['origRADeg']=match[5]
+            obj['origDecDeg']=match[6]
             obj['offsetArcmin']=match[7]
             obj['offsetMpc']=match[8]
             obj['CS']=match[9]
@@ -720,7 +721,9 @@ if __name__ == '__main__':
                   offsetArcmin real, offsetMpc real, z real, delta real, errDelta real, CS real, A real)""")
     for obj in catalog:
         try:
-            c.execute("INSERT INTO redshifts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+            c.execute("INSERT INTO redshifts (name, RADeg, decDeg, origRADeg, origDecDeg,\
+                       offsetArcmin, offsetMpc, z, delta, errDelta, CS, A) VALUES \
+                      (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                       (obj['name'], obj['RADeg'], obj['decDeg'], obj['origRADeg'], obj['origDecDeg'], obj['offsetArcmin'],
                        obj['offsetMpc'], obj['z'], obj['delta'], obj['errDelta'], obj['CS'], obj['A']))
         except:
