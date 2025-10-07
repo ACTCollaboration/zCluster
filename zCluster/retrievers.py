@@ -22,7 +22,6 @@ import requests
 from getpass import getpass
 try:
     from dl import queryClient as qc
-    from dl import authClient as ac
 except:
     print("WARNING: Failed to import dl module - retrievers that use NOAO Data Lab will not work.")
 try:
@@ -30,40 +29,6 @@ try:
 except:
     print("WARNING: Failed to import pyvo module - retrievers that use TAP access (e.g. RubinDP0) will not work.")
 from astropy.io.votable import parse_single_table
-
-#-------------------------------------------------------------------------------------------------------------
-def DLLogin(username=None, password=None, max_attempts=3):
-    """
-    Logs into Data Lab and returns a token.
-    Prompts user if username/password are not provided.
-    Retries up to max_attempts times if login fails.
-    """
-    username = username or os.getenv("DL_USERNAME")
-    password = password or os.getenv("DL_PASSWORD")
-
-    if username is None:
-        username = input("Enter Data Lab username: ")
-
-    attempt = 0
-    while attempt < max_attempts:
-        if password is None:
-            password = getpass("Enter Data Lab password: ")
-
-        try:
-            token = ac.login(username, password)
-            print("\nLogin to %s successful!" %ac.whoAmI())
-            return token
-        except Exception as e:
-            print("\nLogin failed:", e)
-            password = None  # prompt again on next loop
-            attempt += 1
-
-    # If we get here, all attempts failed
-    raise RuntimeError("Failed to login to Data Lab after %d attempts." % max_attempts)
-
-def DLLogout():
-    print("\nLogging out of %s" %ac.whoAmI())
-    ac.logout()
 
 #-------------------------------------------------------------------------------------------------------------
 CACHE_DIR=os.environ['HOME']+os.path.sep+".zCluster"+os.path.sep+"cache"
@@ -1423,11 +1388,14 @@ def DL_DECaLSDR10RetrieverPhotoZ(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR =
     if os.path.exists(cacheDir) == False:
         os.makedirs(cacheDir, exist_ok = True)
 
+    if 'token' not in list(optionsDict.keys()):
+        print("ERROR: Token must be provided for fetching photo-z.")
+        return None
+
     outFileName=cacheDir+os.path.sep+"DL_DECaLSDR10_photoz_%.4f_%.4f_%.2f.fits" % (RADeg, decDeg, halfBoxSizeDeg)
     if os.path.exists(outFileName) == False:
 
-        token = DLLogin()
-
+        token = optionsDict['token']
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
 
         queryTractor = 'select ls_id, objid, ra, dec, dered_mag_g, dered_mag_r, dered_mag_i, dered_mag_z, dered_mag_w1, dered_mag_w2,\
@@ -1446,12 +1414,10 @@ def DL_DECaLSDR10RetrieverPhotoZ(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR =
 
         try:
             print("\nMatching with ls_dr10.photo_z table...")
-            resultPhotoZ=qc.query(sql=queryZMatch, fmt = 'table')
+            resultPhotoZ=qc.query(sql=queryZMatch, fmt = 'table', token=token)
             resultPhotoZ.write(outFileName, overwrite = True)
         except:
             resultPhotoZ=None
-
-        DLLogout()
 
     else:
         if 'fetchAndCacheOnly' in optionsDict.keys() and optionsDict['fetchAndCacheOnly'] == True:
