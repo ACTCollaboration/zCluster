@@ -19,7 +19,7 @@ import subprocess
 import time
 import zCluster
 import requests
-from getpass import getpass
+
 try:
     from dl import queryClient as qc
 except:
@@ -1400,7 +1400,7 @@ def DL_DECaLSDR10RetrieverPhotoZ(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR =
 
         queryTractor = 'select ls_id, objid, ra, dec, dered_mag_g, dered_mag_r, dered_mag_i, dered_mag_z, dered_mag_w1, dered_mag_w2,\
                                  flux_ivar_g, flux_ivar_r, flux_ivar_i, flux_ivar_z, flux_ivar_w1, flux_ivar_w2,\
-                                 snr_g, snr_r, snr_i, snr_z, snr_w1, snr_w2, type, maskbits from ls_dr10.tractor where\
+                                 snr_g, snr_r, snr_i, snr_z, snr_w1, snr_w2, type, maskbits, nest4096 from ls_dr10.tractor where\
                                  RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f' % (RAMin, RAMax, decMin, decMax)
         try:
             print("\nQuerying from ls_dr10.tractor table...")
@@ -1450,6 +1450,7 @@ def DL_DECaLSDR10RetrieverPhotoZ(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR =
         photDict['zphoto']=row['z_phot_mean']
         photDict['zphotoErr']=row['z_phot_std']
         photDict['zspec']=row['z_spec']
+        photDict['nest4096']=row['nest4096']
         # Photometric uncertainties now the same as regular DECaLS retriever
         for b in bands:
             if row['snr_%s' % (b)] > 0:
