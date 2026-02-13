@@ -1374,12 +1374,12 @@ def DL_DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None,
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
-
 def DL_DECaLSDR10RetrieverPhotoZ(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
     """DECaLS DR10 retriever, using NOAO datalab. Matched with photo_z table.
 
 
     """
+
     makeCacheDir()
     if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
