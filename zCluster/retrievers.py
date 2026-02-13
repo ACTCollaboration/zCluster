@@ -18,7 +18,8 @@ import pylab
 import subprocess
 import time
 import zCluster
-import requests 
+import requests
+
 try:
     from dl import queryClient as qc
 except:
@@ -27,7 +28,7 @@ try:
     import pyvo
 except:
     print("WARNING: Failed to import pyvo module - retrievers that use TAP access (e.g. RubinDP0) will not work.")
-from astropy.io.votable import parse_single_table 
+from astropy.io.votable import parse_single_table
 
 #-------------------------------------------------------------------------------------------------------------
 CACHE_DIR=os.environ['HOME']+os.path.sep+".zCluster"+os.path.sep+"cache"
@@ -35,30 +36,30 @@ CACHE_DIR=os.environ['HOME']+os.path.sep+".zCluster"+os.path.sep+"cache"
 #-------------------------------------------------------------------------------------------------------------
 def makeCacheDir():
     """Makes the cache directory where catalogs (and sometimes other survey-specific data) are stored.
-    
+
     """
     os.makedirs(CACHE_DIR, exist_ok = True)
 
 #------------------------------------------------------------------------------------------------------------
 def getRetriever(database, maxMagError = 0.2):
-    """Given the name of a survey database, return a function that can retrieve a galaxy catalog, and an 
+    """Given the name of a survey database, return a function that can retrieve a galaxy catalog, and an
     associated options dictionary.
-    
+
     Args:
-        database (str): Name of the survey database - relatively well-tested options are: SDSSDR12, S82, 
+        database (str): Name of the survey database - relatively well-tested options are: SDSSDR12, S82,
             DESY3, DESDR1, KiDSDR4, DECaLS (and similar variants).
         maxMagError (float, optional): Objects with magnitude uncertainties greater than this value will be
-            cut from retrieved catalogs, subject to the minimum number of bands used by 
+            cut from retrieved catalogs, subject to the minimum number of bands used by
             :func:`checkMagErrors`.
-    
+
     Returns:
         Retriever function, a dictionary containing additional parameters that the function needs to be
-        given, and the name of the PhotoRedshiftEngine passband set to use. 
-        
+        given, and the name of the PhotoRedshiftEngine passband set to use.
+
         Returns `None` if there is no match to `database`.
-    
+
     """
-    
+
     retriever=None
     retrieverOptions=None
     passbandSet='SDSS+Ks'
@@ -178,7 +179,7 @@ def getRetriever(database, maxMagError = 0.2):
         retriever=CFHTDeepRetriever
     elif database == 'CFHTWide':
         retriever=CFHTWideRetriever
-   
+
     return retriever, retrieverOptions, passbandSet
 
 #-------------------------------------------------------------------------------------------------------------
@@ -186,25 +187,25 @@ def addWISEPhotometry(RADeg, decDeg, catalog, halfBoxSizeDeg = 36.0/60.):
     """This is an option that can be enabled in other retriever functions by adding 'addWISE': True in
     optionsDict. For this to work, the passbandSet used by PhotoRedshiftEngine must also have the WISE bands
     defined. We can probably tidy this up a bit...
-       
+
     """
-    
+
     cacheDir="WISECache"
     if os.path.exists(cacheDir) == False:
         os.makedirs(cacheDir, exist_ok = True)
-    
+
     # Note that using size= in query below is broken (even though it is on IPAC docs)
     outFileName=cacheDir+os.path.sep+"unWISE_%.6f_%.6f.vot" % (RADeg, decDeg)
     gotFileSuccessfully=False
     while gotFileSuccessfully == False:
-        if os.path.exists(outFileName) == False:        
+        if os.path.exists(outFileName) == False:
             rah, ram, ras=astCoords.decimal2hms(RADeg, ":").split(":")
             dd, dm, ds=astCoords.decimal2dms(decDeg, ":").split(":")
             radiusSize=halfBoxSizeDeg*3600.0#np.degrees(4./astCalc.da(1.0))*3600.0
             # NOTE: URL modified March 2017 as IPAC seems to have changed name from wise_allwise_p3as_psd to allwise_p3as_psd
-            url="http://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query?spatial=cone&catalog=allwise_p3as_psd&objstr=%sh+%sm+%ss+%sd+%sm+%ss&radius=%d&outfmt=3" % (rah, ram, ras, dd, dm, ds, int(round(radiusSize))) 
+            url="http://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query?spatial=cone&catalog=allwise_p3as_psd&objstr=%sh+%sm+%ss+%sd+%sm+%ss&radius=%d&outfmt=3" % (rah, ram, ras, dd, dm, ds, int(round(radiusSize)))
             urllib.request.urlretrieve(url, outFileName)
-        
+
         try:
             tab=atpy.Table().read(outFileName)
             gotFileSuccessfully=True
@@ -215,7 +216,7 @@ def addWISEPhotometry(RADeg, decDeg, catalog, halfBoxSizeDeg = 36.0/60.):
             #sys.exit()
             os.remove(outFileName)
             time.sleep(60)
-    
+
     # Now need to merge tab with catalog
     matchRadiusDeg=2.0/3600.0
     bands=[]
@@ -265,30 +266,30 @@ def addWISEPhotometry(RADeg, decDeg, catalog, halfBoxSizeDeg = 36.0/60.):
 #-------------------------------------------------------------------------------------------------------------
 def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
     """Retrieves SDSS Stripe 82 photometry at the given position.
-    
+
     """
 
     makeCacheDir()
-    
+
     # We used PhotoObj for slit masks, because Galaxy misses some stuff, particularly at high-z
     #tableName="PhotoObj"
     tableName="Galaxy"
-    
+
     if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
-    
+
     if os.path.exists(cacheDir) == False:
         os.makedirs(cacheDir, exist_ok = True)
-        
+
     url = 'http://cas.sdss.org/stripe82/en/tools/search/x_sql.asp'
-            
+
     outFileName=cacheDir+os.path.sep+"S82_%.4f_%.4f_%.4f_%s.csv" % (RADeg, decDeg, halfBoxSizeDeg, tableName)
     print("... getting SDSS Stripe82 photometry (file: %s) ..." % (outFileName))
-            
+
     if os.path.exists(outFileName) == False:
-    
+
         print("... fetching from the internet ...")
 
         # Clean galaxy photometry query - note flags for r-band only, may want to change
@@ -296,50 +297,50 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
         #
         # We may want to add something that does multiple queries if we want a bigger area from the standard
         # SDSS query interface
-        
+
         # Less conservative query - seems it's actually the galaxy view that's missing S82 objects
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
-        sql="""SELECT ra,dec,dered_u,dered_g,dered_r,dered_i,dered_z,Err_u,Err_g,Err_r,Err_i,Err_z,flags_r,run 
+        sql="""SELECT ra,dec,dered_u,dered_g,dered_r,dered_i,dered_z,Err_u,Err_g,Err_r,Err_i,Err_z,flags_r,run
             FROM %s
-            WHERE 
+            WHERE
             (run=206 OR run=106) AND
-            ra BETWEEN %.6f and %.6f AND dec BETWEEN %.6f and %.6f 
+            ra BETWEEN %.6f and %.6f AND dec BETWEEN %.6f and %.6f
             """ % (tableName, RAMin, RAMax, decMin, decMax)
         #print sql
-        #AND Err_g < 0.3 AND Err_r < 0.3 AND Err_i < 0.3 
-        
+        #AND Err_g < 0.3 AND Err_r < 0.3 AND Err_i < 0.3
+
         # Old, conservative query that ends up missing a lot of galaxies that we can see in S82 i-band
-        #sql="""SELECT ra,dec,dered_u,dered_g,dered_r,dered_i,dered_z,Err_u,Err_g,Err_r,Err_i,Err_z,flags_r,run 
-            #FROM Galaxy 
-            #WHERE 
+        #sql="""SELECT ra,dec,dered_u,dered_g,dered_r,dered_i,dered_z,Err_u,Err_g,Err_r,Err_i,Err_z,flags_r,run
+            #FROM Galaxy
+            #WHERE
             #(run=206 OR run=106) AND
-            #ra BETWEEN %.6f and %.6f AND dec BETWEEN %.6f and %.6f 
-            #AND ((flags_r & 0x10000000) != 0) 
-            #-- detected in BINNED1 
-            #AND ((flags_r & 0x8100000c00a0) = 0) 
-            #-- not NOPROFILE, PEAKCENTER, NOTCHECKED, PSF_FLUX_INTERP, SATURATED, 
-            #-- or BAD_COUNTS_ERROR. 
-            #-- if you want to accept objects with interpolation problems for PSF mags, 
-            #-- change this to: AND ((flags_r & 0x800a0) = 0) 
-            #AND (((flags_r & 0x400000000000) = 0) or (psfmagerr_r <= 0.2)) 
-            #-- not DEBLEND_NOPEAK or small PSF error 
-            #-- (substitute psfmagerr in other band as appropriate) 
-            #AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0) 
-            #-- not INTERP_CENTER or not COSMIC_RAY - omit this AND clause if you want to 
+            #ra BETWEEN %.6f and %.6f AND dec BETWEEN %.6f and %.6f
+            #AND ((flags_r & 0x10000000) != 0)
+            #-- detected in BINNED1
+            #AND ((flags_r & 0x8100000c00a0) = 0)
+            #-- not NOPROFILE, PEAKCENTER, NOTCHECKED, PSF_FLUX_INTERP, SATURATED,
+            #-- or BAD_COUNTS_ERROR.
+            #-- if you want to accept objects with interpolation problems for PSF mags,
+            #-- change this to: AND ((flags_r & 0x800a0) = 0)
+            #AND (((flags_r & 0x400000000000) = 0) or (psfmagerr_r <= 0.2))
+            #-- not DEBLEND_NOPEAK or small PSF error
+            #-- (substitute psfmagerr in other band as appropriate)
+            #AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
+            #-- not INTERP_CENTER or not COSMIC_RAY - omit this AND clause if you want to
             #-- accept objects with interpolation problems for PSF mags.
-            #AND Err_g < 0.2 AND Err_r < 0.2 AND Err_i < 0.2 
+            #AND Err_g < 0.2 AND Err_r < 0.2 AND Err_i < 0.2
             #""" % (RAMin, RAMax, decMin, decMax)
-        
+
         # Bail if no chance this is anywhere near S82
         if decMin > 2.5 or decMax < -2.5:
             print("... not close to S82 region ...")
             return None
-        
+
         # Filter SQL so that it'll work
         fsql = ''
         for line in sql.split('\n'):
             fsql += line.split('--')[0] + ' ' + os.linesep;
-        
+
         params=urllib.parse.urlencode({'cmd': fsql, 'format': "csv"})
         response=None
         while response == None:
@@ -348,7 +349,7 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
             except:
                 print("Network down? Waiting 30 sec...")
                 time.sleep(30)
-            
+
         lines=response.read()
         lines=lines.decode()
         lines=lines.split("\n")
@@ -357,13 +358,13 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
         for line in lines:
             outFile.write(line+"\n")
         outFile.close()
-    
+
     else:
-        
+
         inFile=open(outFileName, "r")
         lines=inFile.readlines()
         inFile.close()
-    
+
     # Parse .csv into catalog
     if lines[0].find("No objects have been found") != -1 or len(lines) > 1 and lines[1][:5] == "ERROR":
         catalog=None
@@ -411,23 +412,23 @@ def S82Retriever(RADeg, decDeg, halfBoxSizeDeg = 20.2/60.0, optionsDict = {}):
                     keep=True
                 if keep == True:
                     catalog.append(photDict)
-        
-        # This guards against us letting through an empty catalog -  e.g. if not in Stripe 82, we get a 
+
+        # This guards against us letting through an empty catalog -  e.g. if not in Stripe 82, we get a
         # different run number, so object doesn't get added to catalog.
         if catalog == []:
             catalog=None
-            
+
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
 def checkMagErrors(photDict, maxMagError, minBands = 3, bands = ['u', 'g', 'r', 'i', 'z']):
-    """Checks if the magnitudes in photDict are less than maxMagError, for a minimum number of minBands 
+    """Checks if the magnitudes in photDict are less than maxMagError, for a minimum number of minBands
     photometric bands.
-    
+
     Returns True if the photDict passes the test, False if not
-    
+
     """
-    
+
     keep=True
     rejectCount=0
     for band in bands:
@@ -437,7 +438,7 @@ def checkMagErrors(photDict, maxMagError, minBands = 3, bands = ['u', 'g', 'r', 
             rejectCount=rejectCount+1
     if len(bands) - rejectCount < minBands:
         keep=False
-    
+
     return keep
 
 #-------------------------------------------------------------------------------------------------------------
@@ -445,19 +446,19 @@ def DESY3Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
     """Retrieves DES Y3 photometry at the given position. This assumes you have easyaccess installed
     (https://pypi.python.org/pypi/easyaccess/1.0.7) and access rights for the non-public tables
     in the DES Oracle database.
-    
+
     """
-    
+
     return DESRetriever(RADeg, decDeg, DR = 'Y3', halfBoxSizeDeg = halfBoxSizeDeg, optionsDict = optionsDict)
 
 #-------------------------------------------------------------------------------------------------------------
 def DESY3WISERetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
-    """Retrieves DES Y3 photometry joined to AllWISE at the given position. This assumes you have easyaccess 
+    """Retrieves DES Y3 photometry joined to AllWISE at the given position. This assumes you have easyaccess
     installed (https://pypi.python.org/pypi/easyaccess/1.0.7) and access rights for the non-public tables
     in the DES Oracle database.
-    
+
     """
-    
+
     return DESRetriever(RADeg, decDeg, DR = 'Y3+WISE', halfBoxSizeDeg = halfBoxSizeDeg, optionsDict = optionsDict)
 
 #-------------------------------------------------------------------------------------------------------------
@@ -465,9 +466,9 @@ def DESDR1Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {})
     """Retrieves DES DR1 photometry at the given position. This assumes you have easyaccess installed
     (https://pypi.python.org/pypi/easyaccess/1.0.7) and have registered for a login to access the DES
     Oracle database
-    
+
     """
-    
+
     return DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = halfBoxSizeDeg, optionsDict = optionsDict)
 
 #-------------------------------------------------------------------------------------------------------------
@@ -475,9 +476,9 @@ def DESDR2Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {})
     """Retrieves DES DR2 photometry at the given position. This assumes you have easyaccess installed
     (https://pypi.python.org/pypi/easyaccess/1.0.7) and have registered for a login to access the DES
     Oracle database
-    
+
     """
-    
+
     return DESRetriever(RADeg, decDeg, DR = 'DR2', halfBoxSizeDeg = halfBoxSizeDeg, optionsDict = optionsDict)
 
 #-------------------------------------------------------------------------------------------------------------
@@ -485,29 +486,29 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
     """Retrieves DES photometry. Assumes you have easyaccess installed
     (https://pypi.python.org/pypi/easyaccess/1.0.7) and the necessary login to access either public or
     proprietary tables in the DES Oracle database.
-    
+
     Use DR = 'DR1' or 'DR2' to access the public photometry, DR = 'Y3' to access the current 'Gold' photometry
-    
+
     """
 
     if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
-    
+
     if os.path.exists(cacheDir) == False:
         os.makedirs(cacheDir, exist_ok = True)
-    
+
     try:
         connection=optionsDict['connection']
     except:
         raise Exception("No DES database connection")
-    
+
     if decDeg > 5:
         print("... outside DES area - skipping ...")
         return None
-    
-    outFileName=cacheDir+os.path.sep+"DES%s_%.4f_%.4f_%.4f.csv" % (DR, RADeg, decDeg, halfBoxSizeDeg)      
+
+    outFileName=cacheDir+os.path.sep+"DES%s_%.4f_%.4f_%.4f.csv" % (DR, RADeg, decDeg, halfBoxSizeDeg)
 
     # This bit has to be outside, in case we load data from cache
     if DR == 'Y3' or DR == 'Y3+WISE':
@@ -522,7 +523,7 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
     if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
         # Y3 Gold v1.0
-        #query="SELECT coadd_object_id, ra, dec, ngmix_cm_mag_g - (3.186 * EBV_SFD98) AS cm_mag_g, ngmix_cm_mag_r - (2.140 * EBV_SFD98) AS cm_mag_r, ngmix_cm_mag_i - (1.569 * EBV_SFD98) AS cm_mag_i, ngmix_cm_mag_z - (1.196 * EBV_SFD98) AS cm_mag_z, ngmix_cm_mag_err_g AS cm_mag_err_g, ngmix_cm_mag_err_r AS cm_mag_err_r, ngmix_cm_mag_err_i AS cm_mag_err_i, ngmix_cm_mag_err_z AS cm_mag_err_z FROM y3_gold_1_0 SAMPLE WHERE ra BETWEEN %.6f and %.6f AND dec BETWEEN %.6f and %.6f AND flag_gold = 0 AND flag_footprint = 1 AND flag_foreground = 0 AND extended_class_mash BETWEEN 3 AND 4" % (RAMin, RAMax, decMin, decMax) 
+        #query="SELECT coadd_object_id, ra, dec, ngmix_cm_mag_g - (3.186 * EBV_SFD98) AS cm_mag_g, ngmix_cm_mag_r - (2.140 * EBV_SFD98) AS cm_mag_r, ngmix_cm_mag_i - (1.569 * EBV_SFD98) AS cm_mag_i, ngmix_cm_mag_z - (1.196 * EBV_SFD98) AS cm_mag_z, ngmix_cm_mag_err_g AS cm_mag_err_g, ngmix_cm_mag_err_r AS cm_mag_err_r, ngmix_cm_mag_err_i AS cm_mag_err_i, ngmix_cm_mag_err_z AS cm_mag_err_z FROM y3_gold_1_0 SAMPLE WHERE ra BETWEEN %.6f and %.6f AND dec BETWEEN %.6f and %.6f AND flag_gold = 0 AND flag_footprint = 1 AND flag_foreground = 0 AND extended_class_mash BETWEEN 3 AND 4" % (RAMin, RAMax, decMin, decMax)
         # Y3 Gold v2.2
         if DR == 'Y3':
             query="SELECT COADD_OBJECT_ID, RA, DEC, DNF_ZMC_SOF, BPZ_ZMC_SOF, SOF_CM_MAG_CORRECTED_G, SOF_CM_MAG_CORRECTED_R, SOF_CM_MAG_CORRECTED_I, SOF_CM_MAG_CORRECTED_Z, SOF_CM_MAG_ERR_G, SOF_CM_MAG_ERR_R, SOF_CM_MAG_ERR_I, SOF_CM_MAG_ERR_Z FROM Y3_GOLD_2_2 WHERE FLAGS_FOOTPRINT = 1 and FLAGS_FOREGROUND = 0 and bitand(FLAGS_GOLD, 62) = 0 and EXTENDED_CLASS_MASH_SOF = 3 and SOF_CM_MAG_I between 16 and 24 AND RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f" % (RAMin, RAMax, decMin, decMax)
@@ -550,7 +551,7 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
         outFile.write("# No objects returned by query\n")
         outFile.close()
     else:
-        
+
         tab=atpy.Table().read(outFileName, format = 'csv')
 
         idCount=0
@@ -586,7 +587,7 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
                 photDict['w1Err']=w1MagErr
                 photDict['w2']=w2Mag
                 photDict['w2Err']=w2MagErr
-            
+
             # Apply mag error cuts if given
             # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
             # We're just making the mag unconstrained here (missing data), rather than applying a limit
@@ -595,7 +596,7 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
                 keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['g', 'r', 'i', 'z'])
             else:
                 keep=True
-            
+
             ## Additional colour cuts (as used in some DES papers - see e.g., splashback draft)
             #gr=photDict['g']-photDict['r']
             #ri=photDict['r']-photDict['i']
@@ -604,29 +605,29 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
                 #keep=True
             #else:
                 #keep=False
-                
+
             if keep == True:
                 catalog.append(photDict)
-    
+
     #if 'addWISE' in optionsDict.keys() and optionsDict['addWISE'] == True:
         #catalog=addWISEPhotometry(RADeg, decDeg, catalog, halfBoxSizeDeg = halfBoxSizeDeg)
-        
+
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
 def KiDSDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
     """Retrieves KiDS DR4 photometry (which includes VIKING IR bands).
-    
+
     """
-    
+
     if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
-    
+
     if os.path.exists(cacheDir) == False:
         os.makedirs(cacheDir, exist_ok = True)
-        
+
     # This defines the rough final KIDS area (split into two fields)
     inKIDSRegion=False
     if RADeg > 120 and RADeg < 240 and decDeg > -5 and decDeg < 5:
@@ -639,22 +640,22 @@ def KiDSDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}
         print("... outside KIDS area - skipping ...")
         return None
 
-    outFileName=cacheDir+os.path.sep+"KiDSDR4_%.4f_%.4f_%.4f.fits" % (RADeg, decDeg, halfBoxSizeDeg)      
+    outFileName=cacheDir+os.path.sep+"KiDSDR4_%.4f_%.4f_%.4f.fits" % (RADeg, decDeg, halfBoxSizeDeg)
     if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
         print("... downloading catalog %s ..." % (outFileName))
-        query="select id, RAJ2000, DECJ2000, MAG_GAAP_u, MAG_GAAP_g, MAG_GAAP_r, MAG_GAAP_i, MAG_GAAP_Z, MAG_GAAP_Y, MAG_GAAP_J, MAG_GAAP_H, MAG_GAAP_Ks, MAGERR_GAAP_u, MAGERR_GAAP_g, MAGERR_GAAP_r, MAGERR_GAAP_i, MAGERR_GAAP_Z, MAGERR_GAAP_Y, MAGERR_GAAP_J, MAGERR_GAAP_H, MAGERR_GAAP_Ks, SG2DPHOT from KiDS_DR4_0_ugriZYJHKs_cat_fits_V3 where RAJ2000 BETWEEN %.6f AND %.6f AND DECJ2000 BETWEEN %.6f and %.6f and SG2DPHOT = 0;" % (RAMin, RAMax, decMin, decMax)        
-        r=requests.get('http://archive.eso.org/tap_cat/sync?', 
+        query="select id, RAJ2000, DECJ2000, MAG_GAAP_u, MAG_GAAP_g, MAG_GAAP_r, MAG_GAAP_i, MAG_GAAP_Z, MAG_GAAP_Y, MAG_GAAP_J, MAG_GAAP_H, MAG_GAAP_Ks, MAGERR_GAAP_u, MAGERR_GAAP_g, MAGERR_GAAP_r, MAGERR_GAAP_i, MAGERR_GAAP_Z, MAGERR_GAAP_Y, MAGERR_GAAP_J, MAGERR_GAAP_H, MAGERR_GAAP_Ks, SG2DPHOT from KiDS_DR4_0_ugriZYJHKs_cat_fits_V3 where RAJ2000 BETWEEN %.6f AND %.6f AND DECJ2000 BETWEEN %.6f and %.6f and SG2DPHOT = 0;" % (RAMin, RAMax, decMin, decMax)
+        r=requests.get('http://archive.eso.org/tap_cat/sync?',
                         params = {'REQUEST': 'doQuery',
                                   'LANG': 'ADQL',
                                   'MAXREC': 1000000,
                                   'FORMAT': 'fits',
                                   'QUERY': query},
                         stream = True)
-        with open(outFileName, 'wb') as outFile: 
+        with open(outFileName, 'wb') as outFile:
             r.raw.decode_content = True
-            outFile.write(r.raw.data) 
-    
+            outFile.write(r.raw.data)
+
     # Load/parse table
     print("... reading catalog %s ..." % (outFileName))
     try:
@@ -662,10 +663,10 @@ def KiDSDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}
     except ValueError:
         print("... no objects in catalog - skipping ...")
         return None
-    
+
     magKey="MAG_GAAP_$BAND"
     magErrKey="MAGERR_GAAP_$BAND"
-    
+
     # First, get rid of nans or nonsensical values
     bands=['u', 'g', 'r', 'i', 'Z', 'Y', 'J', 'H', 'Ks']
     for b in bands:
@@ -673,7 +674,7 @@ def KiDSDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}
         #tab=tab[np.where(np.isnan(tab[magErrKey.replace("$BAND", b)]) == False)]
         tab=tab[np.where(tab[magKey.replace("$BAND", b)] > 0)]
         tab=tab[np.where(tab[magErrKey.replace("$BAND", b)] > 0)]
-        
+
     # NOTE: Need to add JHKs mags
     idCount=0
     catalog=[]
@@ -706,42 +707,42 @@ def KiDSDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}
             keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['u', 'g', 'r', 'i'])
         else:
             keep=True
-                    
+
         if keep == True:
             catalog.append(photDict)
-        
+
     return catalog
-    
+
 #-------------------------------------------------------------------------------------------------------------
 def ATLASDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
     """Retrieves VST ATLAS DR4 photometry via ESO.
-    
+
     """
 
     if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
-    
+
     if os.path.exists(cacheDir) == False:
         os.makedirs(cacheDir, exist_ok = True)
-        
-    outFileName=cacheDir+os.path.sep+"ATLASDR4_%.4f_%.4f_%.4f.fits" % (RADeg, decDeg, halfBoxSizeDeg)          
+
+    outFileName=cacheDir+os.path.sep+"ATLASDR4_%.4f_%.4f_%.4f.fits" % (RADeg, decDeg, halfBoxSizeDeg)
     if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
         RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
-        print("... downloading catalog %s ..." % (outFileName)) 
-        query="select sourceID, ra2000, dec2000, uPetroMag, uPetroMagErr, gPetroMag, gPetroMagErr, rPetroMag, rPetroMagErr, iPetroMag, iPetroMagErr, zPetroMag, zPetroMagErr, uAperMagNoAperCorr3, uAperMag3Err, gAperMagNoAperCorr3, gAperMag3Err, rAperMagNoAperCorr3, rAperMag3Err, iAperMagNoAperCorr3, iAperMag3Err, zAperMagNoAperCorr3, zAperMag3Err, aU, aG, aR, aI, aZ, pGalaxy, pStar, pNoise, pSaturated from atlas_er4_ugriz_catMetaData_fits_V3 where ra2000 BETWEEN %.4f AND %.4f AND dec2000 BETWEEN %.4f and %.4f and priOrSec = 0;" % (RAMin, RAMax, decMin, decMax)   
-        r=requests.get('http://archive.eso.org/tap_cat/sync?', 
+        print("... downloading catalog %s ..." % (outFileName))
+        query="select sourceID, ra2000, dec2000, uPetroMag, uPetroMagErr, gPetroMag, gPetroMagErr, rPetroMag, rPetroMagErr, iPetroMag, iPetroMagErr, zPetroMag, zPetroMagErr, uAperMagNoAperCorr3, uAperMag3Err, gAperMagNoAperCorr3, gAperMag3Err, rAperMagNoAperCorr3, rAperMag3Err, iAperMagNoAperCorr3, iAperMag3Err, zAperMagNoAperCorr3, zAperMag3Err, aU, aG, aR, aI, aZ, pGalaxy, pStar, pNoise, pSaturated from atlas_er4_ugriz_catMetaData_fits_V3 where ra2000 BETWEEN %.4f AND %.4f AND dec2000 BETWEEN %.4f and %.4f and priOrSec = 0;" % (RAMin, RAMax, decMin, decMax)
+        r=requests.get('http://archive.eso.org/tap_cat/sync?',
                         params = {'REQUEST': 'doQuery',
                                   'LANG': 'ADQL',
                                   'MAXREC': 1000000,
                                   'FORMAT': 'fits',
                                   'QUERY': query},
                         stream = True)
-        with open(outFileName, 'wb') as outFile: 
+        with open(outFileName, 'wb') as outFile:
             r.raw.decode_content = True
-            outFile.write(r.raw.data) 
-            
+            outFile.write(r.raw.data)
+
     # Load/parse table
     print("... reading catalog %s ..." % (outFileName))
     tab=atpy.Table().read(outFileName)
@@ -753,7 +754,7 @@ def ATLASDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
     magErrKey="$BANDPETROMAGERR"
     #magKey="$BANDAPERMAGNOAPERCORR3"
     #magErrKey="$BANDAPERMAG3ERR"
-    
+
     # First, get rid of nans or nonsensical values
     # We apply extinction correction in-place here
     # NOTE: Zapping u (most uncertain with regards photo calib I think) makes no significant difference
@@ -762,7 +763,7 @@ def ATLASDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
         tab[magKey.replace("$BAND", b.upper())][np.isnan(tab[magKey.replace("$BAND", b.upper())])]=99.0
         tab[magErrKey.replace("$BAND", b.upper())][np.isnan(tab[magErrKey.replace("$BAND", b.upper())])]=99.0
         tab[magKey.replace("$BAND", b.upper())]=tab[magKey.replace("$BAND", b.upper())]-tab['A%s' % (b.upper())]
-        
+
     # Transform to SDSS in-place - maybe this works better?
     # These transforms are from doing some algebra on the ones in the VST-ATLAS paper and throwing away ~0.00x terms
     # NOTE: These don't work at all well (much worse than not doing this)
@@ -776,7 +777,7 @@ def ATLASDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
     #tab[magKey.replace("$BAND", 'R')]=rSDSS
     #tab[magKey.replace("$BAND", 'I')]=iSDSS
     #tab[magKey.replace("$BAND", 'Z')]=zSDSS
-    
+
     # Empirical corrections (based on own comparison with SDSS galaxy photometry for small subsample)
     # Again, these don't help at all really
     #tab[magKey.replace("$BAND", 'U')]=tab[magKey.replace("$BAND", 'U')]-0.286
@@ -784,12 +785,12 @@ def ATLASDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
     #tab[magKey.replace("$BAND", 'R')]=tab[magKey.replace("$BAND", 'R')]-0.009
     #tab[magKey.replace("$BAND", 'I')]=tab[magKey.replace("$BAND", 'I')]-0.084
     #tab[magKey.replace("$BAND", 'Z')]=tab[magKey.replace("$BAND", 'Z')]-0.073
-    
+
     # Classification cuts
     tab=tab[np.where(tab['PGALAXY'] > 0.5)]
     tab=tab[np.where(tab['PNOISE'] < 0.01)]
     tab=tab[np.where(tab['PSATURATED'] < 0.01)]
-    
+
     idCount=0
     catalog=[]
     for row in tab:
@@ -807,13 +808,13 @@ def ATLASDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
             keep=True
         if keep == True:
             catalog.append(photDict)
-        
+
     return catalog
 
 #------------------------------------------------------------------------------------------------------------
 def fixcolnames(tab):
     """Fix column names returned by the casjobs query. Needed by PS1Retriever.
-    
+
     Parameters
     ----------
     tab (astropy.table.Table): Input table
@@ -832,26 +833,26 @@ def fixcolnames(tab):
 #-------------------------------------------------------------------------------------------------------------
 def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
     """Retrieves PS1 photometry at the given position.
-        
+
     """
-    
+
     import mastcasjobs
 
     if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
-    
+
     if os.path.exists(cacheDir) == False:
         os.makedirs(cacheDir, exist_ok = True)
 
-    outFileName=cacheDir+os.path.sep+"PS1_%.4f_%.4f_%.4f.fits" % (RADeg, decDeg, halfBoxSizeDeg)      
+    outFileName=cacheDir+os.path.sep+"PS1_%.4f_%.4f_%.4f.fits" % (RADeg, decDeg, halfBoxSizeDeg)
     print("... getting PS1 photometry (file: %s) ..." % (outFileName))
 
     if decDeg < -30:
         print("... outside PS1 area - skipping ...")
         return None
-    
+
     if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
         print("... fetching from the internet ...")
         #query="""select o.objID, o.raMean, o.decMean,
@@ -899,10 +900,10 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
             # Correct for dust extinction
             # Taken from: http://www.mso.anu.edu.au/~brad/filters.html
             photDict['g']=photDict['g']-EBMinusV*3.322
-            photDict['r']=photDict['r']-EBMinusV*2.544 
-            photDict['i']=photDict['i']-EBMinusV*2.265 
-            photDict['z']=photDict['z']-EBMinusV*1.846 
-            photDict['y']=photDict['y']-EBMinusV*1.570 
+            photDict['r']=photDict['r']-EBMinusV*2.544
+            photDict['i']=photDict['i']-EBMinusV*2.265
+            photDict['z']=photDict['z']-EBMinusV*1.846
+            photDict['y']=photDict['y']-EBMinusV*1.570
 
             # Apply mag error cuts if given
             # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
@@ -912,33 +913,33 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
                 keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['g', 'r', 'i', 'z', 'y'], minBands = 3)
             else:
                 keep=True
-                
+
             if keep == True:
                 catalog.append(photDict)
-        
+
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
 def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict = {}):
     """Retrieves SDSS main photometry at the given position.
-    
+
     """
-    
+
     # PhotoPrimary avoids star-galaxy classification problems at higher z, which we need when making slit masks
     # BUT contamination from stars etc. increases scatter in (z_spec - z_phot) by a fair bit (outliers)
     #tableName="PhotoPrimary"
     tableName="Galaxy"
-    
+
     makeCacheDir()
-    
+
     if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
-    
+
     if os.path.exists(cacheDir) == False:
         os.makedirs(cacheDir, exist_ok = True)
-    
+
     if DR == 7:
         url='http://cas.sdss.org/astrodr7/en/tools/search/x_sql.asp'
         outFileName=cacheDir+os.path.sep+"SDSSDR7_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
@@ -947,13 +948,13 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
         url='http://skyserver.sdss3.org/dr8/en/tools/search/x_sql.asp'
         outFileName=cacheDir+os.path.sep+"SDSSDR8_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
         lineSkip=1
-    elif DR == 10:      
+    elif DR == 10:
         url='http://skyserver.sdss3.org/dr10/en/tools/search/x_sql.aspx'
         outFileName=cacheDir+os.path.sep+"SDSSDR10_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
         lineSkip=2
     elif DR == 12:
         # For some reason, SDSS changed their whole web API in ~May 2016 without calling it a new DR
-        #url='http://skyserver.sdss.org/dr12/en/tools/search/x_sql.aspx'        
+        #url='http://skyserver.sdss.org/dr12/en/tools/search/x_sql.aspx'
         #url='http://skyserver.sdss.org/dr12/en/tools/search/x_results.aspx'
         url='https://skyserver.sdss.org/dr12/en/tools/search/x_results.aspx?searchtool=SQL&TaskName=Skyserver.Search.SQL&syntax=NoSyntax&ReturnHtml=false&'
         outFileName=cacheDir+os.path.sep+"SDSSDR12_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
@@ -963,15 +964,15 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
         url='https://skyserver.sdss.org/dr16/en/tools/search/x_results.aspx?searchtool=SQL&TaskName=Skyserver.Search.SQL&syntax=NoSyntax&ReturnHtml=false&'
         outFileName=cacheDir+os.path.sep+"SDSSDR16_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
         lineSkip=2
-   
+
     outFileName=outFileName.replace(".csv", "_%s.csv" % (tableName))
-                                    
+
     print("... getting SDSS DR%d photometry (file: %s) ..." % (DR, outFileName))
-        
+
     if os.path.exists(outFileName) == False or 'refetch' in list(optionsDict.keys()) and optionsDict['refetch'] == True:
-        
+
         print("... fetching from the internet ...")
-        
+
         # Clean galaxy photometry query - note flags for r-band only, may want to change
         # We may want to add something that does multiple queries if we want a bigger area from the standard
         # SDSS query interface
@@ -993,31 +994,31 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
             #decMin=decMax
             #decMax=newDecMax
         # PhotoPrimary is like PhotoObj but without multiple matches
-        sql="""SELECT ra,dec,dered_u,dered_g,dered_r,dered_i,dered_z,Err_u,Err_g,Err_r,Err_i,Err_z,flags_r,run 
+        sql="""SELECT ra,dec,dered_u,dered_g,dered_r,dered_i,dered_z,Err_u,Err_g,Err_r,Err_i,Err_z,flags_r,run
             FROM %s
-            WHERE 
-            ra BETWEEN %.6f and %.6f AND dec BETWEEN %.6f and %.6f 
-            -- AND ((flags_r & 0x10000000) != 0) 
-            -- detected in BINNED1 
-            -- AND ((flags_r & 0x8100000c00a0) = 0) 
-            -- not NOPROFILE, PEAKCENTER, NOTCHECKED, PSF_FLUX_INTERP, SATURATED, 
-            -- or BAD_COUNTS_ERROR. 
-            -- if you want to accept objects with interpolation problems for PSF mags, 
-            -- change this to: AND ((flags_r & 0x800a0) = 0) 
-            -- AND (((flags_r & 0x400000000000) = 0) or (psfmagerr_r <= 0.2)) 
-            -- not DEBLEND_NOPEAK or small PSF error 
-            -- (substitute psfmagerr in other band as appropriate) 
-            -- AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0) 
-            -- not INTERP_CENTER or not COSMIC_RAY - omit this AND clause if you want to 
+            WHERE
+            ra BETWEEN %.6f and %.6f AND dec BETWEEN %.6f and %.6f
+            -- AND ((flags_r & 0x10000000) != 0)
+            -- detected in BINNED1
+            -- AND ((flags_r & 0x8100000c00a0) = 0)
+            -- not NOPROFILE, PEAKCENTER, NOTCHECKED, PSF_FLUX_INTERP, SATURATED,
+            -- or BAD_COUNTS_ERROR.
+            -- if you want to accept objects with interpolation problems for PSF mags,
+            -- change this to: AND ((flags_r & 0x800a0) = 0)
+            -- AND (((flags_r & 0x400000000000) = 0) or (psfmagerr_r <= 0.2))
+            -- not DEBLEND_NOPEAK or small PSF error
+            -- (substitute psfmagerr in other band as appropriate)
+            -- AND (((flags_r & 0x100000000000) = 0) or (flags_r & 0x1000) = 0)
+            -- not INTERP_CENTER or not COSMIC_RAY - omit this AND clause if you want to
             -- accept objects with interpolation problems for PSF mags.
-            --AND Err_g < 0.5 AND Err_r < 0.5 AND Err_i < 0.5 
+            --AND Err_g < 0.5 AND Err_r < 0.5 AND Err_i < 0.5
             """ % (tableName, RAMin, RAMax, decMin, decMax)
-    
+
         # Filter SQL so that it'll work
         fsql = ''
         for line in sql.split('\n'):
             fsql += line.split('--')[0] + ' ' + os.linesep;
-    
+
         params=urllib.parse.urlencode({'cmd': fsql, 'format': "csv"})
         response=None
         while response == None:
@@ -1027,9 +1028,9 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
                 print("Network down? Waiting 30 sec... - if this persists, probably the query URL has changed.")
                 time.sleep(30)
 
-        # Some faffing about here because of python2 -> python3 
+        # Some faffing about here because of python2 -> python3
         lines=response.read()
-        lines=lines.splitlines()        
+        lines=lines.splitlines()
         outFile=open(outFileName, "w")
         strLines=[]
         for line in lines:
@@ -1037,13 +1038,13 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
             outFile.write(strLines[-1]+"\n")
         outFile.close()
         lines=strLines
-    
+
     else:
-        
+
         inFile=open(outFileName, "r")
         lines=inFile.readlines()
         inFile.close()
-    
+
     # Parse .csv into catalog
     if lines[0].find("No objects have been found") != -1 or len(lines) > 1 and lines[1][:5] == "ERROR":
         catalog=None
@@ -1062,7 +1063,7 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
                     print("... problem with file %s - removing and retrying in 70 sec ..." % (outFileName))
                     os.remove(outFileName)
                     time.sleep(70)
-                    return "retry"                    
+                    return "retry"
                     #if lines[1][:46] == '"ERROR: Maximum 60 queries allowed per minute.':
                         #print "... exceeded server queries per minute limit - waiting ..."
                         #time.sleep(70)
@@ -1098,7 +1099,7 @@ def SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, DR = 7, optionsDict
                     keep=True
                 if keep == True:
                     catalog.append(photDict)
-        
+
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
@@ -1109,12 +1110,12 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
     """
 
     makeCacheDir()
-    
+
     if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
-    
+
     if os.path.exists(cacheDir) == False:
         os.makedirs(cacheDir, exist_ok = True)
 
@@ -1124,7 +1125,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
 
     outFileName=cacheDir+os.path.sep+"DECaLS%s_%.4f_%.4f_%.2f.fits" % (DR, RADeg, decDeg,
                                                                             halfBoxSizeDeg)
-    
+
     print("... getting DECaLS %s photometry ..." % (DR))
 
     bricksTab=optionsDict['bricksTab']
@@ -1176,11 +1177,11 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
             print("... possibly a 404 error for %s - check if cached file is corrupted ..." % (fileName))
     if 'downloadOnly' in optionsDict.keys() and optionsDict['downloadOnly'] == True:
         return None
-    
+
     # Stitch catalogs together
     if len(tractorTabs) > 0:
         tab=atpy.vstack(tractorTabs)
-                
+
         # Cut to asked for size
         rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, tab['ra'].data, tab['dec'].data)
         mask=np.less(rDeg, halfBoxSizeDeg)
@@ -1188,7 +1189,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
             tab=tab[mask]
         except:
             raise Exception("Check if rDeg is not an array - %s, RADeg = %.6f, dec = %.6f" % (fileName, RADeg, decDeg))
-        
+
         # DECaLS redshifts go very wrong when there are stars bright in W1, W2 in the vicinity
         # This should fix - we'll also throw out PSF-shaped sources too
         try:
@@ -1214,7 +1215,7 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
         bands=['g', 'r', 'z', "w1", "w2"]# , 'Y']
         if DR == 'DR10':
             bands.append('i')
-        
+
         # Convert nanomaggies to mags and do extinction correction
         bricksInTab=np.unique(tab['brickname'])
         for brickName in bricksInTab:
@@ -1242,9 +1243,9 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
                 #if extKey in list(brickExtTab.keys()):
                     #dustCorrMag=brickExtTab[extKey][0]
                     #tab[magLabel][mask]=tab[magLabel][mask]-dustCorrMag
-        
+
         catalog=[]
-        for row in tab: 
+        for row in tab:
             photDict={}
             photDict['id']=row['objid']
             photDict['RADeg']=row['ra']
@@ -1258,10 +1259,10 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
                 keep=True
             if keep == True:
                 catalog.append(photDict)
-    
+
     else:
         catalog=None
-    
+
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
@@ -1270,7 +1271,7 @@ def DECaLSDR8Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, opt
     radius specified by halfBoxSizeDeg.
 
     """
-    
+
     stuff=DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 'DR8', optionsDict = optionsDict)
 
     return stuff
@@ -1281,9 +1282,9 @@ def DECaLSDR9Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, opt
     radius specified by halfBoxSizeDeg.
 
     """
-    
+
     stuff=DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 'DR9', optionsDict = optionsDict)
-    
+
     return stuff
 
 #-------------------------------------------------------------------------------------------------------------
@@ -1353,6 +1354,103 @@ def DL_DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None,
         photDict['id']=row['objid']
         photDict['RADeg']=row['ra']
         photDict['decDeg']=row['dec']
+        # Photometric uncertainties now the same as regular DECaLS retriever
+        for b in bands:
+            if row['snr_%s' % (b)] > 0:
+                photDict[b]=row['dered_mag_%s' % (b)]
+                flux=np.power(10, (photDict[b]-22.5)/-2.5)  # nanomaggies
+                fluxErr=np.sqrt(1./row['flux_ivar_%s' % (b)])
+                photDict[b+'Err']=1./(flux/fluxErr)
+            else:
+                photDict[b]=99.0
+                photDict[b+'Err']=99.0
+        if 'maxMagError' in list(optionsDict.keys()):
+            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
+        else:
+            keep=True
+        if keep == True:
+            catalog.append(photDict)
+
+    return catalog
+
+#-------------------------------------------------------------------------------------------------------------
+
+def DL_DECaLSDR10RetrieverPhotoZ(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
+    """DECaLS DR10 retriever, using NOAO datalab. Matched with photo_z table.
+
+
+    """
+    makeCacheDir()
+    if 'altCacheDir' in list(optionsDict.keys()):
+        cacheDir=optionsDict['altCacheDir']
+    else:
+        cacheDir=CACHE_DIR
+    if os.path.exists(cacheDir) == False:
+        os.makedirs(cacheDir, exist_ok = True)
+
+    if 'token' not in list(optionsDict.keys()):
+        print("ERROR: Token must be provided for fetching photo-z.")
+        return None
+
+    outFileName=cacheDir+os.path.sep+"DL_DECaLSDR10_photoz_%.4f_%.4f_%.2f.fits" % (RADeg, decDeg, halfBoxSizeDeg)
+    if os.path.exists(outFileName) == False:
+
+        token = optionsDict['token']
+        RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
+
+        queryTractor = 'select ls_id, objid, ra, dec, dered_mag_g, dered_mag_r, dered_mag_i, dered_mag_z, dered_mag_w1, dered_mag_w2,\
+                                 flux_ivar_g, flux_ivar_r, flux_ivar_i, flux_ivar_z, flux_ivar_w1, flux_ivar_w2,\
+                                 snr_g, snr_r, snr_i, snr_z, snr_w1, snr_w2, type, maskbits, nest4096 from ls_dr10.tractor where\
+                                 RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f' % (RAMin, RAMax, decMin, decMax)
+        try:
+            print("\nQuerying from ls_dr10.tractor table...")
+            qc.query(sql=queryTractor, fmt='csv', out='mydb://temptablezfetch', drop=True)
+        except:
+            print("... WARNING: datalab query failed to get %s" % (outFileName))
+            return None
+
+        queryZMatch = 'select t.*, z.ls_id, z.z_phot_mean, z.z_phot_mean_i, z_phot_median, z_phot_median_i, z.z_phot_std, z.z_phot_std_i, z.z_phot_l68, z.z_phot_l68_i, z.z_phot_l95, z.z_phot_l95_i, z.z_phot_u68, z.z_phot_u68_i, z.z_phot_u95, z.z_phot_u95_i, z.z_spec\
+                        from mydb://temptablezfetch AS t JOIN ls_dr10.photo_z AS z ON t.ls_id = z.ls_id'
+
+        try:
+            print("\nMatching with ls_dr10.photo_z table...")
+            resultPhotoZ=qc.query(sql=queryZMatch, fmt = 'table', token=token)
+            resultPhotoZ.write(outFileName, overwrite = True)
+        except:
+            resultPhotoZ=None
+
+    else:
+        if 'fetchAndCacheOnly' in optionsDict.keys() and optionsDict['fetchAndCacheOnly'] == True:
+            print("... already retrieved: %s ..." % (outFileName))
+            return None
+        print("... reading from cache: %s ..." % (outFileName))
+        resultPhotoZ=atpy.Table().read(outFileName)
+
+    if resultPhotoZ is None:
+        return None
+
+    # DECaLS redshifts go very wrong when there are stars bright in W1, W2 in the vicinity
+    # This should fix - we'll also throw out PSF-shaped sources too
+    tab=resultPhotoZ
+    if len(tab) == 0:
+        return None
+    tab=tab[tab['maskbits'] != 2**1]
+    tab=tab[tab['maskbits'] < 2**11]
+    tab=tab[np.where(tab['type'] != 'PSF')]
+    tab=tab[np.where(tab['type'] != 'PSF ')] # Trailing space - probably not an issue on datalab
+
+    # WISE fluxes are available... i-band added in DECaLS DR10
+    bands=['g', 'r', 'i', 'z', "w1", "w2"]
+    catalog=[]
+    for row in tab:
+        photDict={}
+        photDict['id']=row['ls_id'] # ls_id is unique
+        photDict['RADeg']=row['ra']
+        photDict['decDeg']=row['dec']
+        photDict['zphoto']=row['z_phot_mean']
+        photDict['zphotoErr']=row['z_phot_std']
+        photDict['zspec']=row['z_spec']
+        photDict['nest4096']=row['nest4096']
         # Photometric uncertainties now the same as regular DECaLS retriever
         for b in bands:
             if row['snr_%s' % (b)] > 0:
@@ -1524,36 +1622,36 @@ def DELVEDR2Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, opti
 #-------------------------------------------------------------------------------------------------------------
 def SDSSDR7Retriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
     """Retrieves SDSS DR7 main photometry at the given position.
-    
+
     """
-    
+
     stuff=SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 7, optionsDict = optionsDict)
     return stuff
 
 #-------------------------------------------------------------------------------------------------------------
 def SDSSDR8Retriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
     """Retrieves SDSS DR8 photometry at the given position.
-    
+
     """
-    
+
     stuff=SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 8, optionsDict = optionsDict)
     return stuff
 
 #-------------------------------------------------------------------------------------------------------------
 def SDSSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
     """Retrieves SDSS DR10 photometry at the given position.
-    
+
     """
-    
+
     stuff=SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 10, optionsDict = optionsDict)
     return stuff
 
 #-------------------------------------------------------------------------------------------------------------
 def SDSSDR12Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
     """Retrieves SDSS DR12 photometry at the given position.
-    
+
     """
-    
+
     stuff=SDSSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 12, optionsDict = optionsDict)
     return stuff
 
@@ -1568,39 +1666,39 @@ def SDSSDR16Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
 
 #-------------------------------------------------------------------------------------------------------------
 def CFHTLenSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
-    """Retrieves CFHTLenS photometry, which works differently to other CFHT catalogues. 
-    
+    """Retrieves CFHTLenS photometry, which works differently to other CFHT catalogues.
+
     halfBoxSizeDeg is actually a radius in this case.
-    
+
     NOTE: optionsDict must include 'maxMagError' key.
-    
+
     """
-    
+
     makeCacheDir()
-    
+
     if 'altCacheDir' in list(optionsDict.keys()):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
-    
+
     # CFHTLens - note: mag 99s where missing, this does star/galaxy sep based on lensfit fitclass
-    #url="http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/community/CFHTLens/cgi/queryt.pl?REQUEST=doQuery&LANG=ADQL&method=sync&format=ascii&query=SELECT%0D%0Aid%2C+ALPHA_J2000%2C+DELTA_J2000%2C+fitclass%2C+MAG_u%2C+MAGERR_u%2C+MAG_g%2C+MAGERR_g%2C+MAG_r%2C+MAGERR_r%2C+MAG_i%2C+MAGERR_i%2C+MAG_y%2C+MAGERR_y%2C+MAG_z%2C+MAGERR_z%0D%0AFROM%0D%0Acfht.clens%0D%0AWHERE%0D%0Afitclass%3E%3D0%0D%0AAND+fitclass%3C%3D0%0D%0AAND+contains%28pos%2Ccircle%28%27ICRS+GEOCENTER%27%2C$RADEG%2C$DECDEG%2C$SEARCHRAD%29%29%3D1%0D%0A" 
+    #url="http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/community/CFHTLens/cgi/queryt.pl?REQUEST=doQuery&LANG=ADQL&method=sync&format=ascii&query=SELECT%0D%0Aid%2C+ALPHA_J2000%2C+DELTA_J2000%2C+fitclass%2C+MAG_u%2C+MAGERR_u%2C+MAG_g%2C+MAGERR_g%2C+MAG_r%2C+MAGERR_r%2C+MAG_i%2C+MAGERR_i%2C+MAG_y%2C+MAGERR_y%2C+MAG_z%2C+MAGERR_z%0D%0AFROM%0D%0Acfht.clens%0D%0AWHERE%0D%0Afitclass%3E%3D0%0D%0AAND+fitclass%3C%3D0%0D%0AAND+contains%28pos%2Ccircle%28%27ICRS+GEOCENTER%27%2C$RADEG%2C$DECDEG%2C$SEARCHRAD%29%29%3D1%0D%0A"
     # No star-galaxy separation
     #http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/cadcbin/community/CFHTLens/queryt.pl?REQUEST=doQuery&LANG=ADQL&method=sync&format=ascii&query=SELECT%0D%0Atop+10%0D%0Aid%0D%0AFROM%0D%0Acfht.clens%0D%0A
     # Updated March 2016: changed URLs at CADC
-    url="http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/cadcbin/community/CFHTLens/queryt.pl?REQUEST=doQuery&LANG=ADQL&method=sync&format=ascii&query=SELECT%0D%0Aid%2C+ALPHA_J2000%2C+DELTA_J2000%2C+fitclass%2C+MAG_u%2C+MAGERR_u%2C+MAG_g%2C+MAGERR_g%2C+MAG_r%2C+MAGERR_r%2C+MAG_i%2C+MAGERR_i%2C+MAG_y%2C+MAGERR_y%2C+MAG_z%2C+MAGERR_z%0D%0AFROM%0D%0Acfht.clens%0D%0AWHERE%0D%0A+contains%28pos%2Ccircle%28%27ICRS+GEOCENTER%27%2C$RADEG%2C$DECDEG%2C$SEARCHRAD%29%29%3D1%0D%0A" 
+    url="http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/cadcbin/community/CFHTLens/queryt.pl?REQUEST=doQuery&LANG=ADQL&method=sync&format=ascii&query=SELECT%0D%0Aid%2C+ALPHA_J2000%2C+DELTA_J2000%2C+fitclass%2C+MAG_u%2C+MAGERR_u%2C+MAG_g%2C+MAGERR_g%2C+MAG_r%2C+MAGERR_r%2C+MAG_i%2C+MAGERR_i%2C+MAG_y%2C+MAGERR_y%2C+MAG_z%2C+MAGERR_z%0D%0AFROM%0D%0Acfht.clens%0D%0AWHERE%0D%0A+contains%28pos%2Ccircle%28%27ICRS+GEOCENTER%27%2C$RADEG%2C$DECDEG%2C$SEARCHRAD%29%29%3D1%0D%0A"
     url=url.replace("$RADEG", "%.6f" % (RADeg))
     url=url.replace("$DECDEG", "%.6f" % (decDeg))
     url=url.replace("$SEARCHRAD", "%.6f" % (halfBoxSizeDeg))
 
     outFileName=cacheDir+os.path.sep+"CFHTLenS_%.4f_%.4f_%.4f.csv" % (RADeg, decDeg, halfBoxSizeDeg)
 
-    print("... getting CFHTLenS photometry (file: %s) ..." % (outFileName)) 
-        
+    print("... getting CFHTLenS photometry (file: %s) ..." % (outFileName))
+
     if os.path.exists(outFileName) == False:
-        
+
         print("... fetching from the internet ...")
-            
+
         response=None
         while response == None:
             try:
@@ -1608,7 +1706,7 @@ def CFHTLenSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
             except:
                 print("Network down, or CADC changed URLs again? Waiting 30 sec...")
                 time.sleep(30)
-                
+
         lines=response.read()
         lines=lines.split("\n")
 
@@ -1616,9 +1714,9 @@ def CFHTLenSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
         for line in lines:
             outFile.write(line+"\n")
         outFile.close()
-    
+
     else:
-        
+
         inFile=open(outFileName, "r")
         lines=inFile.readlines()
         inFile.close()
@@ -1634,7 +1732,7 @@ def CFHTLenSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
             if len(line) > 3:
                 photDict={}
                 idCount=idCount+1
-                bits=line.replace("\n", "").split()                
+                bits=line.replace("\n", "").split()
                 photDict['id']=idCount    # just so we have something
                 try:
                     photDict['RADeg']=float(bits[1])
@@ -1654,7 +1752,7 @@ def CFHTLenSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
                 photDict['rErr']=float(bits[9])
                 photDict['iErr']=float(bits[11])
                 photDict['zErr']=float(bits[15])
-                                                
+
                 # Apply mag error cuts if given
                 # We're just making the mag unconstrained here (missing data), rather than applying a limit
                 # If we don't have a minimum of three useful bands, reject
@@ -1671,13 +1769,13 @@ def CFHTLenSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
                     #keep=False
                 if keep == True:
                     catalog.append(photDict)
-                    
+
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
 def getEBMinusV(RADeg, decDeg, optionsDict = {}):
     """Get E(B-V) due to Galactic dust from Schlegel maps, using IRSA web service
-    
+
     """
 
     makeCacheDir()
@@ -1685,12 +1783,12 @@ def getEBMinusV(RADeg, decDeg, optionsDict = {}):
         cacheDir=optionsDict['altCacheDir']
     else:
         cacheDir=CACHE_DIR
-        
+
     fileName=cacheDir+os.path.sep+"SchlegelIRSA_%.6f_%.6f.xml" % (RADeg, decDeg)
     if os.path.exists(fileName) == False:
         url="http://irsa.ipac.caltech.edu/cgi-bin/DUST/nph-dust?locstr="+str(RADeg)+"+"+str(decDeg)+"+equ+J2000"
         urllib.request.urlretrieve(url, filename = fileName)
-    
+
     inFile=open(fileName, "r")
     lines=inFile.readlines()
     inFile.close()
@@ -1710,9 +1808,9 @@ def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
     dust will be applied, using IRSA web service. If fieldIDKey == None (the default), this is done
     at the mean RA, dec coords. Otherwise, sources are grouped by fieldID and the mean correction for
     each field is applied.
-     
+
     Returns catalog (list of dictionaries)
-    
+
     """
 
     # Options we may wish to play with
@@ -1722,9 +1820,9 @@ def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
     #magKey="MAG_APER"
     #magErrKey="MAGERR_APER"
     #magNumber=2
-        
+
     # Dust correction setup
-    corrDict={'u': 5.155, 'g': 3.793, 'r': 2.751, 'i': 2.086, 'z': 1.479, 'Ks': 0.367}  
+    corrDict={'u': 5.155, 'g': 3.793, 'r': 2.751, 'i': 2.086, 'z': 1.479, 'Ks': 0.367}
     EBMinusVList=[]
     if fieldIDKey == None:
         EBMinusV=getEBMinusV(np.mean(tab['RADeg']), np.mean(tab['decDeg']), optionsDict = optionsDict)
@@ -1743,10 +1841,10 @@ def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
         bits=key.split("_")
         if len(bits) > 0 and bits[0] in acceptableBands and bits[0] not in tabBands:
             tabBands.append(bits[0])
-   
+
     # Parse into zCluster format, apply dust correction too
     catalog=[]
-    for row in tab: 
+    for row in tab:
         photDict={}
         photDict['id']=row['ID']
         photDict['RADeg']=row['RADeg']
@@ -1773,11 +1871,11 @@ def parseFITSPhotoTable(tab, fieldIDKey = None, optionsDict = {}):
 def addExtraPhoto(RADeg, decDeg, catalog, halfBoxSizeDeg = 9.0/60.0, optionsDict = {}):
     """Add extra photometry from another retriever, as specified in optionsDict using the 'extraRetriever'
     and 'extraOptions' keys. Used to supplement e.g. single band (Ks) catalogs from APO.
-    
+
     """
-    
+
     # Get extra catalog, if we want to include missing bands
-    if 'extraRetriever' in list(optionsDict.keys()) and optionsDict['extraRetriever'] is not None: 
+    if 'extraRetriever' in list(optionsDict.keys()) and optionsDict['extraRetriever'] is not None:
         extraRetriever=optionsDict["extraRetriever"]
         extraCat=extraRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, optionsDict = optionsDict['extraOptions'])
         if extraCat == None or extraCat == []:
@@ -1819,30 +1917,30 @@ def addExtraPhoto(RADeg, decDeg, catalog, halfBoxSizeDeg = 9.0/60.0, optionsDict
 #-------------------------------------------------------------------------------------------------------------
 def FITSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
     """Parses a FITS catalog made by e.g., soi_makecatalogs.py.
-    
+
     NOTE: No star-galaxy separation is applied in this currently.
-    
+
     Here optionsDict needs to include 'fileName' key.
-    
-    If 'addSDSS': True in optionsDict, then we fetch an SDSS catalog at the location, cross match it against 
+
+    If 'addSDSS': True in optionsDict, then we fetch an SDSS catalog at the location, cross match it against
     the FITS catalog, and add in info for bands we can't find (e.g., g-band). We don't add SDSS objects which
     aren't detected in the FITS catalog.
 
     """
-    
+
     try:
         tab=atpy.Table().read(optionsDict['fileName'])
     except:
         raise Exception("assumed database is a FITS table file, but failed to read")
-    
+
     # If the position isn't actually in our galaxy catalog, we give up now
     rDeg=astCoords.calcAngSepDeg(RADeg, decDeg, tab['RADeg'].data, tab['decDeg'].data)
     if rDeg.min() > halfBoxSizeDeg:
         print("... no galaxies found in FITS catalog near RA, dec = (%.6f, %.6f) ..." % (RADeg, decDeg))
         return None
     tab=tab[np.where(rDeg < halfBoxSizeDeg)]
-    
+
     catalog=parseFITSPhotoTable(tab, optionsDict = optionsDict)
     catalog=addExtraPhoto(RADeg, decDeg, catalog, halfBoxSizeDeg = halfBoxSizeDeg, optionsDict = optionsDict)
-        
+
     return catalog
