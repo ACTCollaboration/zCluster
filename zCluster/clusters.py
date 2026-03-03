@@ -186,7 +186,7 @@ def makeDensityMap(RADeg, decDeg, catalog, z, dz = 0.1, rMaxMpc = 1.5, sizeMpc =
         x=int(round(x))
         y=int(round(y))
         mask=np.logical_and(g['pz_z'] > z-dz, g['pz_z'] < z+dz)
-        v=np.trapz(g['pz'][mask], g['pz_z'][mask])
+        v=np.trapezoid(g['pz'][mask], g['pz_z'][mask])
         if x >= 0 and x < d.shape[1] and y >= 0 and y < d.shape[0]:
             d[y, x]=d[y, x]+v
     d=ndimage.gaussian_filter(d, gaussSmoothPix)
@@ -425,7 +425,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     # We only need normFactor to make sure odds is correct
     pzWeightedMean=clusterNzDict['NzWeightedSum']/clusterNzDict['Nz']
     pzWeightedMean[np.isnan(pzWeightedMean)]=0.0
-    normFactor=np.trapz(pzWeightedMean, clusterNzDict['zArray'])
+    normFactor=np.trapezoid(pzWeightedMean, clusterNzDict['zArray'])
     pzWeightedMean=pzWeightedMean/normFactor
     z, odds, zOdds=calculateRedshiftAndOdds(pzWeightedMean, clusterNzDict['zArray'], dzOdds = 0.05, method = zMethod, 
                                             zPriorMax = zPriorMax, zPriorMin = zPriorMin)
@@ -613,7 +613,7 @@ def applyUniformPrior(pz, zArray, zPriorMin = None, zPriorMax = None):
     if zPriorMin is not None:
         prior[np.less(zArray, zPriorMin)]=0.0
     pz=pz*prior
-    norm=np.trapz(pz, zArray)
+    norm=np.trapezoid(pz, zArray)
     pz=pz/norm
     
     return pz
@@ -645,7 +645,7 @@ def calculateRedshiftAndOdds(pz, zArray, dzOdds = 0.2, method = 'max', zPriorMax
             indexMin=0
         if indexMax > pz.shape[0]-1:
             indexMax=pz.shape[0]-1
-        odds=np.trapz(pz[indexMin:indexMax], zArray[indexMin:indexMax])
+        odds=np.trapezoid(pz[indexMin:indexMax], zArray[indexMin:indexMax])
         
     elif method == 'odds':
         zOdds=[]
@@ -659,13 +659,13 @@ def calculateRedshiftAndOdds(pz, zArray, dzOdds = 0.2, method = 'max', zPriorMax
                 indexMin=0
             if indexMax > pz.shape[0]-1:
                 indexMax=pz.shape[0]-1
-            odds=np.trapz(pz[indexMin:indexMax], zArray[indexMin:indexMax])
+            odds=np.trapezoid(pz[indexMin:indexMax], zArray[indexMin:indexMax])
             zOdds.append(odds)
         zOdds=np.array(zOdds)
         z=zArray[np.argmax(zOdds)]
         odds=zOdds[np.argmax(zOdds)]
         #--
-        norm=np.trapz(zOdds, zArray)
+        norm=np.trapezoid(zOdds, zArray)
         zOdds=zOdds/norm
             
     return [z, odds, zOdds]

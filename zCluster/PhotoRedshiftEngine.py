@@ -349,7 +349,7 @@ class PhotoRedshiftEngine:
                 raise Exception("magPriorCut should have only 1 or 2 elements")
             pz=pz*pPrior
             # Normalise
-            pzNorm=np.trapz(pz, self.zRange)
+            pzNorm=np.trapezoid(pz, self.zRange)
             if pzNorm != 0:
                 pz=pz/pzNorm 
             if calcMLRedshiftAndOdds == True:
@@ -383,7 +383,7 @@ class PhotoRedshiftEngine:
                 indexMin=0
             if indexMax > pz.shape[0]-1:
                 indexMax=pz.shape[0]-1
-            odds=np.trapz(pz[indexMin:indexMax], self.zRange[indexMin:indexMax])
+            odds=np.trapezoid(pz[indexMin:indexMax], self.zRange[indexMin:indexMax])
         
         elif method == 'odds':
             zOdds=[]
@@ -397,7 +397,7 @@ class PhotoRedshiftEngine:
                     indexMin=0
                 if indexMax > pz.shape[0]-1:
                     indexMax=pz.shape[0]-1
-                odds=np.trapz(pz[indexMin:indexMax], self.zRange[indexMin:indexMax])
+                odds=np.trapezoid(pz[indexMin:indexMax], self.zRange[indexMin:indexMax])
                 zOdds.append(odds)
             zOdds=np.array(zOdds)
             z=self.zRange[zOdds.tolist().index(zOdds.max())]

@@ -112,11 +112,11 @@ def writePlot(objName, result, zPriorMax, plotsDir):
             prior[np.greater(zArray, zPriorMax)]=0.0
             prior[np.less(zArray, 0.05)]=0.0
             pz=pz*prior
-            norm=np.trapz(pz, zArray)
+            norm=np.trapezoid(pz, zArray)
             pz=pz/norm   
         
         # Plot of normalised odds and p(z)        
-        norm=np.trapz(result['zOdds'], result['pz_z'])
+        norm=np.trapezoid(result['zOdds'], result['pz_z'])
         result['zOdds']=result['zOdds']/norm
         
         plt.figure(figsize=(9, 5))
