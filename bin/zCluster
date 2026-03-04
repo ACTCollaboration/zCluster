@@ -450,6 +450,9 @@ def makeParser():
                         default = None)
     parser.add_argument("-Z", "--z-prior-max", dest="zPriorMax", help="Set maximum redshift of prior.",
                         default = None)
+    parser.add_argument("-s", "--z-step", dest="zStep", help="Interval between redshifts on the redshift\
+                        array (default: 0.01), i.e., this sets the resolution of the photo-z calculations.",
+                        type = float, default = 0.01)
     parser.add_argument("-b", "--absmag-cut", dest="absMagCut",
                         help="Set absolute (r-band) magnitude cut to use in magnitude-based prior. If a single number\
                         is given, p(z) for objects brighter than this limit will be set to 0. If a\
@@ -657,7 +660,8 @@ if __name__ == '__main__':
             
     photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, passbandSet = passbandSet, 
                                                                 ZPError = ZPError, ZPOffsets = ZPOffsets,
-                                                                templatesDir = args.templatesDir)
+                                                                templatesDir = args.templatesDir,
+                                                                zStep = args.zStep)
     
     # Optionally only running on a single cluster
     if args.name != None:

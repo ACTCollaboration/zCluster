@@ -54,6 +54,10 @@ def makeParser():
                         for magnitude zero point offsets. These will then be applied when estimating galaxy\
                         photometric redshifts.",
                         default = False, action = "store_true")
+    parser.add_argument("-s", "--z-step", dest="zStep", help="Used in galaxy photo-z calculations - interval\
+                        between redshifts on the redshift array (default: 0.01), i.e., this sets the resolution\
+                        of the photo-z calculations.",
+                        type = float, default = 0.01)
     parser.add_argument("-b", "--brighter-absmag-cut", dest="absMagCut", help="Set bright absolute magnitude cut.",
                         default = -24.)
     parser.add_argument("-d", "--write-density-maps", dest="writeDensityMaps", action="store_true",
@@ -82,6 +86,7 @@ def makeParser():
                         action = "store_true", help = "If given, pickle the galaxy catalog after estimating\
                         photo-zs. Use this if you want to e.g. read p(z) for each galaxy from disk for some\
                         other analysis.")
+
 
     return parser
 
@@ -157,7 +162,8 @@ if __name__ == '__main__':
     photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, ZPError = ZPError,
                                                                 passbandSet = passbandSet,
                                                                 templatesDir = templatesDir,
-                                                                ZPOffsets = ZPOffsets)
+                                                                ZPOffsets = ZPOffsets,
+                                                                zStep = args.zStep)
     bands=photoRedshiftEngine.bands
     bandErrs=[]
     for b in bands:
