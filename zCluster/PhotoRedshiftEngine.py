@@ -11,7 +11,6 @@ from zCluster import stellarmass as sm
 from astLib import *
 from scipy import stats
 from scipy import interpolate
-from pkg_resources import resource_filename
 import string
 import glob
 import pickle
