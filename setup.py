@@ -12,7 +12,7 @@ setup(name='zCluster',
       author='Matt Hilton + zCluster contributors',
       author_email='matt.hilton@wits.ac.za',
       packages=['zCluster'],
-      package_data={'zCluster': ['data/*', 'SED/CWW/*', 'SED/BR07/*', 'SED/EAZY_v1.0/*', 
+      package_data={'zCluster': ['data/*', 'SED/CWW/*', 'SED/BR07/*', 'SED/EAZY_v1.0/*', 'SED/DECaLSDR10_learned_N20/*', 
                                  'passbands/*']},
       scripts=['bin/zCluster', 'bin/zField', 'bin/zClusterBCG', 'bin/zClusterComparisonPlot'],
 )
