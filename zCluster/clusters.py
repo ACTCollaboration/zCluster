@@ -427,7 +427,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     pzWeightedMean[np.isnan(pzWeightedMean)]=0.0
     normFactor=np.trapezoid(pzWeightedMean, clusterNzDict['zArray'])
     pzWeightedMean=pzWeightedMean/normFactor
-    z, odds, zOdds=calculateRedshiftAndOdds(pzWeightedMean, clusterNzDict['zArray'], dzOdds = 0.05, method = zMethod, 
+    z, odds, zOdds=calculateRedshiftAndOdds(pzWeightedMean, clusterNzDict['zArray'], dzOdds = 0.05, method = zMethod,
                                             zPriorMax = zPriorMax, zPriorMin = zPriorMin)
 
     # Background used in delta (density contrast) measurement
@@ -614,7 +614,10 @@ def applyUniformPrior(pz, zArray, zPriorMin = None, zPriorMax = None):
         prior[np.less(zArray, zPriorMin)]=0.0
     pz=pz*prior
     norm=np.trapezoid(pz, zArray)
-    pz=pz/norm
+    if norm != 0:
+        pz=pz/norm
+    else:
+        pz[:]=0
     
     return pz
     

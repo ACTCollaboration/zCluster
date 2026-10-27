@@ -127,6 +127,10 @@ def getRetriever(database, maxMagError = 0.2):
         retriever=DL_DECaLSDR10Retriever
         passbandSet='DECaLS'
         retrieverOptions={'maxMagError': maxMagError}
+    elif database == 'DL_DECaLSDR11':
+        retriever=DL_DECaLSDR11Retriever
+        passbandSet='DECaLS'
+        retrieverOptions={'maxMagError': maxMagError}
     elif database.find("DECaLS") != -1 and database != 'DECaLSDR10DL':
         if database == "DECaLS":
             raise Exception("Specify either 'DECaLSDR8', 'DECaLSDR9', or 'DECaLSDR10' instead of DECaLS")
@@ -1347,6 +1351,81 @@ def DL_DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None,
     tab=tab[np.where(tab['type'] != 'PSF ')] # Trailing space - probably not an issue on datalab
 
     # WISE fluxes are available... i-band added in DECaLS DR10
+    bands=['g', 'r', 'i', 'z', "w1", "w2"]
+    catalog=[]
+    for row in tab:
+        photDict={}
+        photDict['id']=row['objid']
+        photDict['RADeg']=row['ra']
+        photDict['decDeg']=row['dec']
+        # Photometric uncertainties now the same as regular DECaLS retriever
+        for b in bands:
+            if row['snr_%s' % (b)] > 0:
+                photDict[b]=row['dered_mag_%s' % (b)]
+                flux=np.power(10, (photDict[b]-22.5)/-2.5)  # nanomaggies
+                fluxErr=np.sqrt(1./row['flux_ivar_%s' % (b)])
+                photDict[b+'Err']=1./(flux/fluxErr)
+            else:
+                photDict[b]=99.0
+                photDict[b+'Err']=99.0
+        if 'maxMagError' in list(optionsDict.keys()):
+            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
+        else:
+            keep=True
+        if keep == True:
+            catalog.append(photDict)
+
+    return catalog
+
+#-------------------------------------------------------------------------------------------------------------
+def DL_DECaLSDR11Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
+    """DECaLS DR11 retriever, using NOAO datalab.
+
+
+    """
+
+    makeCacheDir()
+    if 'altCacheDir' in list(optionsDict.keys()):
+        cacheDir=optionsDict['altCacheDir']
+    else:
+        cacheDir=CACHE_DIR
+    if os.path.exists(cacheDir) == False:
+        os.makedirs(cacheDir, exist_ok = True)
+
+    outFileName=cacheDir+os.path.sep+"DL_DECaLSDR11_%.4f_%.4f_%.2f.fits" % (RADeg, decDeg, halfBoxSizeDeg)
+    if os.path.exists(outFileName) == False:
+        RAMin, RAMax, decMin, decMax=astCoords.calcRADecSearchBox(RADeg, decDeg, halfBoxSizeDeg)
+        try:
+            result=qc.query(sql='select objid, ra, dec, dered_mag_g, dered_mag_r, dered_mag_i, dered_mag_z, dered_mag_w1, dered_mag_w2,\
+                                 flux_ivar_g, flux_ivar_r, flux_ivar_i, flux_ivar_z, flux_ivar_w1, flux_ivar_w2,\
+                                 snr_g, snr_r, snr_i, snr_z, snr_w1, snr_w2, type, maskbits from ls_dr11.tractor where\
+                                 RA BETWEEN %.6f AND %.6f AND DEC BETWEEN %.6f and %.6f' % (RAMin, RAMax, decMin, decMax),
+                            fmt = 'table')
+            result.write(outFileName, overwrite = True)
+        except:
+            result=None
+            print("... WARNING: datalab query failed to get %s" % (outFileName))
+    else:
+        if 'fetchAndCacheOnly' in optionsDict.keys() and optionsDict['fetchAndCacheOnly'] == True:
+            print("... already retrieved: %s ..." % (outFileName))
+            return None
+        print("... reading from cache: %s ..." % (outFileName))
+        result=atpy.Table().read(outFileName)
+
+    if result is None:
+        return None
+
+    # DECaLS redshifts go very wrong when there are stars bright in W1, W2 in the vicinity
+    # This should fix - we'll also throw out PSF-shaped sources too
+    tab=result
+    if len(tab) == 0:
+        return None
+    tab=tab[tab['maskbits'] != 2**1]
+    tab=tab[tab['maskbits'] < 2**11]
+    tab=tab[np.where(tab['type'] != 'PSF')]
+    tab=tab[np.where(tab['type'] != 'PSF ')] # Trailing space - probably not an issue on datalab
+
+    # WISE fluxes are available... i-band added in DECaLS DR10 (also in DR11)
     bands=['g', 'r', 'i', 'z', "w1", "w2"]
     catalog=[]
     for row in tab:

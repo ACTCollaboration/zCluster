@@ -1,0 +1,17 @@
+{
+    "DL_DECaLSDR10": {
+        "delta": 1.5718,
+        "errDelta": 0.14,
+        "z": 0.4
+    },
+    "DL_DECaLSDR11": {
+        "delta": 0.4517,
+        "errDelta": 0.08,
+        "z": 0.41
+    },
+    "SDSSDR12": {
+        "delta": 3.2694,
+        "errDelta": 0.45,
+        "z": 0.37
+    }
+}
