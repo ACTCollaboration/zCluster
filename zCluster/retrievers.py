@@ -1743,7 +1743,7 @@ def RubinDP2Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
     if os.path.exists(outFileName) == False:
         tap=optionsDict['TAP']
         strCenterCoords=str(RADeg)+", "+str(decDeg)
-        strRadius=str(halfBoxSizeDeg*2)
+        strRadius=str(halfBoxSizeDeg)
         query="SELECT objectId, coord_ra, coord_dec "
         for band in bands:
             query=query+", %s_cModelMag, %s_cModelMagErr"% (band, band)
