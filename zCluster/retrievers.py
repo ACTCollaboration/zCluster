@@ -1402,12 +1402,17 @@ def _parseDataLabDECaLSTable(tab, optionsDict, idKey = 'objid', extraColumns = {
         detected=_filledBool(tab['snr_%s' % (b)] > 0)
         mag=np.ma.getdata(tab['dered_mag_%s' % (b)])
         fluxIVar=np.ma.getdata(tab['flux_ivar_%s' % (b)])
-        with np.errstate(divide = 'ignore', invalid = 'ignore', over = 'ignore'):
-            flux=np.power(10, (mag-22.5)/-2.5)  # nanomaggies
-            fluxErr=np.sqrt(1./fluxIVar)
-            magErr=1./(flux/fluxErr)
         # Masked magnitudes in detected bands are kept as masked values (as they would be from row access)
         magMask=np.logical_and(detected, np.ma.getmaskarray(tab['dered_mag_%s' % (b)]))
+        # Uncertainties are only calculated for detected bands with valid magnitudes and flux_ivar > 0.
+        # The other (rare) cases get what the scalar calculation used to give: inf if flux_ivar = 0, and
+        # nan if flux_ivar < 0 or nan (non-detections are set to 99 below)
+        magErr=np.full(len(mag), np.nan, dtype = np.result_type(mag.dtype, fluxIVar.dtype))
+        useIVar=np.logical_and(np.logical_and(detected, np.logical_not(magMask)), np.greater(fluxIVar, 0))
+        flux=np.power(10, (mag[useIVar]-22.5)/-2.5)  # nanomaggies
+        fluxErr=np.sqrt(1./fluxIVar[useIVar])
+        magErr[useIVar]=1./(flux/fluxErr)
+        magErr[np.logical_and(detected, np.equal(fluxIVar, 0))]=np.inf
         errMask=np.logical_or(magMask, np.logical_and(detected, np.ma.getmaskarray(tab['flux_ivar_%s' % (b)])))
         columns[b]=np.ma.array(_setWhere(mag, np.logical_not(detected), 99.0), mask = magMask)
         columns[b+'Err']=np.ma.array(_setWhere(magErr, np.logical_not(detected), 99.0), mask = errMask)

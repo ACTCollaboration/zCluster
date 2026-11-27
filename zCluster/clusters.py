@@ -507,8 +507,9 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
 
     # This is how we have been calculating redshifts
     # We only need normFactor to make sure odds is correct
-    pzWeightedMean=clusterNzDict['NzWeightedSum']/clusterNzDict['Nz']
-    pzWeightedMean[np.isnan(pzWeightedMean)]=0.0
+    # Only divide where there are galaxies (Nz > 0) - elsewhere NzWeightedSum is also 0, and the mean is set to 0
+    pzWeightedMean=np.divide(clusterNzDict['NzWeightedSum'], clusterNzDict['Nz'], where = clusterNzDict['Nz'] > 0,
+                             out = np.zeros(len(clusterNzDict['Nz'])))
     normFactor=np.trapezoid(pzWeightedMean, clusterNzDict['zArray'])
     pzWeightedMean=pzWeightedMean/normFactor
     z, odds, zOdds=calculateRedshiftAndOdds(pzWeightedMean, clusterNzDict['zArray'], dzOdds = 0.05, method = zMethod,
@@ -577,7 +578,14 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
             elif zMethod == 'max':
                 pzToCheck=pzWeightedMean
             pzToCheck=applyUniformPrior(pzToCheck, zArray, zPriorMax = zPriorMax, zPriorMin = zPriorMin) 
-            pzToCheck_validDelta=np.greater(delta/errDelta, 3)*pzToCheck[validMask]
+            # Significance (delta/errDelta > 3) is only calculated where errDelta > 0. errDelta rounds to 0 when
+            # every bootstrap sample gives the same delta - in practice, when the expected number of cluster
+            # galaxies nc is ~0 (so delta ~ -1). As before (where delta/errDelta was +inf, nan or -inf), such
+            # bins count as significant only if delta > 0.
+            significant=np.greater(delta, 0)
+            hasErr=np.greater(errDelta, 0)
+            significant[hasErr]=np.greater(delta[hasErr]/errDelta[hasErr], 3)
+            pzToCheck_validDelta=significant*pzToCheck[validMask]
             zIndex=np.argmax(pzToCheck_validDelta)
             z=zDelta[zIndex]
             delta_at_z=delta[zIndex]
@@ -770,7 +778,9 @@ def calculateRedshiftAndOdds(pz, zArray, dzOdds = 0.2, method = 'max', zPriorMax
         odds=zOdds[np.argmax(zOdds)]
         #--
         norm=np.trapezoid(zOdds, zArray)
-        zOdds=zOdds/norm
+        # norm is 0 if the prior removed all of p(z) - zOdds is then left as all zeros
+        if norm > 0:
+            zOdds=zOdds/norm
             
     return [z, odds, zOdds]
     

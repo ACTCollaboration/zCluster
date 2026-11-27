@@ -16,6 +16,12 @@ import glob
 import pickle
 import time
 
+# Limits on input photometry used in PhotoRedshiftEngine.calcPhotoRedshifts. Values outside these are not
+# physical (they are sentinels for missing data, or junk), and would overflow the magnitude -> flux conversion.
+MIN_MAG=-100.0          # Galaxies with any magnitude <= this (e.g., -999 for missing data) cannot be fitted
+MAX_MAG=200.0           # Galaxies with any magnitude >= this cannot be fitted (99 for missing data is fine)
+MAX_MAG_ERROR=100.0     # Bands with |magnitude uncertainty| >= this are treated as missing (99 is fine)
+
 class PhotoRedshiftEngine:
     """A class that calculates galaxy photo-zs, adding photo-z info to a catalog (list of dictionaries)
     in place.
@@ -313,6 +319,23 @@ class PhotoRedshiftEngine:
                        dtype = float)
         magErrAB=np.array([[galaxy['%sErr' % (k)] if k in galaxy else 99.0 for k in self.bands]
                            for galaxy in galaxyCatalog], dtype = float)
+
+        # Galaxies that cannot be fitted: those with any non-finite magnitude, NaN uncertainty, or magnitude
+        # outside (MIN_MAG, MAX_MAG) - e.g., -999 sentinel values for missing data, if these haven't been cut
+        # already. These get p(z) = 0 everywhere (previously this happened because the fit gave NaN or
+        # meaningless chi-squared values). Their photometry is replaced with placeholder values, so that the
+        # calculations below are well defined for every galaxy - the placeholder results are then discarded.
+        badBand=np.logical_or(np.logical_not(np.isfinite(magAB)), np.isnan(magErrAB))
+        badBand=np.logical_or(badBand, np.logical_or(np.less_equal(magAB, MIN_MAG), np.greater_equal(magAB, MAX_MAG)))
+        magAB[badBand]=99.0
+        magErrAB[badBand]=99.0
+
+        # Bands with absurdly large (including infinite) uncertainties are treated as missing, as above
+        # (otherwise the flux conversion below overflows - previously this gave such bands zero weight anyway)
+        missingBand=np.greater_equal(np.abs(magErrAB), MAX_MAG_ERROR)
+        magAB[missingBand]=99.0
+        magErrAB[missingBand]=99.0
+
         magAB=magAB-self.ZPOffsets
 
         # Incorporate a global photometric calibration error (applied to all bands)
@@ -323,8 +346,13 @@ class PhotoRedshiftEngine:
         sedFlux=3e-13*fluxJy/self.effLMicron2
         fluxJyErr=ten23*np.power(10, (-(magAB-magErrAB+48.6)/2.5))
         sedFluxErr=(3e-13*fluxJyErr/self.effLMicron2)-sedFlux
-        with np.errstate(divide = 'ignore', invalid = 'ignore', over = 'ignore'):
-            weights=1.0/sedFluxErr**2
+        sedFluxErr2=sedFluxErr**2
+        # A zero flux uncertainty (zero magnitude uncertainty with no ZPError, or one too small to change the
+        # flux) would give infinite weight, so these galaxies cannot be fitted either
+        zeroErr=np.equal(sedFluxErr2, 0)
+        sedFluxErr2[zeroErr]=1.0
+        weights=1.0/sedFluxErr2
+        unfittable=np.logical_or(badBand, zeroErr).any(axis = 1)
 
         # Mag prior (one row per galaxy)
         absMag=magAB[:, self.magPriorBand].reshape(-1, 1)-5.0*np.log10(1e5*self.dlRange)
@@ -347,12 +375,16 @@ class PhotoRedshiftEngine:
             end=min(start+batchSize, numGals)
             f=sedFlux[start:end]
             w=weights[start:end]
-            with np.errstate(divide = 'ignore', invalid = 'ignore', over = 'ignore'):
-                fw=f*w
-                num=fw @ modelFluxT
-                den=w @ modelFlux2T
-                chiSq=np.sum(fw*f, axis = 1).reshape(-1, 1)-(num*num)/den
-            chiSq[np.isnan(chiSq)]=1e6   # throw these out, should check this out and handle more gracefully
+            fw=f*w
+            num=fw @ modelFluxT
+            den=w @ modelFlux2T
+            # den = sum(w*M^2) is only zero for a model with zero flux in every band (possible with custom
+            # templates) - these models can't be fitted, so get chiSq = 1e6 (i.e., zero probability)
+            fittableModel=np.greater(den, 0)
+            chiSq=np.sum(fw*f, axis = 1).reshape(-1, 1)-np.divide(num*num, den, where = fittableModel,
+                                                                    out = np.zeros(den.shape))
+            chiSq[np.logical_not(fittableModel)]=1e6
+            chiSq[unfittable[start:end]]=1e6
 
             # This is useful if we want to add rest frame color calculation
             if storeBestFitSEDModels == True:
