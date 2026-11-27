@@ -398,7 +398,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     This is obviously a fudge, so use with caution (only used for some surveys - see bin/zCluster).
             
     """
-        
+
     # Initial sanity check: if we didn't find a decent number of galaxies close to the cluster centre, 
     # the cluster is probably not actually in the optical catalog footprint (e.g., just outside edge of S82)
     gOdds, gRedshifts, angSepArray, tanArray=extractArraysFromGalaxyCatalog(catalog, RADeg, decDeg)
@@ -411,7 +411,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
         areaMask, wcs=estimateAreaMask(RADeg, decDeg, catalog)
     else:
         areaMask, wcs=maskMap, maskWCS
-    
+
     # Here, we do a weighted average of the p(z) distribution
     # The weighting is done according to distance from the cluster position at the z corresponding to a
     # given p(z). 
@@ -420,7 +420,7 @@ def estimateClusterRedshift(RADeg, decDeg, catalog, zPriorMin, zPriorMax, weight
     zArray=clusterNzDict['zArray']
     if clusterNzDict['NzWeightedSum'].sum() == 0:
         return None
-    
+
     # This is how we have been calculating redshifts
     # We only need normFactor to make sure odds is correct
     pzWeightedMean=clusterNzDict['NzWeightedSum']/clusterNzDict['Nz']

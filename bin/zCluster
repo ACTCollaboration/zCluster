@@ -224,6 +224,9 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
             obj['errDelta']=0
             obj['CS']=-99
             obj['A']=-99
+            if len(galaxyCatalog) == 0:
+                print("... no galaxies in the retrieved catalog")
+                continue
             if galaxyCatalog is not None:
                 
                 if fitZPOffsets == True:

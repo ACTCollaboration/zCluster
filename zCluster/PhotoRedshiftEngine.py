@@ -89,6 +89,10 @@ class PhotoRedshiftEngine:
                     self.passbandsList.append(astSED.Passband(passbandsDir+"decam.%s.am1p4.dat.txt" % (band)))
                 else:
                     self.passbandsList.append(astSED.Passband(passbandsDir+"RSR-%s.EE.txt" % (band.upper()), inputUnits = "microns"))
+        elif passbandSet == 'LSST':
+            self.bands=['u', 'g', 'r', 'i', 'z', 'y']
+            for band in self.bands:
+                self.passbandsList.append(astSED.Passband(passbandsDir+band+"LSST.res"))
         else:
             raise Exception("Unknown passbandSet '%s'" % (passbandSet))
         
@@ -113,6 +117,7 @@ class PhotoRedshiftEngine:
         if templatesDir is None:
             if passbandSet == 'DECaLS':
                 print(">>> Using default DECaLSDR10_learned_N20 templates [as DECaLS passbands used]")
+                pickleFileName=None
                 SEDDir=zCluster.__path__[0]+os.path.sep+'SED'
                 self.SEDFiles=glob.glob(SEDDir+os.path.sep+"DECaLSDR10_learned_N20"+os.path.sep+"*.sed")
             else:

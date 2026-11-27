@@ -162,7 +162,7 @@ def getRetriever(database, maxMagError = 0.2):
         # DRTab=atpy.Table().read(bricksDRPath)
         # DRTab.rename_column("brickname", "BRICKNAME")
         retrieverOptions={'maxMagError': maxMagError, 'bricksTab': bricksTab}#, 'DRTab': DRTab}
-    elif database == 'RubinDP0' or database == 'RubinDP1':
+    elif database == 'RubinDP0' or database == 'RubinDP1' or database == 'RubinDP2':
         RSP_TAP_SERVICE='https://data.lsst.cloud/api/tap'
         homeDir=os.path.expanduser('~')
         tokenFileName=os.path.join(homeDir,'.rsp-tap.token')
@@ -174,11 +174,14 @@ def getRetriever(database, maxMagError = 0.2):
         cred.set_password("x-oauth-basic", tokenStr)
         credential=cred.get("ivo://ivoa.net/sso#BasicAA")
         rspTAP=pyvo.dal.TAPService(RSP_TAP_SERVICE, session = credential)
-        retrieverOptions={'TAP': rspTAP}
+        retrieverOptions={'TAP': rspTAP, 'maxMagError': maxMagError}
+        passbandSet='LSST'
         if database == 'RubinDP0':
             retriever=RubinDP0Retriever
         elif database == 'RubinDP1':
             retriever=RubinDP1Retriever
+        elif database == 'RubinDP2':
+            retriever=RubinDP2Retriever
     elif database == 'CFHTDeep':
         retriever=CFHTDeepRetriever
     elif database == 'CFHTWide':
@@ -1619,7 +1622,7 @@ def RubinDP1Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
         query=query+", ebv"
         query=query+" FROM dp1.Object"
         query=query+" WHERE CONTAINS(POINT('ICRS', coord_ra, coord_dec), CIRCLE('ICRS', "+strCenterCoords+", "+strRadius+")) = 1 "
-        query=query+" AND r_cModelFluxErr/r_cModelFlux > 5"
+        query=query+" AND r_cModelFlux/r_cModelFluxErr > 5"
         query=query+" AND refExtendedness = 1"
         tab=tap.run_sync(query).to_table()
         tab.write(outFileName, overwrite = True)
@@ -1648,6 +1651,72 @@ def RubinDP1Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
         photDict['i']=photDict['i']-EBMinusV*2.265
         photDict['z']=photDict['z']-EBMinusV*1.846
         photDict['y']=photDict['y']-EBMinusV*1.570
+        if 'maxMagError' in list(optionsDict.keys()):
+            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
+        else:
+            keep=True
+        if keep == True:
+            catalog.append(photDict)
+
+    return catalog
+
+#-------------------------------------------------------------------------------------------------------------
+def RubinDP2Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
+    """Retrieve Rubin DP2 catalog data, assuming we have an API access token.
+
+    """
+
+    makeCacheDir()
+    if 'altCacheDir' in list(optionsDict.keys()):
+        cacheDir=optionsDict['altCacheDir']
+    else:
+        cacheDir=CACHE_DIR
+    if os.path.exists(cacheDir) == False:
+        os.makedirs(cacheDir, exist_ok = True)
+
+    outFileName=cacheDir+os.path.sep+"RubinDP2_%.4f_%.4f_%.2f.fits" % (RADeg, decDeg, halfBoxSizeDeg)
+    bands=['u', 'g', 'r', 'i', 'z', 'y']
+    if os.path.exists(outFileName) == False:
+        tap=optionsDict['TAP']
+        strCenterCoords=str(RADeg)+", "+str(decDeg)
+        strRadius=str(halfBoxSizeDeg*2)
+        query="SELECT objectId, coord_ra, coord_dec "
+        for band in bands:
+            query=query+", %s_cModelMag, %s_cModelMagErr"% (band, band)
+        query=query+", ebv"
+        query=query+" FROM dp2.Object"
+        query=query+" WHERE CONTAINS(POINT('ICRS', coord_ra, coord_dec), CIRCLE('ICRS', "+strCenterCoords+", "+strRadius+")) = 1 "
+        query=query+" AND r_cModelFlux/r_cModelFluxErr > 5"
+        query=query+" AND refExtendedness = 1"
+        tab=tap.run_sync(query).to_table()
+        tab.write(outFileName, overwrite = True)
+    else:
+        print("... reading from cache: %s ..." % (outFileName))
+        tab=atpy.Table().read(outFileName)
+
+    catalog=[]
+    for row in tab:
+        photDict={}
+        photDict['id']=row['objectId']
+        photDict['RADeg']=row['coord_ra']
+        photDict['decDeg']=row['coord_dec']
+        for b in bands:
+            if np.ma.is_masked(row['%s_cModelMag' % (b)]) == True:
+                photDict[b]=99.0
+                photDict[b+'Err']=99.0
+            else:
+                photDict[b]=row['%s_cModelMag' % (b)]
+                photDict[b+'Err']=row['%s_cModelMagErr' % (b)]
+        # Correct for dust extinction - probably needs tweaking for Rubin, not done yet
+        # Taken from: http://www.mso.anu.edu.au/~brad/filters.html
+        # Assumed same as DECam for now
+        EBMinusV=row['ebv']
+        photDict['u']=photDict['u']-EBMinusV*4.658
+        photDict['g']=photDict['g']-EBMinusV*3.451
+        photDict['r']=photDict['r']-EBMinusV*2.646
+        photDict['i']=photDict['i']-EBMinusV*2.103
+        photDict['z']=photDict['z']-EBMinusV*1.575
+        photDict['y']=photDict['y']-EBMinusV*1.515
         if 'maxMagError' in list(optionsDict.keys()):
             keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
         else:
