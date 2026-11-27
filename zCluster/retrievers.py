@@ -448,6 +448,114 @@ def checkMagErrors(photDict, maxMagError, minBands = 3, bands = ['u', 'g', 'r', 
 
     return keep
 
+#------------------------------------------------------------------------------------------------------------
+def _columnToList(column):
+    """Converts a column (numpy array, astropy Column or MaskedColumn) to a list of numpy scalars - i.e., the
+    same values that would be obtained by iterating over an astropy table row-by-row. Masked entries are
+    replaced with np.ma.masked (again, matching row-by-row access).
+
+    """
+    mask=np.ma.getmask(column)
+    values=list(np.asarray(np.ma.getdata(column)))
+    if mask is not np.ma.nomask and mask.any():
+        for i in np.flatnonzero(mask):
+            values[i]=np.ma.masked
+    return values
+
+#------------------------------------------------------------------------------------------------------------
+def _asMaskedArray(column):
+    """Returns a (possibly astropy) table column as a plain numpy masked array, keeping any mask.
+
+    """
+    return np.ma.array(np.ma.getdata(column), mask = np.ma.getmaskarray(column))
+
+#------------------------------------------------------------------------------------------------------------
+def _setWhere(values, condition, newValue):
+    """Returns a copy of the (unmasked) array values, with entries where condition is True set to newValue.
+    Unlike np.where(condition, newValue, values), this keeps the dtype of values (e.g., float32).
+
+    """
+    result=np.array(np.ma.getdata(values), copy = True)
+    result[condition]=newValue
+    return result
+
+#------------------------------------------------------------------------------------------------------------
+def _runningIDs(numObjects):
+    """Returns object IDs 1...numObjects, as Python ints (as made previously using a counter when iterating
+    over table rows).
+
+    """
+    return np.array(range(1, numObjects+1), dtype = object)
+
+#------------------------------------------------------------------------------------------------------------
+def _filledBool(comparison):
+    """Returns a plain boolean array from a (possibly masked) comparison, with masked entries set to False
+    (matching what happens when testing a masked scalar with `if`).
+
+    """
+    return np.ma.filled(comparison, False)
+
+#------------------------------------------------------------------------------------------------------------
+def checkMagErrorsArrays(columns, maxMagError, minBands = 3, bands = ['u', 'g', 'r', 'i', 'z']):
+    """Array version of :func:`checkMagErrors`, operating on a dictionary of columns (as used by
+    :func:`catalogFromColumns`) instead of a single object dictionary.
+
+    Magnitudes (and their uncertainties) are set to 99 in bands where the uncertainty is greater than
+    maxMagError, or the magnitude is negative. Objects with fewer than minBands remaining are removed.
+
+    Returns:
+        A new dictionary of columns (the input is not modified).
+
+    """
+
+    columns=dict(columns)
+    numObjects=len(columns[bands[0]])
+    rejectCount=np.zeros(numObjects, dtype = int)
+    for band in bands:
+        # Comparisons are done on the unmasked data (masked entries never count as rejected), because
+        # numpy.ma comparisons promote float32 to float64 - e.g., float32(0.2) > 0.2 would then be True,
+        # whereas it is False when comparing the float32 scalars we used to get from row-by-row access
+        mag=columns['%s' % (band)]
+        magErr=columns['%sErr' % (band)]
+        reject=np.logical_or(np.logical_and(np.ma.getdata(magErr) > maxMagError, np.logical_not(np.ma.getmaskarray(magErr))),
+                             np.logical_and(np.ma.getdata(mag) < 0, np.logical_not(np.ma.getmaskarray(mag))))
+        for key in ['%s' % (band), '%sErr' % (band)]:
+            col=columns[key].copy()
+            col[reject]=99.
+            columns[key]=col
+        rejectCount=rejectCount+reject
+    keep=np.logical_not(len(bands) - rejectCount < minBands)
+    for key in columns.keys():
+        columns[key]=columns[key][keep]
+
+    return columns
+
+#------------------------------------------------------------------------------------------------------------
+def catalogFromColumns(columns, maxMagError = None, bands = None, minBands = 3):
+    """Converts a dictionary of columns into zCluster's catalog format (a list of dictionaries, one per
+    object). This is much quicker than building the catalog by iterating over the rows of an astropy table.
+
+    Args:
+        columns (:obj:`dict`): Dictionary mapping keys in the output object dictionaries (e.g., 'RADeg', 'r',
+            'rErr') to arrays of values, one per object. The output object dictionaries will have keys in
+            the same order as this dictionary.
+        maxMagError (:obj:`float`, optional): If given, apply :func:`checkMagErrorsArrays` with this
+            maximum magnitude uncertainty.
+        bands (:obj:`list`, optional): Bands to check (only used if maxMagError is given).
+        minBands (:obj:`int`, optional): Minimum number of good bands (only used if maxMagError is given).
+
+    Returns:
+        Catalog (list of dictionaries)
+
+    """
+
+    if maxMagError is not None:
+        columns=checkMagErrorsArrays(columns, maxMagError, minBands = minBands, bands = bands)
+    keys=list(columns.keys())
+    valueLists=[_columnToList(columns[key]) for key in keys]
+
+    return [dict(zip(keys, values)) for values in zip(*valueLists)]
+
 #-------------------------------------------------------------------------------------------------------------
 def DESY3Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
     """Retrieves DES Y3 photometry at the given position. This assumes you have easyaccess installed
@@ -560,61 +668,46 @@ def DESRetriever(RADeg, decDeg, DR = 'DR1', halfBoxSizeDeg = 36.0/60.0, optionsD
     else:
 
         tab=atpy.Table().read(outFileName, format = 'csv')
+        if len(tab) == 0:
+            # e.g., placeholder file written when a previous query returned nothing
+            return catalog
 
-        idCount=0
-        for row in tab:
-            idCount=idCount+1
-            photDict={}
-            photDict['id']=idCount    # just so we have something - we could use COADD_OBJECT_ID but skipping for now
-            photDict['RADeg']=row['RA']
-            photDict['decDeg']=row['DEC']
-            photDict['g']=row[magKey.replace("$BAND", "G")]
-            photDict['r']=row[magKey.replace("$BAND", "R")]
-            photDict['i']=row[magKey.replace("$BAND", "I")]
-            photDict['z']=row[magKey.replace("$BAND", "Z")]
-            photDict['gErr']=row[magErrKey.replace("$BAND", "G")]
-            photDict['rErr']=row[magErrKey.replace("$BAND", "R")]
-            photDict['iErr']=row[magErrKey.replace("$BAND", "I")]
-            photDict['zErr']=row[magErrKey.replace("$BAND", "Z")]
-            if DR.find("+WISE") != -1:
-                # Convert to AB mags and handle missing values
-                if row['W1MPRO'] < 0:
-                    w1Mag=99.0
-                    w1MagErr=99.0
-                else:
-                    w1Mag=row['W1MPRO']+2.699
-                    w1MagErr=row['W1SIGMPRO']
-                if row['W2MPRO'] < 0:
-                    w2Mag=99.0
-                    w2MagErr=99.0
-                else:
-                    w2Mag=row['W2MPRO']+3.339
-                    w2MagErr=row['W2SIGMPRO']
-                photDict['w1']=w1Mag
-                photDict['w1Err']=w1MagErr
-                photDict['w2']=w2Mag
-                photDict['w2Err']=w2MagErr
+        columns={}
+        columns['id']=_runningIDs(len(tab))    # just so we have something - we could use COADD_OBJECT_ID but skipping for now
+        columns['RADeg']=tab['RA']
+        columns['decDeg']=tab['DEC']
+        for b in ['g', 'r', 'i', 'z']:
+            columns[b]=tab[magKey.replace("$BAND", b.upper())]
+        for b in ['g', 'r', 'i', 'z']:
+            columns[b+'Err']=tab[magErrKey.replace("$BAND", b.upper())]
+        if DR.find("+WISE") != -1:
+            # Convert to AB mags and handle missing values
+            for band, ABOffset in [('w1', 2.699), ('w2', 3.339)]:
+                mag=_asMaskedArray(tab['%sMPRO' % (band.upper())])
+                magErr=_asMaskedArray(tab['%sSIGMPRO' % (band.upper())])
+                missing=_filledBool(mag < 0)
+                columns[band]=np.ma.array(_setWhere(np.ma.getdata(mag)+ABOffset, missing, 99.0),
+                                          mask = np.logical_and(np.logical_not(missing), np.ma.getmaskarray(mag)))
+                columns[band+'Err']=np.ma.array(_setWhere(magErr, missing, 99.0),
+                                                mask = np.logical_and(np.logical_not(missing), np.ma.getmaskarray(magErr)))
 
-            # Apply mag error cuts if given
-            # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
-            # We're just making the mag unconstrained here (missing data), rather than applying a limit
-            # If we don't have a minimum of three useful bands, reject
-            if 'maxMagError' in list(optionsDict.keys()):
-                keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['g', 'r', 'i', 'z'])
-            else:
-                keep=True
+        # Apply mag error cuts if given
+        # We're just making the mag unconstrained here (missing data), rather than applying a limit
+        # If we don't have a minimum of three useful bands, reject
+        if 'maxMagError' in list(optionsDict.keys()):
+            catalog=catalogFromColumns(columns, maxMagError = optionsDict['maxMagError'], bands = ['g', 'r', 'i', 'z'])
+        else:
+            catalog=catalogFromColumns(columns)
 
-            ## Additional colour cuts (as used in some DES papers - see e.g., splashback draft)
-            #gr=photDict['g']-photDict['r']
-            #ri=photDict['r']-photDict['i']
-            #iz=photDict['i']-photDict['z']
-            #if keep == True and -1 < gr < 3 and -1 < ri < 2.5 and -1 < iz < 2:
-                #keep=True
-            #else:
-                #keep=False
-
-            if keep == True:
-                catalog.append(photDict)
+        ## Additional colour cuts (as used in some DES papers - see e.g., splashback draft)
+        ## (these would need adapting to work on columns)
+        #gr=photDict['g']-photDict['r']
+        #ri=photDict['r']-photDict['i']
+        #iz=photDict['i']-photDict['z']
+        #if keep == True and -1 < gr < 3 and -1 < ri < 2.5 and -1 < iz < 2:
+            #keep=True
+        #else:
+            #keep=False
 
     #if 'addWISE' in optionsDict.keys() and optionsDict['addWISE'] == True:
         #catalog=addWISEPhotometry(RADeg, decDeg, catalog, halfBoxSizeDeg = halfBoxSizeDeg)
@@ -798,23 +891,17 @@ def ATLASDR4Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {
     tab=tab[np.where(tab['PNOISE'] < 0.01)]
     tab=tab[np.where(tab['PSATURATED'] < 0.01)]
 
-    idCount=0
-    catalog=[]
-    for row in tab:
-        idCount=idCount+1
-        photDict={}
-        photDict['id']=idCount    # just so we have something - we could use ID but skipping for now
-        photDict['RADeg']=row['RA2000']
-        photDict['decDeg']=row['DEC2000']
-        for b in bands:
-            photDict[b]=row[magKey.replace("$BAND", b.upper())]
-            photDict[b+'Err']=row[magErrKey.replace("$BAND", b.upper())]
-        if 'maxMagError' in list(optionsDict.keys()):
-            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
-        else:
-            keep=True
-        if keep == True:
-            catalog.append(photDict)
+    columns={}
+    columns['id']=_runningIDs(len(tab))    # just so we have something - we could use ID but skipping for now
+    columns['RADeg']=tab['RA2000']
+    columns['decDeg']=tab['DEC2000']
+    for b in bands:
+        columns[b]=tab[magKey.replace("$BAND", b.upper())]
+        columns[b+'Err']=tab[magErrKey.replace("$BAND", b.upper())]
+    if 'maxMagError' in list(optionsDict.keys()):
+        catalog=catalogFromColumns(columns, maxMagError = optionsDict['maxMagError'], bands = bands)
+    else:
+        catalog=catalogFromColumns(columns)
 
     return catalog
 
@@ -891,38 +978,28 @@ def PS1Retriever(RADeg, decDeg, halfBoxSizeDeg = 18.0/60.0, optionsDict = {}):
         #tab=tab[(tab['iPSFMag']-tab['iKronMag']) > 0.05]
         tab=tab[np.array(tab['primaryDetection'], dtype = int) == 1] # Because bytes, not int
         EBMinusV=getEBMinusV(RADeg, decDeg, optionsDict = optionsDict) # assume same across field
-        catalog=[]
-        idCount=0
         bands=['g', 'r', 'i', 'z', 'y']
-        for row in tab:
-            idCount=idCount+1
-            photDict={}
-            photDict['id']=idCount    # just so we have something - we could use PS1 ID but skipping for now
-            photDict['RADeg']=row['raMean']
-            photDict['decDeg']=row['decMean']
-            for b in bands:
-                photDict[b]=row['%sApMag' % (b)]
-                photDict['%sErr' % (b)]=row['%sApMagErr' %  (b)]
+        # Correct for dust extinction
+        # Taken from: http://www.mso.anu.edu.au/~brad/filters.html
+        extCoeffs={'g': 3.322, 'r': 2.544, 'i': 2.265, 'z': 1.846, 'y': 1.570}
+        columns={}
+        columns['id']=_runningIDs(len(tab))    # just so we have something - we could use PS1 ID but skipping for now
+        columns['RADeg']=tab['raMean']
+        columns['decDeg']=tab['decMean']
+        for b in bands:
+            # Arithmetic done on unmasked data, as numpy.ma arithmetic would promote float32 to float64
+            magCol=tab['%sApMag' % (b)]
+            columns[b]=np.ma.array(np.ma.getdata(magCol)-EBMinusV*extCoeffs[b], mask = np.ma.getmaskarray(magCol))
+            columns['%sErr' % (b)]=tab['%sApMagErr' %  (b)]
 
-            # Correct for dust extinction
-            # Taken from: http://www.mso.anu.edu.au/~brad/filters.html
-            photDict['g']=photDict['g']-EBMinusV*3.322
-            photDict['r']=photDict['r']-EBMinusV*2.544
-            photDict['i']=photDict['i']-EBMinusV*2.265
-            photDict['z']=photDict['z']-EBMinusV*1.846
-            photDict['y']=photDict['y']-EBMinusV*1.570
-
-            # Apply mag error cuts if given
-            # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
-            # We're just making the mag unconstrained here (missing data), rather than applying a limit
-            # If we don't have a minimum of three useful bands, reject
-            if 'maxMagError' in list(optionsDict.keys()):
-                keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = ['g', 'r', 'i', 'z', 'y'], minBands = 3)
-            else:
-                keep=True
-
-            if keep == True:
-                catalog.append(photDict)
+        # Apply mag error cuts if given
+        # For PS1, missing values are -999 - our current checkMagErrors routine will fish those out
+        # We're just making the mag unconstrained here (missing data), rather than applying a limit
+        # If we don't have a minimum of three useful bands, reject
+        if 'maxMagError' in list(optionsDict.keys()):
+            catalog=catalogFromColumns(columns, maxMagError = optionsDict['maxMagError'], bands = bands, minBands = 3)
+        else:
+            catalog=catalogFromColumns(columns)
 
     return catalog
 
@@ -1251,21 +1328,14 @@ def DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, option
                     #dustCorrMag=brickExtTab[extKey][0]
                     #tab[magLabel][mask]=tab[magLabel][mask]-dustCorrMag
 
-        catalog=[]
-        for row in tab:
-            photDict={}
-            photDict['id']=row['objid']
-            photDict['RADeg']=row['ra']
-            photDict['decDeg']=row['dec']
-            for b in bands:
-                photDict[b]=row['%s_mag' % (b)]
-                photDict[b+"Err"]=row['%s_magErr' % (b)]
-            if 'maxMagError' in list(optionsDict.keys()):
-                keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
-            else:
-                keep=True
-            if keep == True:
-                catalog.append(photDict)
+        columns={'id': tab['objid'], 'RADeg': tab['ra'], 'decDeg': tab['dec']}
+        for b in bands:
+            columns[b]=tab['%s_mag' % (b)]
+            columns[b+"Err"]=tab['%s_magErr' % (b)]
+        if 'maxMagError' in list(optionsDict.keys()):
+            catalog=catalogFromColumns(columns, maxMagError = optionsDict['maxMagError'], bands = bands)
+        else:
+            catalog=catalogFromColumns(columns)
 
     else:
         catalog=None
@@ -1304,6 +1374,49 @@ def DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, op
     stuff=DECaLSRetriever(RADeg, decDeg, halfBoxSizeDeg = halfBoxSizeDeg, DR = 'DR10', optionsDict = optionsDict)
 
     return stuff
+
+#-------------------------------------------------------------------------------------------------------------
+def _parseDataLabDECaLSTable(tab, optionsDict, idKey = 'objid', extraColumns = {}):
+    """Converts a DECaLS table retrieved from NOIRLab Data Lab (as used by DL_DECaLSDR10Retriever and similar)
+    into zCluster's catalog format. Magnitudes and uncertainties are set to 99 in bands where snr <= 0.
+
+    Args:
+        tab (:obj:`astropy.table.Table`): Table with Data Lab DECaLS tractor columns.
+        optionsDict (:obj:`dict`): Retriever options (the 'maxMagError' key is used if present).
+        idKey (:obj:`str`, optional): Name of the column to use for the object 'id' key.
+        extraColumns (:obj:`dict`, optional): Additional keys to add to each object, mapped to the
+            corresponding column names in tab.
+
+    Returns:
+        Catalog (list of dictionaries)
+
+    """
+
+    # WISE fluxes are available... i-band added in DECaLS DR10
+    bands=['g', 'r', 'i', 'z', "w1", "w2"]
+    columns={'id': tab[idKey], 'RADeg': tab['ra'], 'decDeg': tab['dec']}
+    for key, colName in extraColumns.items():
+        columns[key]=tab[colName]
+    # Photometric uncertainties now the same as regular DECaLS retriever
+    for b in bands:
+        detected=_filledBool(tab['snr_%s' % (b)] > 0)
+        mag=np.ma.getdata(tab['dered_mag_%s' % (b)])
+        fluxIVar=np.ma.getdata(tab['flux_ivar_%s' % (b)])
+        with np.errstate(divide = 'ignore', invalid = 'ignore', over = 'ignore'):
+            flux=np.power(10, (mag-22.5)/-2.5)  # nanomaggies
+            fluxErr=np.sqrt(1./fluxIVar)
+            magErr=1./(flux/fluxErr)
+        # Masked magnitudes in detected bands are kept as masked values (as they would be from row access)
+        magMask=np.logical_and(detected, np.ma.getmaskarray(tab['dered_mag_%s' % (b)]))
+        errMask=np.logical_or(magMask, np.logical_and(detected, np.ma.getmaskarray(tab['flux_ivar_%s' % (b)])))
+        columns[b]=np.ma.array(_setWhere(mag, np.logical_not(detected), 99.0), mask = magMask)
+        columns[b+'Err']=np.ma.array(_setWhere(magErr, np.logical_not(detected), 99.0), mask = errMask)
+    if 'maxMagError' in list(optionsDict.keys()):
+        catalog=catalogFromColumns(columns, maxMagError = optionsDict['maxMagError'], bands = bands)
+    else:
+        catalog=catalogFromColumns(columns)
+
+    return catalog
 
 #-------------------------------------------------------------------------------------------------------------
 def DL_DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
@@ -1353,32 +1466,7 @@ def DL_DECaLSDR10Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None,
     tab=tab[np.where(tab['type'] != 'PSF')]
     tab=tab[np.where(tab['type'] != 'PSF ')] # Trailing space - probably not an issue on datalab
 
-    # WISE fluxes are available... i-band added in DECaLS DR10
-    bands=['g', 'r', 'i', 'z', "w1", "w2"]
-    catalog=[]
-    for row in tab:
-        photDict={}
-        photDict['id']=row['objid']
-        photDict['RADeg']=row['ra']
-        photDict['decDeg']=row['dec']
-        # Photometric uncertainties now the same as regular DECaLS retriever
-        for b in bands:
-            if row['snr_%s' % (b)] > 0:
-                photDict[b]=row['dered_mag_%s' % (b)]
-                flux=np.power(10, (photDict[b]-22.5)/-2.5)  # nanomaggies
-                fluxErr=np.sqrt(1./row['flux_ivar_%s' % (b)])
-                photDict[b+'Err']=1./(flux/fluxErr)
-            else:
-                photDict[b]=99.0
-                photDict[b+'Err']=99.0
-        if 'maxMagError' in list(optionsDict.keys()):
-            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
-        else:
-            keep=True
-        if keep == True:
-            catalog.append(photDict)
-
-    return catalog
+    return _parseDataLabDECaLSTable(tab, optionsDict)
 
 #-------------------------------------------------------------------------------------------------------------
 def DL_DECaLSDR11Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
@@ -1428,32 +1516,7 @@ def DL_DECaLSDR11Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None,
     tab=tab[np.where(tab['type'] != 'PSF')]
     tab=tab[np.where(tab['type'] != 'PSF ')] # Trailing space - probably not an issue on datalab
 
-    # WISE fluxes are available... i-band added in DECaLS DR10 (also in DR11)
-    bands=['g', 'r', 'i', 'z', "w1", "w2"]
-    catalog=[]
-    for row in tab:
-        photDict={}
-        photDict['id']=row['objid']
-        photDict['RADeg']=row['ra']
-        photDict['decDeg']=row['dec']
-        # Photometric uncertainties now the same as regular DECaLS retriever
-        for b in bands:
-            if row['snr_%s' % (b)] > 0:
-                photDict[b]=row['dered_mag_%s' % (b)]
-                flux=np.power(10, (photDict[b]-22.5)/-2.5)  # nanomaggies
-                fluxErr=np.sqrt(1./row['flux_ivar_%s' % (b)])
-                photDict[b+'Err']=1./(flux/fluxErr)
-            else:
-                photDict[b]=99.0
-                photDict[b+'Err']=99.0
-        if 'maxMagError' in list(optionsDict.keys()):
-            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
-        else:
-            keep=True
-        if keep == True:
-            catalog.append(photDict)
-
-    return catalog
+    return _parseDataLabDECaLSTable(tab, optionsDict)
 
 #-------------------------------------------------------------------------------------------------------------
 def DL_DECaLSDR10RetrieverPhotoZ(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
@@ -1521,36 +1584,10 @@ def DL_DECaLSDR10RetrieverPhotoZ(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR =
     tab=tab[np.where(tab['type'] != 'PSF')]
     tab=tab[np.where(tab['type'] != 'PSF ')] # Trailing space - probably not an issue on datalab
 
-    # WISE fluxes are available... i-band added in DECaLS DR10
-    bands=['g', 'r', 'i', 'z', "w1", "w2"]
-    catalog=[]
-    for row in tab:
-        photDict={}
-        photDict['id']=row['ls_id'] # ls_id is unique
-        photDict['RADeg']=row['ra']
-        photDict['decDeg']=row['dec']
-        photDict['zphoto']=row['z_phot_mean']
-        photDict['zphotoErr']=row['z_phot_std']
-        photDict['zspec']=row['z_spec']
-        photDict['nest4096']=row['nest4096']
-        # Photometric uncertainties now the same as regular DECaLS retriever
-        for b in bands:
-            if row['snr_%s' % (b)] > 0:
-                photDict[b]=row['dered_mag_%s' % (b)]
-                flux=np.power(10, (photDict[b]-22.5)/-2.5)  # nanomaggies
-                fluxErr=np.sqrt(1./row['flux_ivar_%s' % (b)])
-                photDict[b+'Err']=1./(flux/fluxErr)
-            else:
-                photDict[b]=99.0
-                photDict[b+'Err']=99.0
-        if 'maxMagError' in list(optionsDict.keys()):
-            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
-        else:
-            keep=True
-        if keep == True:
-            catalog.append(photDict)
-
-    return catalog
+    # ls_id is unique
+    return _parseDataLabDECaLSTable(tab, optionsDict, idKey = 'ls_id',
+                                    extraColumns = {'zphoto': 'z_phot_mean', 'zphotoErr': 'z_phot_std',
+                                                    'zspec': 'z_spec', 'nest4096': 'nest4096'})
 
 #-------------------------------------------------------------------------------------------------------------
 def RubinDP0Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
@@ -1597,6 +1634,51 @@ def RubinDP0Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
     return catalog
 
 #-------------------------------------------------------------------------------------------------------------
+def _parseRubinObjectTable(tab, bands, extCoeffs, optionsDict):
+    """Converts a Rubin Object table (with cModel magnitudes and ebv columns, as retrieved by
+    RubinDP1Retriever and RubinDP2Retriever) into zCluster's catalog format.
+
+    Args:
+        tab (:obj:`astropy.table.Table`): Table of Rubin Object catalog data.
+        bands (:obj:`list`): Bands to include.
+        extCoeffs (:obj:`dict`): Dust extinction coefficients (A_band/E(B-V)) for each band - bands without an
+            entry are not corrected.
+        optionsDict (:obj:`dict`): Retriever options (the 'maxMagError' key is used if present).
+
+    Returns:
+        Catalog (list of dictionaries)
+
+    Note:
+        Bands where either the magnitude or its uncertainty is masked are treated as missing (magnitude and
+        uncertainty set to 99). As previously, the dust correction is applied after this.
+
+    """
+
+    EBMinusV=tab['ebv']
+    columns={'id': tab['objectId'], 'RADeg': tab['coord_ra'], 'decDeg': tab['coord_dec']}
+    for b in bands:
+        magCol=tab['%s_cModelMag' % (b)]
+        magErrCol=tab['%s_cModelMagErr' % (b)]
+        # A band is treated as missing if either the magnitude or its uncertainty is masked
+        # (previously, a masked uncertainty with an unmasked magnitude ended up as NaN in the photo-z fit,
+        # giving the galaxy an all-zero p(z))
+        missing=np.logical_or(np.ma.getmaskarray(magCol), np.ma.getmaskarray(magErrCol))
+        magErr=_setWhere(magErrCol, missing, 99.0)
+        mag=_setWhere(magCol, missing, 99.0)
+        if b in extCoeffs:
+            # Arithmetic done on unmasked data, as numpy.ma arithmetic would promote float32 to float64
+            columns[b]=np.ma.array(mag-np.ma.getdata(EBMinusV)*extCoeffs[b], mask = np.ma.getmaskarray(EBMinusV))
+        else:
+            columns[b]=mag
+        columns[b+'Err']=magErr
+    if 'maxMagError' in list(optionsDict.keys()):
+        catalog=catalogFromColumns(columns, maxMagError = optionsDict['maxMagError'], bands = bands)
+    else:
+        catalog=catalogFromColumns(columns)
+
+    return catalog
+
+#-------------------------------------------------------------------------------------------------------------
 def RubinDP1Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
     """Retrieve Rubin DP1 catalog data, assuming we have an API access token.
 
@@ -1630,35 +1712,12 @@ def RubinDP1Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
         print("... reading from cache: %s ..." % (outFileName))
         tab=atpy.Table().read(outFileName)
 
-    catalog=[]
-    for row in tab:
-        photDict={}
-        photDict['id']=row['objectId']
-        photDict['RADeg']=row['coord_ra']
-        photDict['decDeg']=row['coord_dec']
-        for b in bands:
-            if np.ma.is_masked(row['%s_cModelMag' % (b)]) == True:
-                photDict[b]=99.0
-                photDict[b+'Err']=99.0
-            else:
-                photDict[b]=row['%s_cModelMag' % (b)]
-                photDict[b+'Err']=row['%s_cModelMagErr' % (b)]
-        # Correct for dust extinction - probably needs tweaking for Rubin, not done yet
-        # Taken from: http://www.mso.anu.edu.au/~brad/filters.html
-        EBMinusV=row['ebv']
-        photDict['g']=photDict['g']-EBMinusV*3.322
-        photDict['r']=photDict['r']-EBMinusV*2.544
-        photDict['i']=photDict['i']-EBMinusV*2.265
-        photDict['z']=photDict['z']-EBMinusV*1.846
-        photDict['y']=photDict['y']-EBMinusV*1.570
-        if 'maxMagError' in list(optionsDict.keys()):
-            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
-        else:
-            keep=True
-        if keep == True:
-            catalog.append(photDict)
+    # Correct for dust extinction - probably needs tweaking for Rubin, not done yet
+    # Taken from: http://www.mso.anu.edu.au/~brad/filters.html
+    # Same as used for DP2 (assumed same as DECam for now)
+    extCoeffs={'u': 4.658, 'g': 3.451, 'r': 2.646, 'i': 2.103, 'z': 1.575, 'y': 1.515}
 
-    return catalog
+    return _parseRubinObjectTable(tab, bands, extCoeffs, optionsDict)
 
 #-------------------------------------------------------------------------------------------------------------
 def RubinDP2Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
@@ -1694,37 +1753,12 @@ def RubinDP2Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
         print("... reading from cache: %s ..." % (outFileName))
         tab=atpy.Table().read(outFileName)
 
-    catalog=[]
-    for row in tab:
-        photDict={}
-        photDict['id']=row['objectId']
-        photDict['RADeg']=row['coord_ra']
-        photDict['decDeg']=row['coord_dec']
-        for b in bands:
-            if np.ma.is_masked(row['%s_cModelMag' % (b)]) == True:
-                photDict[b]=99.0
-                photDict[b+'Err']=99.0
-            else:
-                photDict[b]=row['%s_cModelMag' % (b)]
-                photDict[b+'Err']=row['%s_cModelMagErr' % (b)]
-        # Correct for dust extinction - probably needs tweaking for Rubin, not done yet
-        # Taken from: http://www.mso.anu.edu.au/~brad/filters.html
-        # Assumed same as DECam for now
-        EBMinusV=row['ebv']
-        photDict['u']=photDict['u']-EBMinusV*4.658
-        photDict['g']=photDict['g']-EBMinusV*3.451
-        photDict['r']=photDict['r']-EBMinusV*2.646
-        photDict['i']=photDict['i']-EBMinusV*2.103
-        photDict['z']=photDict['z']-EBMinusV*1.575
-        photDict['y']=photDict['y']-EBMinusV*1.515
-        if 'maxMagError' in list(optionsDict.keys()):
-            keep=checkMagErrors(photDict, optionsDict['maxMagError'], bands = bands)
-        else:
-            keep=True
-        if keep == True:
-            catalog.append(photDict)
+    # Correct for dust extinction - probably needs tweaking for Rubin, not done yet
+    # Taken from: http://www.mso.anu.edu.au/~brad/filters.html
+    # Assumed same as DECam for now
+    extCoeffs={'u': 4.658, 'g': 3.451, 'r': 2.646, 'i': 2.103, 'z': 1.575, 'y': 1.515}
 
-    return catalog
+    return _parseRubinObjectTable(tab, bands, extCoeffs, optionsDict)
 
 #-------------------------------------------------------------------------------------------------------------
 def DELVEDR2Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, DR = None, optionsDict = {}):
