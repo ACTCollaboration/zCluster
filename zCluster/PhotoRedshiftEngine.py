@@ -228,66 +228,150 @@ class PhotoRedshiftEngine:
         self.magPriorBand=self.bands.index('r')
 
 
+    def _prepareFluxes(self, galaxyCatalog, applyZPOffsets = True):
+        """Converts the photometry in galaxyCatalog into the fluxes and inverse variance weights used in SED
+        fitting, identifying galaxies that cannot be fitted. Used by :meth:`calcPhotoRedshifts` and
+        :meth:`calcZeroPointOffsets`.
+
+        Args:
+            galaxyCatalog (:obj:`list`): Galaxy catalog (list of dictionaries).
+            applyZPOffsets (:obj:`bool`, optional): If True, subtract self.ZPOffsets from the magnitudes.
+
+        Returns:
+            A dictionary with keys (all arrays have one row per galaxy, one column per band in self.bands):
+                - 'inputMagAB': magnitudes as given (99 for bands not in the catalog)
+                - 'magAB': magnitudes used in the fit (after the treatment of bad/missing bands, and zero
+                  point offsets if applyZPOffsets is True)
+                - 'sedFlux', 'sedFluxErr2', 'weights': fluxes, squared flux uncertainties, and
+                  1/sedFluxErr2
+                - 'unfittable': boolean array, True for galaxies that cannot be fitted (one per galaxy)
+
+        """
+
+        ten23=(10**23.0)
+
+        # If we don't have a band, include a ridiculous mag with ridiculous error so zero weight in fit
+        magAB=np.array([[galaxy[k] if k in galaxy else 99.0 for k in self.bands] for galaxy in galaxyCatalog],
+                       dtype = float)
+        magErrAB=np.array([[galaxy['%sErr' % (k)] if k in galaxy else 99.0 for k in self.bands]
+                           for galaxy in galaxyCatalog], dtype = float)
+        inputMagAB=magAB.copy()
+
+        # Galaxies that cannot be fitted: those with any non-finite magnitude, NaN uncertainty, or magnitude
+        # outside (MIN_MAG, MAX_MAG) - e.g., -999 sentinel values for missing data, if these haven't been cut
+        # already. These get p(z) = 0 everywhere (previously this happened because the fit gave NaN or
+        # meaningless chi-squared values). Their photometry is replaced with placeholder values, so that the
+        # calculations below are well defined for every galaxy - the placeholder results are then discarded.
+        badBand=np.logical_or(np.logical_not(np.isfinite(magAB)), np.isnan(magErrAB))
+        badBand=np.logical_or(badBand, np.logical_or(np.less_equal(magAB, MIN_MAG), np.greater_equal(magAB, MAX_MAG)))
+        magAB[badBand]=99.0
+        magErrAB[badBand]=99.0
+
+        # Bands with absurdly large (including infinite) uncertainties are treated as missing, as above
+        # (otherwise the flux conversion below overflows - previously this gave such bands zero weight anyway)
+        missingBand=np.greater_equal(np.abs(magErrAB), MAX_MAG_ERROR)
+        magAB[missingBand]=99.0
+        magErrAB[missingBand]=99.0
+
+        if applyZPOffsets == True:
+            magAB=magAB-self.ZPOffsets
+
+        # Incorporate a global photometric calibration error (applied to all bands)
+        # Helps to get catalogs with tiny errors to behave
+        magErrAB=np.sqrt(magErrAB**2+self.ZPError**2)
+
+        fluxJy=ten23*np.power(10, (-(magAB+48.6)/2.5))
+        sedFlux=3e-13*fluxJy/self.effLMicron2
+        fluxJyErr=ten23*np.power(10, (-(magAB-magErrAB+48.6)/2.5))
+        sedFluxErr=(3e-13*fluxJyErr/self.effLMicron2)-sedFlux
+        sedFluxErr2=sedFluxErr**2
+        # A zero flux uncertainty (zero magnitude uncertainty with no ZPError, or one too small to change the
+        # flux) would give infinite weight, so these galaxies cannot be fitted either
+        zeroErr=np.equal(sedFluxErr2, 0)
+        sedFluxErr2[zeroErr]=1.0
+        weights=1.0/sedFluxErr2
+        unfittable=np.logical_or(badBand, zeroErr).any(axis = 1)
+
+        return {'inputMagAB': inputMagAB, 'magAB': magAB, 'sedFlux': sedFlux, 'sedFluxErr2': sedFluxErr2,
+                'weights': weights, 'unfittable': unfittable}
+
+
     def calcZeroPointOffsets(self, galaxyCatalog, zSpecColumn = 'z_spec'):
         """If the galaxyCatalog contains zSpecColumn, fit SEDs at given spec-zs to determine
         zero point offsets. After this is done, they will automatically be applied by calcPhotoRedshifts.
-        
+
+        For each galaxy with a spec-z, every template is fitted at the grid redshift closest to the spec-z,
+        and the model magnitudes are averaged over templates (weighted by fit probability). The offset in each
+        band is the median difference between observed and model magnitudes (ignoring differences > 1 mag,
+        which come from missing data).
+
+        Galaxies that cannot be fitted (see :meth:`_prepareFluxes`), or for which every template has zero
+        probability, are not used. If no usable galaxies have data in a band, the offset for that band is set
+        to 0.
+
         """
         print("... calculating zero point offsets for each band using objects with spec-zs ...")
-        ten23=(10**23.0)
-        diffMags=[]
-        for galaxy in galaxyCatalog:
-            if zSpecColumn in galaxy.keys() and galaxy[zSpecColumn] > 0:
-                # If we don't have a band, include a ridiculous mag with ridiculous error so zero weight in fit
-                magAB=[]
-                magErrAB=[]
-                for k in self.bands:
-                    if k in list(galaxy.keys()):
-                        magAB.append(galaxy[k])
-                        magErrAB.append(galaxy['%sErr' % (k)])
-                    else:
-                        magAB.append(99.0)
-                        magErrAB.append(99.0)
-                magAB=np.array(magAB)
-                magErrAB=np.array(magErrAB)
-            
-                # Incorporate a global photometric calibration error (applied to all bands)
-                # Helps to get catalogs with tiny errors to behave
-                magErrAB=np.sqrt(magErrAB**2+self.ZPError**2)
-                            
-                fluxJy=ten23*np.power(10, (-(magAB+48.6)/2.5)) 
-                sedFlux=3e-13*fluxJy/self.effLMicron2
-                fluxJyErr=ten23*np.power(10, (-(magAB-magErrAB+48.6)/2.5))
-                sedFluxErr=(3e-13*fluxJyErr/self.effLMicron2)-sedFlux
-                sedFluxErr2=sedFluxErr**2
-                # Note we don't actually need to make sedFlux same shape as modelFlux, big speed up, same result
-                norm=np.sum((self.modelFlux*sedFlux)/(sedFluxErr2), axis=1)/np.sum(self.modelFlux2/sedFluxErr2, axis=1)
-                chiSq=np.sum(((sedFlux-norm.reshape([norm.shape[0], 1])*self.modelFlux)**2)/sedFluxErr2, axis=1)
-                chiSq[np.isnan(chiSq)]=1e6   # throw these out, should check this out and handle more gracefully
+        specZCatalog=[galaxy for galaxy in galaxyCatalog if zSpecColumn in galaxy.keys() and galaxy[zSpecColumn] > 0]
+        if len(specZCatalog) == 0:
+            raise Exception("No objects with spec-zs (column '%s' > 0) found - can't fit for zero point offsets" % (zSpecColumn))
 
-                chiSqProb=np.exp(-chiSq/2)#stats.chisqprob(chiSq, len(self.bands)-2)
-                chiSqProb=chiSqProb.reshape([self.numModels, self.zRange.shape[0]])
-                zi=np.argmin(abs(galaxy[zSpecColumn]-self.zRange))
-                
-                chiSqProb=chiSqProb[:, zi]
-                modFlux=(norm.reshape([norm.shape[0], 1])*self.modelFlux)
-                modFlux=modFlux.reshape([self.numModels, self.zRange.shape[0], len(magAB)]) 
-                modFlux=modFlux[:, zi, :]
-                
-                try:
-                    modFlux=np.average(modFlux, axis = 0, weights = chiSqProb)
-                    modFluxJy=(modFlux*self.effLMicron2)/3e-13 
-                    modMags=-2.5*np.log10(modFluxJy/1e23)-48.6
-                    diffMags.append(magAB-modMags)
-                except:
-                    continue
-            
+        # NOTE: Offsets are fitted to the photometry as given (i.e., any existing self.ZPOffsets are not applied)
+        fluxDict=self._prepareFluxes(specZCatalog, applyZPOffsets = False)
+        fittable=np.logical_not(fluxDict['unfittable'])
+        magAB=fluxDict['inputMagAB'][fittable]
+        sedFlux=fluxDict['sedFlux'][fittable]
+        sedFluxErr2=fluxDict['sedFluxErr2'][fittable]
+        zSpec=np.array([galaxy[zSpecColumn] for galaxy in specZCatalog], dtype = float)[fittable]
+
+        # Model fluxes for every template, at the redshift grid point closest to each galaxy's spec-z
+        # (arrays below are galaxies x templates x bands)
+        zIndices=np.argmin(np.abs(zSpec.reshape(-1, 1)-self.zRange), axis = 1)
+        numBands=len(self.bands)
+        modelFlux=self.modelFlux.reshape([self.numModels, self.zRange.shape[0], numBands])[:, zIndices, :]
+        modelFlux=modelFlux.transpose([1, 0, 2])
+        modelFlux2=self.modelFlux2.reshape([self.numModels, self.zRange.shape[0], numBands])[:, zIndices, :]
+        modelFlux2=modelFlux2.transpose([1, 0, 2])
+        sedFlux=sedFlux.reshape([-1, 1, numBands])
+        sedFluxErr2=sedFluxErr2.reshape([-1, 1, numBands])
+
+        # Best-fit normalisation and chi-squared for each template - models with zero flux in every band
+        # (only possible with custom templates) can't be fitted, so get zero probability
+        normNumerator=np.sum((modelFlux*sedFlux)/(sedFluxErr2), axis = 2)
+        normDenominator=np.sum(modelFlux2/sedFluxErr2, axis = 2)
+        fittableModel=np.greater(normDenominator, 0)
+        norm=np.divide(normNumerator, normDenominator, where = fittableModel, out = np.zeros(normNumerator.shape))
+        modFlux=norm.reshape(list(norm.shape)+[1])*modelFlux
+        chiSq=np.sum(((sedFlux-modFlux)**2)/sedFluxErr2, axis = 2)
+        chiSqProb=np.exp(-chiSq/2)
+        chiSqProb[np.logical_not(fittableModel)]=0.0
+
+        # Probability-weighted average model flux - only for galaxies where some template has non-zero
+        # probability (i.e., not those that are a terrible fit to every template)
+        probSum=np.sum(chiSqProb, axis = 1)
+        useGalaxy=np.greater(probSum, 0)
+        modFlux=np.sum(modFlux[useGalaxy]*chiSqProb[useGalaxy].reshape([-1, self.numModels, 1]), axis = 1)
+        modFlux=modFlux/probSum[useGalaxy].reshape([-1, 1])
+        modFluxJy=(modFlux*self.effLMicron2)/3e-13
+        # Galaxies that fit every template extremely badly (chi-squared ~1500 or more) have template
+        # probabilities that are all zero, or tiny subnormal numbers (e.g., 1e-320), in which case the weighted
+        # average model flux underflows to zero. These galaxies are not used either.
+        # (Previously, these gave -inf magnitude differences, which were included in the median.)
+        positiveFlux=np.greater(modFluxJy, 0).all(axis = 1)
+        modFluxJy=modFluxJy[positiveFlux]
+        modMags=-2.5*np.log10(modFluxJy/1e23)-48.6
+        diffMags=magAB[useGalaxy][positiveFlux]-modMags
+        print("... using %d/%d objects with spec-zs ..." % (diffMags.shape[0], len(specZCatalog)))
+
         # Average after taking out differenced 99 values for missing data
-        diffMags=np.array(diffMags)
         ZPOffsets=[]
-        for i in range(diffMags.shape[1]):
+        for i in range(numBands):
             d=diffMags[:, i]
-            ZPOffsets.append(np.median(d[np.less(d, 1)]))
+            d=d[np.less(d, 1)]
+            if len(d) > 0:
+                ZPOffsets.append(np.median(d))
+            else:
+                print("... WARNING: no usable objects with spec-zs have data in band %s - setting zero point offset to 0 ..." % (self.bands[i]))
+                ZPOffsets.append(0.0)
         self.ZPOffsets=np.array(ZPOffsets)
         print("... offsets found: %s mag." % (str(self.ZPOffsets)))
 
@@ -310,49 +394,13 @@ class PhotoRedshiftEngine:
         # so both sums over bands can be done for a whole batch of galaxies in one matrix multiplication.
         if len(galaxyCatalog) == 0:
             return None
-        ten23=(10**23.0)
         if self.ZPOffsets.sum() != 0:
             print("... applying zero-point offsets:", self.ZPOffsets, "...")
-
-        # If we don't have a band, include a ridiculous mag with ridiculous error so zero weight in fit
-        magAB=np.array([[galaxy[k] if k in galaxy else 99.0 for k in self.bands] for galaxy in galaxyCatalog],
-                       dtype = float)
-        magErrAB=np.array([[galaxy['%sErr' % (k)] if k in galaxy else 99.0 for k in self.bands]
-                           for galaxy in galaxyCatalog], dtype = float)
-
-        # Galaxies that cannot be fitted: those with any non-finite magnitude, NaN uncertainty, or magnitude
-        # outside (MIN_MAG, MAX_MAG) - e.g., -999 sentinel values for missing data, if these haven't been cut
-        # already. These get p(z) = 0 everywhere (previously this happened because the fit gave NaN or
-        # meaningless chi-squared values). Their photometry is replaced with placeholder values, so that the
-        # calculations below are well defined for every galaxy - the placeholder results are then discarded.
-        badBand=np.logical_or(np.logical_not(np.isfinite(magAB)), np.isnan(magErrAB))
-        badBand=np.logical_or(badBand, np.logical_or(np.less_equal(magAB, MIN_MAG), np.greater_equal(magAB, MAX_MAG)))
-        magAB[badBand]=99.0
-        magErrAB[badBand]=99.0
-
-        # Bands with absurdly large (including infinite) uncertainties are treated as missing, as above
-        # (otherwise the flux conversion below overflows - previously this gave such bands zero weight anyway)
-        missingBand=np.greater_equal(np.abs(magErrAB), MAX_MAG_ERROR)
-        magAB[missingBand]=99.0
-        magErrAB[missingBand]=99.0
-
-        magAB=magAB-self.ZPOffsets
-
-        # Incorporate a global photometric calibration error (applied to all bands)
-        # Helps to get catalogs with tiny errors to behave
-        magErrAB=np.sqrt(magErrAB**2+self.ZPError**2)
-
-        fluxJy=ten23*np.power(10, (-(magAB+48.6)/2.5))
-        sedFlux=3e-13*fluxJy/self.effLMicron2
-        fluxJyErr=ten23*np.power(10, (-(magAB-magErrAB+48.6)/2.5))
-        sedFluxErr=(3e-13*fluxJyErr/self.effLMicron2)-sedFlux
-        sedFluxErr2=sedFluxErr**2
-        # A zero flux uncertainty (zero magnitude uncertainty with no ZPError, or one too small to change the
-        # flux) would give infinite weight, so these galaxies cannot be fitted either
-        zeroErr=np.equal(sedFluxErr2, 0)
-        sedFluxErr2[zeroErr]=1.0
-        weights=1.0/sedFluxErr2
-        unfittable=np.logical_or(badBand, zeroErr).any(axis = 1)
+        fluxDict=self._prepareFluxes(galaxyCatalog)
+        magAB=fluxDict['magAB']
+        sedFlux=fluxDict['sedFlux']
+        weights=fluxDict['weights']
+        unfittable=fluxDict['unfittable']
 
         # Mag prior (one row per galaxy)
         absMag=magAB[:, self.magPriorBand].reshape(-1, 1)-5.0*np.log10(1e5*self.dlRange)
