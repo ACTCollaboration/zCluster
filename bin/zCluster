@@ -189,8 +189,10 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
         bckTab=atpy.Table().read(bckCatalogFileName)
         bckCatalog=retrievers.parseFITSPhotoTable(bckTab, fieldIDKey = 'field', optionsDict = retrieverOptions)
         photoRedshiftEngine.calcPhotoRedshifts(bckCatalog, calcMLRedshiftAndOdds = True)
+        bckCatalogArrays=clusters.getCatalogArrays(bckCatalog)
     else:
         bckCatalog=[]
+        bckCatalogArrays=None
     
     count=0
     for obj in catalog:
@@ -231,7 +233,9 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                 
                 if fitZPOffsets == True:
                     photoRedshiftEngine.calcZeroPointOffsets(galaxyCatalog)
-                photoRedshiftEngine.calcPhotoRedshifts(galaxyCatalog, calcMLRedshiftAndOdds = True)                    
+                photoRedshiftEngine.calcPhotoRedshifts(galaxyCatalog, calcMLRedshiftAndOdds = True)
+                # Extract the arrays needed for the cluster redshift estimate once, and re-use in each iteration
+                catalogArrays=clusters.getCatalogArrays(galaxyCatalog)
                 
                 # Iterate on position of optical peak - estimate z, find centre, estimate z again...
                 converged=False
@@ -244,13 +248,15 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                                                                   zPriorMax, weightsType, maxRMpc, zMethod,
                                                                   maskMap = maskMap, maskWCS = maskWCS,
                                                                   bckCatalog = bckCatalog, bckAreaDeg2 = bckAreaDeg2,
-                                                                  minBackgroundAreaMpc2 = minBackgroundAreaMpc2)
+                                                                  minBackgroundAreaMpc2 = minBackgroundAreaMpc2,
+                                                                  catalogArrays = catalogArrays,
+                                                                  bckCatalogArrays = bckCatalogArrays)
                     if result is None:
                         break
                     if estimateDensityMapParams == True:
                         # We want the offset relative to the original position, not the last iteration
                         dMapDict=clusters.makeDensityMap(obj['origRADeg'], obj['origDecDeg'], galaxyCatalog,
-                                                                result['z'], dz = 0.05)
+                                                                result['z'], dz = 0.05, catalogArrays = catalogArrays)
                         result['offsetArcmin']=dMapDict['offsetArcmin']
                         result['offsetMpc']=dMapDict['offsetMpc']
                         result['CS']=dMapDict['CS']
