@@ -297,72 +297,81 @@ class PhotoRedshiftEngine:
                
         # Note that we now aren't checking for junk/bad bands in the catalogue
         # That should have been dealt with before getting to this stage
-        # And we've also used some more tricks to speed up by factor of 4 or so
-        # Things we tried to speed up the below
-        # Own trapz doesn't help here (this is probably to do with array size)
-        # Bottle neck is chiSqProb calculation (1.1 sec integrated over whole catalog)
-        # Equivalent to special.gammaincc((len(self.bands)-2)/2.0, chiSq/2.0)
-        # Not found a faster implementation
+        # Galaxies are fitted in batches using matrix products, rather than one at a time. For each galaxy,
+        # with fluxes f, inverse variance weights w, and model fluxes M (one row per template/z combination):
+        #   norm = sum(f*w*M)/sum(w*M^2)
+        #   chiSq = sum(w*(f - norm*M)^2) = sum(w*f^2) - sum(f*w*M)^2/sum(w*M^2)
+        # so both sums over bands can be done for a whole batch of galaxies in one matrix multiplication.
+        if len(galaxyCatalog) == 0:
+            return None
         ten23=(10**23.0)
         if self.ZPOffsets.sum() != 0:
             print("... applying zero-point offsets:", self.ZPOffsets, "...")
-        for galaxy in galaxyCatalog:
 
-            # If we don't have a band, include a ridiculous mag with ridiculous error so zero weight in fit
-            magAB=[]
-            magErrAB=[]
-            for k in self.bands:
-                if k in list(galaxy.keys()):
-                    magAB.append(galaxy[k])
-                    magErrAB.append(galaxy['%sErr' % (k)])
-                else:
-                    magAB.append(99.0)
-                    magErrAB.append(99.0)
-            magAB=np.array(magAB)
-            magErrAB=np.array(magErrAB)
-            
-            magAB=magAB-self.ZPOffsets
-            
-            # Incorporate a global photometric calibration error (applied to all bands)
-            # Helps to get catalogs with tiny errors to behave
-            magErrAB=np.sqrt(magErrAB**2+self.ZPError**2)
-                        
-            fluxJy=ten23*np.power(10, (-(magAB+48.6)/2.5)) 
-            sedFlux=3e-13*fluxJy/self.effLMicron2
-            fluxJyErr=ten23*np.power(10, (-(magAB-magErrAB+48.6)/2.5))
-            sedFluxErr=(3e-13*fluxJyErr/self.effLMicron2)-sedFlux
-            sedFluxErr2=sedFluxErr**2
-            # Note we don't actually need to make sedFlux same shape as modelFlux, big speed up, same result
-            norm=np.sum((self.modelFlux*sedFlux)/(sedFluxErr2), axis=1)/np.sum(self.modelFlux2/sedFluxErr2, axis=1)
-            chiSq=np.sum(((sedFlux-norm.reshape([norm.shape[0], 1])*self.modelFlux)**2)/sedFluxErr2, axis=1)
+        # If we don't have a band, include a ridiculous mag with ridiculous error so zero weight in fit
+        magAB=np.array([[galaxy[k] if k in galaxy else 99.0 for k in self.bands] for galaxy in galaxyCatalog],
+                       dtype = float)
+        magErrAB=np.array([[galaxy['%sErr' % (k)] if k in galaxy else 99.0 for k in self.bands]
+                           for galaxy in galaxyCatalog], dtype = float)
+        magAB=magAB-self.ZPOffsets
+
+        # Incorporate a global photometric calibration error (applied to all bands)
+        # Helps to get catalogs with tiny errors to behave
+        magErrAB=np.sqrt(magErrAB**2+self.ZPError**2)
+
+        fluxJy=ten23*np.power(10, (-(magAB+48.6)/2.5))
+        sedFlux=3e-13*fluxJy/self.effLMicron2
+        fluxJyErr=ten23*np.power(10, (-(magAB-magErrAB+48.6)/2.5))
+        sedFluxErr=(3e-13*fluxJyErr/self.effLMicron2)-sedFlux
+        with np.errstate(divide = 'ignore', invalid = 'ignore', over = 'ignore'):
+            weights=1.0/sedFluxErr**2
+
+        # Mag prior (one row per galaxy)
+        absMag=magAB[:, self.magPriorBand].reshape(-1, 1)-5.0*np.log10(1e5*self.dlRange)
+        if np.ndim(self.magPriorCut) == 0:
+            pPrior=np.greater(absMag, self.magPriorCut)
+        elif len(self.magPriorCut) == 2:
+            pPrior=np.logical_and(np.greater(absMag, self.magPriorCut[0]), np.less(absMag, self.magPriorCut[1]))
+        else:
+            raise Exception("magPriorCut should have only 1 or 2 elements")
+
+        # Batch size chosen to keep the (galaxies x models) work arrays to ~1 Mb each, so they stay in CPU cache
+        # (in testing, this was ~3x faster than batches of ~40 Mb)
+        numModelRows=self.modelFlux.shape[0]
+        batchSize=max(1, int(1e5/numModelRows))
+        modelFluxT=self.modelFlux.T
+        modelFlux2T=self.modelFlux2.T
+        numGals=len(galaxyCatalog)
+        pzArray=np.zeros([numGals, self.zRange.shape[0]])
+        for start in range(0, numGals, batchSize):
+            end=min(start+batchSize, numGals)
+            f=sedFlux[start:end]
+            w=weights[start:end]
+            with np.errstate(divide = 'ignore', invalid = 'ignore', over = 'ignore'):
+                fw=f*w
+                num=fw @ modelFluxT
+                den=w @ modelFlux2T
+                chiSq=np.sum(fw*f, axis = 1).reshape(-1, 1)-(num*num)/den
             chiSq[np.isnan(chiSq)]=1e6   # throw these out, should check this out and handle more gracefully
-            
-            # This extracts chiSq as function of redshift for the best-fit template only, if we wanted it
-            #chiSq=chiSq[self.templateIndex == self.templateIndex[np.argmin(chiSq)]]
-            #pz=np.exp(-chiSq/2)
 
             # This is useful if we want to add rest frame color calculation
             if storeBestFitSEDModels == True:
-                galaxy['bestFitSED']=self.modelSEDDictList[self.templateIndex[np.argmin(chiSq)]]['SED']
+                bestIndices=np.argmin(chiSq, axis = 1)
+                for i, bestIndex in enumerate(bestIndices):
+                    galaxyCatalog[start+i]['bestFitSED']=self.modelSEDDictList[self.templateIndex[bestIndex]]['SED']
 
-            # This uses all templates at once
-            chiSqProb=np.exp(-chiSq/2)#stats.chisqprob(chiSq, len(self.bands)-2)
-            chiSqProb=chiSqProb.reshape([self.numModels, self.zRange.shape[0]])
-            #pz=np.sum(chiSqProb, axis = 0)
-            pz=np.max(chiSqProb, axis = 0)
-            # Mag prior
-            absMag=magAB[self.magPriorBand]-5.0*np.log10(1e5*self.dlRange)
-            if type(self.magPriorCut) == float:
-                pPrior=np.array(np.greater(absMag, self.magPriorCut), dtype = float)
-            elif len(self.magPriorCut) == 2:
-                pPrior=np.array(np.logical_and(np.greater(absMag, self.magPriorCut[0]), np.less(absMag, self.magPriorCut[1]), dtype = float))
-            else:
-                raise Exception("magPriorCut should have only 1 or 2 elements")
-            pz=pz*pPrior
-            # Normalise
-            pzNorm=np.trapezoid(pz, self.zRange)
-            if pzNorm != 0:
-                pz=pz/pzNorm 
+            # This uses all templates at once - take max probability over templates at each z
+            # NOTE: max(exp(-chiSq/2)) == exp(-min(chiSq)/2), so take the min first (far fewer exp calls)
+            chiSq=chiSq.reshape([end-start, self.numModels, self.zRange.shape[0]])
+            pzArray[start:end]=np.exp(-np.min(chiSq, axis = 1)/2)
+
+        pzArray=pzArray*pPrior
+        # Normalise
+        pzNorm=np.trapezoid(pzArray, self.zRange, axis = 1)
+        nonZero=pzNorm != 0
+        pzArray[nonZero]=pzArray[nonZero]/pzNorm[nonZero].reshape(-1, 1)
+
+        for galaxy, pz in zip(galaxyCatalog, pzArray):
             if calcMLRedshiftAndOdds == True:
                 zp, odds=self.calculateMLRedshiftAndOdds(pz, dzOdds = 0.2)
                 galaxy['zPhot']=zp
@@ -370,7 +379,6 @@ class PhotoRedshiftEngine:
             if returnPZ == True:
                 galaxy['pz']=pz
                 galaxy['pz_z']=self.zRange
-        t1=time.time()
         
 
     def calculateMLRedshiftAndOdds(self, pz, dzOdds = 0.2, method = 'max'):
@@ -381,13 +389,16 @@ class PhotoRedshiftEngine:
         
         """
         
-        zToIndex_tck=interpolate.splrep(self.zRange, np.arange(self.zRange.shape[0]))
-        z=self.zRange[pz.tolist().index(pz.max())]
-        
+        # zRange is a uniform grid, so z -> index is linear (this replaces a spline fit made on every call)
+        zGridStep=self.zRange[1]-self.zRange[0]
+        def zToIndex(zs):
+            return (np.array(zs)-self.zRange[0])/zGridStep
+        z=self.zRange[np.argmax(pz)]
+
         if method == 'max':
             zMin=z-dzOdds
             zMax=z+dzOdds
-            indexMin, indexMax=interpolate.splev([zMin, zMax], zToIndex_tck)
+            indexMin, indexMax=zToIndex([zMin, zMax])
             indexMin=int(round(indexMin))
             indexMax=int(round(indexMax))
             if indexMin < 0:
@@ -401,7 +412,7 @@ class PhotoRedshiftEngine:
             for zi in self.zRange:
                 zMin=zi-dzOdds
                 zMax=zi+dzOdds
-                indexMin, indexMax=interpolate.splev([zMin, zMax], zToIndex_tck)
+                indexMin, indexMax=zToIndex([zMin, zMax])
                 indexMin=int(round(indexMin))
                 indexMax=int(round(indexMax))
                 if indexMin < 0:
