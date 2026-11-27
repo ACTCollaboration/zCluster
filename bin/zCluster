@@ -445,7 +445,7 @@ def makeParser():
                         want to use this, run zCluster using something like: mpirun --np 4 zCluster ...",
                         default = False)
     parser.add_argument("-e", "--max-mag-error", dest="maxMagError", help="Maximum acceptable\
-                        photometric error (in magnitudes; default: 0.25).", default = 0.25)
+                        photometric error (in magnitudes; default: 0.2).", default = 0.2)
     parser.add_argument("-E", "--photometric-zero-point-error", dest="ZPError", type = float, 
                         help="Global photometric zero point uncertainty in magnitudes, applied to all bands\
                         (default: 0). Added in quadrature to the photometric uncertainties in the catalog.", 
@@ -578,13 +578,13 @@ if __name__ == '__main__':
     catalog=parseClusterCatalog(catalogFileName)
 
     # Method for fetching catalogs
-    retriever, retrieverOptions, passbandSet=retrievers.getRetriever(database, maxMagError = 0.2)
+    retriever, retrieverOptions, passbandSet=retrievers.getRetriever(database, maxMagError = maxMagError)
     
     # If we're not given a database, we're using a user-supplied FITS catalog
     # We can supplement that with photometry from a chosen database cross-matched onto that catalog
     if retriever is None:
         retriever=retrievers.FITSRetriever
-        extraRetriever, extraOptions, extraPassbandSet=retrievers.getRetriever(args.addExtraPhoto)
+        extraRetriever, extraOptions, extraPassbandSet=retrievers.getRetriever(args.addExtraPhoto, maxMagError = maxMagError)
         if cacheDir is not None:
             extraOptions['altCacheDir']=cacheDir
         retrieverOptions={'fileName': database, 'extraRetriever': extraRetriever, 'extraOptions': extraOptions}

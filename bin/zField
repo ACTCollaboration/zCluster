@@ -44,7 +44,7 @@ def makeParser():
     parser.add_argument("-t", "--templates-directory", dest="templatesDir", help="Specify a directory containing\
                         a custom set of spectral templates.", default = None)
     parser.add_argument("-e", "--max-mag-error", dest="maxMagError", help="Maximum acceptable\
-                        photometric error (in magnitudes; default: 0.25).", default = 0.25)
+                        photometric error (in magnitudes; default: 0.2).", default = 0.2)
     parser.add_argument("-E", "--photometric-zero-point-error", dest="ZPError", type = float,
                         help="Global photometric zero point uncertainty in magnitudes, applied to all bands\
                         (default: 0). Added in quadrature to the photometric uncertainties in the catalog.",
@@ -137,7 +137,7 @@ if __name__ == '__main__':
     outFileName=args.outDir+os.path.sep+"zField_catalog_%s.fits" % (outputLabel)
     
     # Method for fetching catalogs
-    retriever, retrieverOptions, passbandSet=retrievers.getRetriever(database, maxMagError = 0.2)
+    retriever, retrieverOptions, passbandSet=retrievers.getRetriever(database, maxMagError = maxMagError)
 
     ZPOffsets=None
     if database == 'DECaLS':
