@@ -38,11 +38,13 @@ Rubin Observatory LSST data previews [#rubin]_         ``RubinDP0``, ``RubinDP1`
 Run ``zCluster -h`` for the full list of options.
  
 For details of the algorithm, its performance, and the output of the code, refer to 
-`Hilton et al. (2018) <https://ui.adsabs.harvard.edu/abs/2018ApJS..235...20H/abstract>`_, which presents
+`Hilton et al. (2018) <https://scixplorer.org/abs/2018ApJS..235...20H/abstract>`_, which presents
 results based on SDSS, S82, and CFHTLenS, and/or 
-`Hilton et al. (2021) <https://ui.adsabs.harvard.edu/abs/2021ApJS..253....3H/abstract>`_, which presents
-results based on DECaLS DR8. The other surveys listed above are work in progress (so use with caution; PS1 in 
-particular is problematic). `Pillay et al. (2021) <https://ui.adsabs.harvard.edu/abs/2021arXiv211104340P/abstract>`_
+`Hilton et al. (2021) <https://scixplorer.org/abs/2021ApJS..253....3H/abstract>`_, which presents
+results based on DECaLS DR8. **zCluster** was also used in
+`Aguena et al. (2026) <https://scixplorer.org/abs/2026OJAp....955863A/abstract>`_ with DECaLS DR10 data.
+The other surveys listed above are work in progress (so use with caution; PS1 in
+particular is problematic). `Pillay et al. (2021) <https://scixplorer.org/abs/2021arXiv211104340P/abstract>`_
 presents the first use of the package for producing projected galaxy density maps.
 
 If you find **zCluster** useful in your work, please cite whichever one
