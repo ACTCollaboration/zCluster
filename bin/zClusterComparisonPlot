@@ -289,15 +289,15 @@ if __name__ == '__main__':
     plt.plot(zIn[notMask], diff_over1plusz[notMask], 'D', ms = args.markerSize, color = '#888888', alpha = args.alpha, mew = 0, zorder = 1)
     
     # Dummy points that aren't transparent
-    plt.plot([], [], 'D', color = colors[0], label = '$\delta > %.0f$' % (deltaMin))
-    plt.plot([], [], 'D', color = '#888888', label = '$\delta < %.0f$' % (deltaMin))
+    plt.plot([], [], 'D', color = colors[0], label = r'$\delta > %.0f$' % (deltaMin))
+    plt.plot([], [], 'D', color = '#888888', label = r'$\delta < %.0f$' % (deltaMin))
     
     yPlotRange=np.linspace(-1, 1, 10)
     xPlotRange=np.linspace(zMin, zMax, 10)
     plt.plot(xPlotRange, [meanMaskedDiff]*len(xPlotRange), 'k--', 
-             label = '$\langle \, (z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}) \, \\rangle$ = %.3f' % (inLabel, inLabel, medianMaskedDiff_over1plusz))
+             label = r'$\langle \, (z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}) \, \rangle$ = %.3f' % (inLabel, inLabel, medianMaskedDiff_over1plusz))
     plt.plot(xPlotRange, [meanMaskedDiff-stdMaskedDiff]*len(xPlotRange), 'k:', 
-             label = '$\sigma_{\\rm bw}$ [($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}$)] = %.3f' % (inLabel, inLabel, biweightMaskedDiff_over1plusz))
+             label = r'$\sigma_{\rm bw}$ [($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$)/($1+z_{\mathrm{%s}}$)] = %.3f' % (inLabel, inLabel, biweightMaskedDiff_over1plusz))
     plt.plot(xPlotRange, [meanMaskedDiff+stdMaskedDiff]*len(xPlotRange), 'k:')
     plt.plot(np.linspace(zMin, zMax, 3), [0]*3, 'k-')
     plt.xlim(zMin, zMax)
@@ -311,8 +311,8 @@ if __name__ == '__main__':
         plt.figtext(0.1, 0.85, plotTitle, fontdict = {'size': 28, 'weight': 'bold'}, ha = 'left')#, size = 24)
     #leg.draw_frame(False)
     yticks, ylabels=plt.yticks()
-    plt.xlabel("$z_{\mathrm{%s}}$" % (inLabel))
-    plt.ylabel("$(z_{\mathrm{%s}}-z_{\mathrm{c}})$/$(1+z_{\mathrm{%s}})$" % (inLabel, inLabel))
+    plt.xlabel(r"$z_{\mathrm{%s}}$" % (inLabel))
+    plt.ylabel(r"$(z_{\mathrm{%s}}-z_{\mathrm{c}})$/$(1+z_{\mathrm{%s}})$" % (inLabel, inLabel))
 
     plt.subplot(122)
     plt.plot(delta[mask], diff_over1plusz[mask], 'D', color = colors[0], ms = args.markerSize, alpha = args.alpha, mew = 0, zorder = 3)
@@ -320,9 +320,9 @@ if __name__ == '__main__':
     yPlotRange=np.linspace(-1, 1, 10)
     xPlotRange=np.linspace(0, delta.max()*1.1, 10)
     plt.plot(xPlotRange, [meanMaskedDiff]*len(xPlotRange), 'k--', 
-             label = 'mean($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, meanMaskedDiff_over1plusz))
+             label = r'mean($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, meanMaskedDiff_over1plusz))
     plt.plot(xPlotRange, [meanMaskedDiff-stdMaskedDiff]*len(xPlotRange), 'k:', 
-             label = '$\sigma_{\\rm bw}$($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, biweightMaskedDiff_over1plusz))
+             label = r'$\sigma_{\rm bw}$($z_{\mathrm{%s}}$-$z_{\mathrm{c}}$) = %.3f' % (inLabel, biweightMaskedDiff_over1plusz))
     plt.plot(xPlotRange, [meanMaskedDiff+stdMaskedDiff]*len(xPlotRange), 'k:')
     plt.plot(np.linspace(0, delta.max()*1.1, 3), [0]*3, 'k-')
     plt.xlim(0, delta.max()*1.1)
@@ -332,7 +332,7 @@ if __name__ == '__main__':
         yMin=float(yMin)
         yMax=float(yMax)
         plt.ylim(yMin, yMax)
-    plt.xlabel("$\delta$")
+    plt.xlabel(r"$\delta$")
     #plt.ylabel("$(z_{\mathrm{%s}}-z_{\mathrm{c}})$/$(1+z_{\mathrm{%s}})$" % (inLabel, inLabel))
 
     plt.savefig(plotFileName)
