@@ -22,18 +22,16 @@ import time
 
 #------------------------------------------------------------------------------------------------------------
 def makeParser():
-    parser = argparse.ArgumentParser("zField")
+    parser = argparse.ArgumentParser("zField", epilog = retrievers.databasesHelpText(),
+                                     formatter_class = argparse.RawDescriptionHelpFormatter)
     parser.add_argument("RADeg", type = float, help="RA (in decimal degrees) of the centre of the field to fetch.")
     parser.add_argument("decDeg", type = float, help="Dec (in decimal degrees) of the centre of the field to fetch.")
     parser.add_argument("-r", "--max-radius-deg", dest="maxRDeg", help="Radius in degrees around the given\
                         RA, Dec. coordinates within which galaxy photo-zs will be estimated (default = 0.2).",
                         type = float, default = 0.2)
-    parser.add_argument("-D", "--database", help="The photometric database to use. Options are 'SDSSDR12', 'S82'\
-                        (for SDSS DR7 Stripe 82 co-add); 'CFHTLenS'; 'DESDR1', 'DESDR2',\
-                        'DESY3' [experimental; requires access to proprietary DES data]; 'PS1' [experimental];\
-                        'DECaLSDR8', 'DECaLSDR9'; or the path to a .fits table with columns in the\
-                        appropriate format ('ID', 'RADeg', 'decDeg', and magnitude column names in the form\
-                        'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.).", default = 'DECaLSDR8')
+    parser.add_argument("-D", "--database", help="The photometric database to use (default: DECaLSDR8;\
+                        see the list of supported databases below), or the path to a .fits table of\
+                        photometry.", default = 'DECaLSDR8')
     parser.add_argument("-c", "--cachedir", dest="cacheDir", default = None, help="Cache directory location\
                         (default: $HOME/.zCluster/cache). Downloaded photometric catalogs will be stored\
                         here.")

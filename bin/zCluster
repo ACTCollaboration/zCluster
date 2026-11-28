@@ -390,12 +390,8 @@ def getRoughFootprint(database):
     
     """
 
-    if database in ['SDSSDR7', 'SDSSDR8', 'SDSSDR10', 'SDSSDR12']:
+    if database == 'SDSSDR12':
         RAMin, RAMax, decMin, decMax=[130.0, 250.0, 0.0, 60.0]
-    elif database == 'S82':
-        RAMin, RAMax, decMin, decMax=[-60.0, 60.0, -1.2, 1.2]
-    elif database == 'CFHTLenS':
-        RAMin, RAMax, decMin, decMax=[30.5, 38.5, -11.5, -2.5]
     else:
         print("WARNING: no rough footprint defined for database '%s' yet" % (database))
         return None
@@ -404,15 +400,13 @@ def getRoughFootprint(database):
 
 #-------------------------------------------------------------------------------------------------------------
 def makeParser():
-    parser=argparse.ArgumentParser("zCluster")
+    parser=argparse.ArgumentParser("zCluster", epilog = retrievers.databasesHelpText(),
+                                   formatter_class = argparse.RawDescriptionHelpFormatter)
     parser.add_argument("catalogFileName", help="A .fits table or a .csv file with at least the columns\
                         'name', 'RADeg', 'decDeg'.")
-    parser.add_argument("database", help="The photometric database to use. Options are 'SDSSDR12', 'S82'\
-                        (for SDSS DR7 Stripe 82 co-add); 'CFHTLenS'; 'DESDR1', 'DESDR2',\
-                        'DESY3' [experimental; requires access to proprietary DES data]; 'PS1' [experimental];\
-                        'DECaLSDR8', 'DECaLSDR9'; or the path to a .fits table with columns in the\
-                        appropriate format ('ID', 'RADeg', 'decDeg', and magnitude column names in the form\
-                        'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.).")
+    parser.add_argument("database", help="The photometric database to use (e.g., SDSSDR12, DECaLSDR10,\
+                        RubinDP2 - see the list of supported databases below), or the path to a .fits table\
+                        of photometry.")
     parser.add_argument("-o", "--output-label", dest="outLabel", help="Label to use for outputs\
                         (default: catalogFileName_database, stripped of file extension).\
                         A redshift catalog called zCluster_outLabel.fits will be created. Cached\
@@ -598,21 +592,14 @@ if __name__ == '__main__':
     ZPOffsets=None
     zPriorMin=0.1
     zPriorMax=2.0
-    if database == 'S82':
-        zPriorMin=0.20
-        zPriorMax=1.5
-    elif database in ['SDSSDR7', 'SDSSDR8', 'SDSSDR10', 'SDSSDR12']:
+    if database == 'SDSSDR12':
         zPriorMin=0.05
         zPriorMax=0.8
     elif database == 'PS1':
         # Min prior here set to match 4 Mpc max search radius
         zPriorMin=0.15
         zPriorMax=0.6
-    elif database in ['DESY3', 'DESDR1']:
-        zPriorMin=0.05
-        zPriorMax=1.5
-        zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
-    elif database == 'DESY3+WISE':
+    elif database == 'DESDR1':
         zPriorMin=0.05
         zPriorMax=1.5
         zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
@@ -623,9 +610,6 @@ if __name__ == '__main__':
     elif database == 'ATLASDR4':
         zPriorMin=0.05
         zPriorMax=0.8
-    elif database == 'CFHTLenS':
-        zPriorMin=0.05
-        zPriorMax=1.5
     elif database == 'DECaLS':
         zPriorMin=0.05
         zPriorMax=1.5

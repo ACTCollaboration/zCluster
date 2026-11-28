@@ -14,14 +14,29 @@ and galaxy density maps for any point in the sky using the included `zField` too
   
 **zCluster** has built-in support for querying large photometric surveys - currently:
 
-* SDSS (DR7 - DR12)
-* SDSS Stripe 82 (from SDSS DR7)
-* CFHTLenS
-* PS1 (DR2)
-* DECaLS (DR8 - DR10)
-* DES (DR1, DR2 and Y3 internal)
-* KiDS (DR4)
+=====================================================  =====================================================
+Survey                                                 ``database`` name(s)
+=====================================================  =====================================================
+SDSS                                                   ``SDSSDR12``, ``SDSSDR16``
+Pan-STARRS1 DR2 [#ps1]_                                ``PS1``
+DESI Legacy Imaging Surveys (tractor catalogs, NERSC)  ``DECaLSDR8``, ``DECaLSDR9``, ``DECaLSDR10``
+DESI Legacy Imaging Surveys (NOIRLab Data Lab)         ``DL_DECaLSDR10``, ``DL_DECaLSDR11``
+DELVE DR2 (NOIRLab Data Lab)                           ``DELVEDR2``
+DES public releases [#des]_                            ``DESDR1``, ``DESDR2``
+KiDS DR4 (including VIKING)                            ``KiDSDR4``
+VST ATLAS DR4                                          ``ATLASDR4``
+Rubin Observatory LSST data previews [#rubin]_         ``RubinDP0``, ``RubinDP1``, ``RubinDP2``
+=====================================================  =====================================================
 
+.. [#ps1] Requires a `MAST CasJobs <https://mastweb.stsci.edu/ps1casjobs/>`_ login, given in the
+   ``CASJOBS_WSID`` and ``CASJOBS_PW`` environment variables.
+.. [#des] Requires `easyaccess <https://github.com/des-labs/easyaccess>`_ and a DES database login.
+.. [#rubin] Requires Rubin data rights and a
+   `Rubin Science Platform access token <https://rsp.lsst.io/guides/auth/creating-user-tokens.html>`_,
+   saved in ``~/.rsp-tap.token``.
+
+Run ``zCluster -h`` for the full list of options.
+ 
 For details of the algorithm, its performance, and the output of the code, refer to 
 `Hilton et al. (2018) <https://ui.adsabs.harvard.edu/abs/2018ApJS..235...20H/abstract>`_, which presents
 results based on SDSS, S82, and CFHTLenS, and/or 
