@@ -112,11 +112,11 @@ def writePlot(objName, result, zPriorMax, plotsDir):
             prior[np.greater(zArray, zPriorMax)]=0.0
             prior[np.less(zArray, 0.05)]=0.0
             pz=pz*prior
-            norm=np.trapz(pz, zArray)
+            norm=np.trapezoid(pz, zArray)
             pz=pz/norm   
         
         # Plot of normalised odds and p(z)        
-        norm=np.trapz(result['zOdds'], result['pz_z'])
+        norm=np.trapezoid(result['zOdds'], result['pz_z'])
         result['zOdds']=result['zOdds']/norm
         
         plt.figure(figsize=(9, 5))
@@ -189,8 +189,10 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
         bckTab=atpy.Table().read(bckCatalogFileName)
         bckCatalog=retrievers.parseFITSPhotoTable(bckTab, fieldIDKey = 'field', optionsDict = retrieverOptions)
         photoRedshiftEngine.calcPhotoRedshifts(bckCatalog, calcMLRedshiftAndOdds = True)
+        bckCatalogArrays=clusters.getCatalogArrays(bckCatalog)
     else:
         bckCatalog=[]
+        bckCatalogArrays=None
     
     count=0
     for obj in catalog:
@@ -224,11 +226,16 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
             obj['errDelta']=0
             obj['CS']=-99
             obj['A']=-99
+            if len(galaxyCatalog) == 0:
+                print("... no galaxies in the retrieved catalog")
+                continue
             if galaxyCatalog is not None:
                 
                 if fitZPOffsets == True:
                     photoRedshiftEngine.calcZeroPointOffsets(galaxyCatalog)
-                photoRedshiftEngine.calcPhotoRedshifts(galaxyCatalog, calcMLRedshiftAndOdds = True)                    
+                photoRedshiftEngine.calcPhotoRedshifts(galaxyCatalog, calcMLRedshiftAndOdds = True)
+                # Extract the arrays needed for the cluster redshift estimate once, and re-use in each iteration
+                catalogArrays=clusters.getCatalogArrays(galaxyCatalog)
                 
                 # Iterate on position of optical peak - estimate z, find centre, estimate z again...
                 converged=False
@@ -241,13 +248,15 @@ def runOnCatalog(catalog, retriever, retrieverOptions, photoRedshiftEngine, outD
                                                                   zPriorMax, weightsType, maxRMpc, zMethod,
                                                                   maskMap = maskMap, maskWCS = maskWCS,
                                                                   bckCatalog = bckCatalog, bckAreaDeg2 = bckAreaDeg2,
-                                                                  minBackgroundAreaMpc2 = minBackgroundAreaMpc2)
+                                                                  minBackgroundAreaMpc2 = minBackgroundAreaMpc2,
+                                                                  catalogArrays = catalogArrays,
+                                                                  bckCatalogArrays = bckCatalogArrays)
                     if result is None:
                         break
                     if estimateDensityMapParams == True:
                         # We want the offset relative to the original position, not the last iteration
                         dMapDict=clusters.makeDensityMap(obj['origRADeg'], obj['origDecDeg'], galaxyCatalog,
-                                                                result['z'], dz = 0.05)
+                                                                result['z'], dz = 0.05, catalogArrays = catalogArrays)
                         result['offsetArcmin']=dMapDict['offsetArcmin']
                         result['offsetMpc']=dMapDict['offsetMpc']
                         result['CS']=dMapDict['CS']
@@ -381,12 +390,8 @@ def getRoughFootprint(database):
     
     """
 
-    if database in ['SDSSDR7', 'SDSSDR8', 'SDSSDR10', 'SDSSDR12']:
+    if database == 'SDSSDR12':
         RAMin, RAMax, decMin, decMax=[130.0, 250.0, 0.0, 60.0]
-    elif database == 'S82':
-        RAMin, RAMax, decMin, decMax=[-60.0, 60.0, -1.2, 1.2]
-    elif database == 'CFHTLenS':
-        RAMin, RAMax, decMin, decMax=[30.5, 38.5, -11.5, -2.5]
     else:
         print("WARNING: no rough footprint defined for database '%s' yet" % (database))
         return None
@@ -395,15 +400,13 @@ def getRoughFootprint(database):
 
 #-------------------------------------------------------------------------------------------------------------
 def makeParser():
-    parser=argparse.ArgumentParser("zCluster")
+    parser=argparse.ArgumentParser("zCluster", epilog = retrievers.databasesHelpText(),
+                                   formatter_class = argparse.RawDescriptionHelpFormatter)
     parser.add_argument("catalogFileName", help="A .fits table or a .csv file with at least the columns\
                         'name', 'RADeg', 'decDeg'.")
-    parser.add_argument("database", help="The photometric database to use. Options are 'SDSSDR12', 'S82'\
-                        (for SDSS DR7 Stripe 82 co-add); 'CFHTLenS'; 'DESDR1', 'DESDR2',\
-                        'DESY3' [experimental; requires access to proprietary DES data]; 'PS1' [experimental];\
-                        'DECaLSDR8', 'DECaLSDR9'; or the path to a .fits table with columns in the\
-                        appropriate format ('ID', 'RADeg', 'decDeg', and magnitude column names in the form\
-                        'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.).")
+    parser.add_argument("database", help="The photometric database to use (e.g., SDSSDR12, DECaLSDR10,\
+                        RubinDP2 - see the list of supported databases below), or the path to a .fits table\
+                        of photometry.")
     parser.add_argument("-o", "--output-label", dest="outLabel", help="Label to use for outputs\
                         (default: catalogFileName_database, stripped of file extension).\
                         A redshift catalog called zCluster_outLabel.fits will be created. Cached\
@@ -436,7 +439,7 @@ def makeParser():
                         want to use this, run zCluster using something like: mpirun --np 4 zCluster ...",
                         default = False)
     parser.add_argument("-e", "--max-mag-error", dest="maxMagError", help="Maximum acceptable\
-                        photometric error (in magnitudes; default: 0.25).", default = 0.25)
+                        photometric error (in magnitudes; default: 0.2).", default = 0.2)
     parser.add_argument("-E", "--photometric-zero-point-error", dest="ZPError", type = float, 
                         help="Global photometric zero point uncertainty in magnitudes, applied to all bands\
                         (default: 0). Added in quadrature to the photometric uncertainties in the catalog.", 
@@ -450,6 +453,9 @@ def makeParser():
                         default = None)
     parser.add_argument("-Z", "--z-prior-max", dest="zPriorMax", help="Set maximum redshift of prior.",
                         default = None)
+    parser.add_argument("-s", "--z-step", dest="zStep", help="Interval between redshifts on the redshift\
+                        array (default: 0.01), i.e., this sets the resolution of the photo-z calculations.",
+                        type = float, default = 0.01)
     parser.add_argument("-b", "--absmag-cut", dest="absMagCut",
                         help="Set absolute (r-band) magnitude cut to use in magnitude-based prior. If a single number\
                         is given, p(z) for objects brighter than this limit will be set to 0. If a\
@@ -458,6 +464,10 @@ def makeParser():
     parser.add_argument("-n", "--name", dest="name", help="Find photo-z of only the named cluster in the catalog.")
     parser.add_argument("-t", "--templates-directory", dest="templatesDir", help="Specify a directory containing\
                         a custom set of spectral templates.",  default = None)
+    parser.add_argument("-T", "--template-set", dest="templateSet", default = "EAZY_v1.0+CWW",
+                        choices = list(PhotoRedshiftEngine.PhotoRedshiftEngine.DEFAULT_TEMPLATE_SETS.keys()),
+                        help="Built-in spectral template set to use (default: EAZY_v1.0+CWW; ignored\
+                        if -t is given).")
     parser.add_argument("-p", "--estimate-density-map-params", dest="estimateDensityMapParams", action="store_true",
                         default = False,
                         help="If True, estimate centroid shift and asymmetry parameters from the density map.")
@@ -566,13 +576,13 @@ if __name__ == '__main__':
     catalog=parseClusterCatalog(catalogFileName)
 
     # Method for fetching catalogs
-    retriever, retrieverOptions, passbandSet=retrievers.getRetriever(database, maxMagError = 0.2)
+    retriever, retrieverOptions, passbandSet=retrievers.getRetriever(database, maxMagError = maxMagError)
     
     # If we're not given a database, we're using a user-supplied FITS catalog
     # We can supplement that with photometry from a chosen database cross-matched onto that catalog
     if retriever is None:
         retriever=retrievers.FITSRetriever
-        extraRetriever, extraOptions, extraPassbandSet=retrievers.getRetriever(args.addExtraPhoto)
+        extraRetriever, extraOptions, extraPassbandSet=retrievers.getRetriever(args.addExtraPhoto, maxMagError = maxMagError)
         if cacheDir is not None:
             extraOptions['altCacheDir']=cacheDir
         retrieverOptions={'fileName': database, 'extraRetriever': extraRetriever, 'extraOptions': extraOptions}
@@ -582,21 +592,14 @@ if __name__ == '__main__':
     ZPOffsets=None
     zPriorMin=0.1
     zPriorMax=2.0
-    if database == 'S82':
-        zPriorMin=0.20
-        zPriorMax=1.5
-    elif database in ['SDSSDR7', 'SDSSDR8', 'SDSSDR10', 'SDSSDR12']:
+    if database == 'SDSSDR12':
         zPriorMin=0.05
         zPriorMax=0.8
     elif database == 'PS1':
         # Min prior here set to match 4 Mpc max search radius
         zPriorMin=0.15
         zPriorMax=0.6
-    elif database in ['DESY3', 'DESDR1']:
-        zPriorMin=0.05
-        zPriorMax=1.5
-        zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
-    elif database == 'DESY3+WISE':
+    elif database == 'DESDR1':
         zPriorMin=0.05
         zPriorMax=1.5
         zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
@@ -607,9 +610,6 @@ if __name__ == '__main__':
     elif database == 'ATLASDR4':
         zPriorMin=0.05
         zPriorMax=0.8
-    elif database == 'CFHTLenS':
-        zPriorMin=0.05
-        zPriorMax=1.5
     elif database == 'DECaLS':
         zPriorMin=0.05
         zPriorMax=1.5
@@ -617,12 +617,12 @@ if __name__ == '__main__':
         # But they don't get rid of bias on cluster photo-zs
         ZPOffsets=np.array([0.02271222, -0.05051711, -0.02465597, -0.00406835, 0.05406105])
         zDebias=0.02    # From testing against spec-zs (don't know yet why there is a mean offset)
-    elif database == 'DL_DECaLSDR10' or database == 'DECaLSDR10':
-        # WARNING: This is hacky of course, but fastest way to test...
-        # ZPOffsets values below from fit with 1 million SDSS spec-zs
+    elif database in ['DL_DECaLSDR10', 'DL_DECaLSDR11', 'DECaLSDR10']:
         zPriorMin=0.05
-        zPriorMax=2.0
-        ZPOffsets=np.array([0.04087833, -0.04830536, -0.03361726, -0.02293858, 0.03046254, 0.07543627])
+        zPriorMax=2.5
+        # ZPOffsets values below from fit with 1 million SDSS spec-zs [fitted to COSMOScustom2PlusAGNs template set
+        # Removed now, as we will replace the template set we use for DECaLS
+        # ZPOffsets=np.array([0.04087833, -0.04830536, -0.03361726, -0.02293858, 0.03046254, 0.07543627])
 
     # Allow prior overrides from command line
     if args.zPriorMax is not None:
@@ -657,7 +657,9 @@ if __name__ == '__main__':
             
     photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, passbandSet = passbandSet, 
                                                                 ZPError = ZPError, ZPOffsets = ZPOffsets,
-                                                                templatesDir = args.templatesDir)
+                                                                templatesDir = args.templatesDir,
+                                                                templateSet = args.templateSet,
+                                                                zStep = args.zStep)
     
     # Optionally only running on a single cluster
     if args.name != None:

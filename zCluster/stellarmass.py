@@ -234,7 +234,7 @@ def fitSEDDictAndCalcStellarMass(SEDDict, modelSEDDictList, distNorm):
         #binMax=massBinEdges[i+1]
         #mask=np.logical_and(np.greater(logMasses, binMin), np.less(logMasses, binMax))
         #binProb[i]=prob[mask].sum()
-    #norm=np.trapz(binProb, massBinCentres)
+    #norm=np.trapezoid(binProb, massBinCentres)
     #binProb=binProb/norm
     #maxLikelihoodMass=massBinCentres[np.where(binProb == binProb.max())]
     #myProb=0.0
@@ -242,7 +242,7 @@ def fitSEDDictAndCalcStellarMass(SEDDict, modelSEDDictList, distNorm):
     #peakIndex=np.where(binProb == binProb.max())[0][0]
     #while myProb < 0.68:
         #count=count+1
-        #myProb=np.trapz(binProb[peakIndex-count:peakIndex+count], massBinCentres[peakIndex-count:peakIndex+count])
+        #myProb=np.trapezoid(binProb[peakIndex-count:peakIndex+count], massBinCentres[peakIndex-count:peakIndex+count])
     #minMass=massBinCentres[peakIndex-count]
     #maxMass=massBinCentres[peakIndex+count]
     #errLogStellarMass=np.max([maxMass-maxLikelihoodMass, maxLikelihoodMass-minMass])

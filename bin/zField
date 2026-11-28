@@ -22,18 +22,16 @@ import time
 
 #------------------------------------------------------------------------------------------------------------
 def makeParser():
-    parser = argparse.ArgumentParser("zField")
+    parser = argparse.ArgumentParser("zField", epilog = retrievers.databasesHelpText(),
+                                     formatter_class = argparse.RawDescriptionHelpFormatter)
     parser.add_argument("RADeg", type = float, help="RA (in decimal degrees) of the centre of the field to fetch.")
     parser.add_argument("decDeg", type = float, help="Dec (in decimal degrees) of the centre of the field to fetch.")
     parser.add_argument("-r", "--max-radius-deg", dest="maxRDeg", help="Radius in degrees around the given\
                         RA, Dec. coordinates within which galaxy photo-zs will be estimated (default = 0.2).",
                         type = float, default = 0.2)
-    parser.add_argument("-D", "--database", help="The photometric database to use. Options are 'SDSSDR12', 'S82'\
-                        (for SDSS DR7 Stripe 82 co-add); 'CFHTLenS'; 'DESDR1', 'DESDR2',\
-                        'DESY3' [experimental; requires access to proprietary DES data]; 'PS1' [experimental];\
-                        'DECaLSDR8', 'DECaLSDR9'; or the path to a .fits table with columns in the\
-                        appropriate format ('ID', 'RADeg', 'decDeg', and magnitude column names in the form\
-                        'u_MAG_AUTO', 'u_MAGERR_AUTO' etc.).", default = 'DECaLSDR8')
+    parser.add_argument("-D", "--database", help="The photometric database to use (default: DECaLSDR8;\
+                        see the list of supported databases below), or the path to a .fits table of\
+                        photometry.", default = 'DECaLSDR8')
     parser.add_argument("-c", "--cachedir", dest="cacheDir", default = None, help="Cache directory location\
                         (default: $HOME/.zCluster/cache). Downloaded photometric catalogs will be stored\
                         here.")
@@ -43,8 +41,12 @@ def makeParser():
                         is to use the given RA, Dec coordinates in the output file names).", default = None)
     parser.add_argument("-t", "--templates-directory", dest="templatesDir", help="Specify a directory containing\
                         a custom set of spectral templates.", default = None)
+    parser.add_argument("-T", "--template-set", dest="templateSet", default = "EAZY_v1.0+CWW",
+                        choices = list(PhotoRedshiftEngine.PhotoRedshiftEngine.DEFAULT_TEMPLATE_SETS.keys()),
+                        help="Built-in spectral template set to use (default: EAZY_v1.0+CWW; ignored\
+                        if -t is given).")
     parser.add_argument("-e", "--max-mag-error", dest="maxMagError", help="Maximum acceptable\
-                        photometric error (in magnitudes; default: 0.25).", default = 0.25)
+                        photometric error (in magnitudes; default: 0.2).", default = 0.2)
     parser.add_argument("-E", "--photometric-zero-point-error", dest="ZPError", type = float,
                         help="Global photometric zero point uncertainty in magnitudes, applied to all bands\
                         (default: 0). Added in quadrature to the photometric uncertainties in the catalog.",
@@ -54,6 +56,10 @@ def makeParser():
                         for magnitude zero point offsets. These will then be applied when estimating galaxy\
                         photometric redshifts.",
                         default = False, action = "store_true")
+    parser.add_argument("-s", "--z-step", dest="zStep", help="Used in galaxy photo-z calculations - interval\
+                        between redshifts on the redshift array (default: 0.01), i.e., this sets the resolution\
+                        of the photo-z calculations.",
+                        type = float, default = 0.01)
     parser.add_argument("-b", "--brighter-absmag-cut", dest="absMagCut", help="Set bright absolute magnitude cut.",
                         default = -24.)
     parser.add_argument("-d", "--write-density-maps", dest="writeDensityMaps", action="store_true",
@@ -82,6 +88,7 @@ def makeParser():
                         action = "store_true", help = "If given, pickle the galaxy catalog after estimating\
                         photo-zs. Use this if you want to e.g. read p(z) for each galaxy from disk for some\
                         other analysis.")
+
 
     return parser
 
@@ -132,13 +139,20 @@ if __name__ == '__main__':
     outFileName=args.outDir+os.path.sep+"zField_catalog_%s.fits" % (outputLabel)
     
     # Method for fetching catalogs
-    retriever, retrieverOptions, passbandSet=retrievers.getRetriever(database, maxMagError = 0.2)
+    retriever, retrieverOptions, passbandSet=retrievers.getRetriever(database, maxMagError = maxMagError)
 
     ZPOffsets=None
     if database == 'DECaLS':
         # Zero point offsets remove bias from galaxy max likelihood photo-zs when testing on SDSS
         ZPOffsets=np.array([0.02271222, -0.05051711, -0.02465597, -0.00406835, 0.05406105])
-        
+    if database in ['DL_DECaLSDR10', 'DL_DECaLSDR11', 'DECaLSDR10']:
+        # WARNING: This is hacky of course, but fastest way to test...
+        # ZPOffsets values below from fit with 1 million SDSS spec-zs
+        # Removed now, as we will replace the template set we use for DECaLS
+        zPriorMin=0.05
+        zPriorMax=2.0
+        # ZPOffsets=np.array([0.04087833, -0.04830536, -0.03361726, -0.02293858, 0.03046254, 0.07543627])
+
     if cacheDir is not None:
         retrieverOptions['altCacheDir']=cacheDir
 
@@ -151,7 +165,9 @@ if __name__ == '__main__':
     photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, ZPError = ZPError,
                                                                 passbandSet = passbandSet,
                                                                 templatesDir = templatesDir,
-                                                                ZPOffsets = ZPOffsets)
+                                                                templateSet = args.templateSet,
+                                                                ZPOffsets = ZPOffsets,
+                                                                zStep = args.zStep)
     bands=photoRedshiftEngine.bands
     bandErrs=[]
     for b in bands:
