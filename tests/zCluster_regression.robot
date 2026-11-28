@@ -4,7 +4,7 @@ Documentation       Regression tests: run zCluster on a single cluster from 400S
 ...                 supported database and compare against stored reference results.
 ...
 ...                 Run from the repository root with:
-...                 robot --outputdir tests/results tests
+...                 robot --outputdir tests/results tests/zCluster_regression.robot
 ...
 ...                 Useful options:
 ...                 --include SDSSDR12              run a single database (tags are database names)
@@ -17,6 +17,7 @@ Documentation       Regression tests: run zCluster on a single cluster from 400S
 ...                 Photometry is cached in tests/cache (via zCluster -c), so only the first run hits the network.
 ...                 Delete that directory to check that the remote services still work.
 Library             ZClusterLibrary.py    ${ZCLUSTER_ROOT}
+Resource            common.resource
 Test Template       Cluster Redshift Should Match Reference
 Test Timeout        40 minutes
 
@@ -57,7 +58,3 @@ Cluster Redshift Should Match Reference
     Photo z Should Be Close To    ${result}    ${z_spec}    ${MAX_DZ_OVER_1PZ}
     Result Should Match Reference    ${result}    ${REFERENCE_FILE}    ${database}
     ...    ${Z_TOL}    ${DELTA_REL_TOL}    ${UPDATE_REFERENCE}
-
-Skip Without RSP Token
-    Skip If    not os.path.exists(os.path.expanduser('~/.rsp-tap.token'))
-    ...    No RSP token in ~/.rsp-tap.token - see https://rsp.lsst.io/guides/auth/creating-user-tokens.html

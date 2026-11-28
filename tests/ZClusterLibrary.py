@@ -12,7 +12,7 @@ import shutil
 import subprocess
 import numpy as np
 import astropy.table as atpy
-from robot.api import logger
+from robot.api import logger, SkipExecution
 from robot.api.deco import keyword, library
 
 @library(scope = 'GLOBAL')
@@ -64,6 +64,76 @@ class ZClusterLibrary:
             raise AssertionError("zCluster produced no output table (%s)" % (outFileName))
 
         return outFileName
+
+    @keyword
+    def retriever_should_return_galaxies(self, database, ra_deg, dec_deg, half_box_deg, work_dir,
+                                         min_galaxies = 10, timeout = 600):
+        """Queries the given database for galaxies in a small box around the given position, using a fresh
+        (empty) cache, so that the remote service is always contacted. Fails if the query errors, or returns
+        fewer than min_galaxies objects. Skips the test if a module needed by the retriever is not installed.
+
+        Runs in a subprocess (against this source tree), so a hung query can be timed out.
+
+        """
+        work_dir=os.path.abspath(work_dir)
+        if os.path.exists(work_dir):
+            shutil.rmtree(work_dir)
+        os.makedirs(work_dir)
+        script="""
+import sys, json
+from zCluster import retrievers
+retriever, options, passbandSet=retrievers.getRetriever(sys.argv[1])
+if retriever is None:
+    raise Exception("getRetriever() does not recognise database '%s'" % (sys.argv[1]))
+options=dict(options) if options is not None else {}
+options['altCacheDir']=sys.argv[5]
+catalog=retriever(float(sys.argv[2]), float(sys.argv[3]), halfBoxSizeDeg = float(sys.argv[4]), optionsDict = options)
+if isinstance(catalog, str):
+    raise Exception("retriever returned '%s' instead of a catalog (bad response from the service?)" % (catalog))
+keys=sorted(catalog[0].keys()) if catalog else []
+print("RETRIEVER_RESULT "+json.dumps({'numGalaxies': None if catalog is None else len(catalog),
+                                      'passbandSet': passbandSet, 'keys': keys}))
+"""
+        cmd=[sys.executable, '-c', script, database, str(ra_deg), str(dec_deg), str(half_box_deg),
+             os.path.join(work_dir, 'cache')]
+        env=dict(os.environ)
+        env['PYTHONPATH']=self.root+os.pathsep+env.get('PYTHONPATH', '')
+        env['MPLBACKEND']='Agg'
+        env['PYTHONUNBUFFERED']='1'    # so that the traceback is the last thing in the output
+        logger.info("Querying %s at (%s, %s), half box size %s deg" % (database, ra_deg, dec_deg, half_box_deg))
+        try:
+            proc=subprocess.run(cmd, cwd = work_dir, env = env, stdin = subprocess.DEVNULL,
+                                stdout = subprocess.PIPE, stderr = subprocess.STDOUT, text = True,
+                                timeout = float(timeout))
+        except subprocess.TimeoutExpired as e:
+            with open(os.path.join(work_dir, 'retriever_stdout.log'), 'w') as outFile:
+                outFile.write(e.stdout.decode() if isinstance(e.stdout, bytes) else (e.stdout or ''))
+            raise AssertionError("%s query timed out after %s s" % (database, timeout))
+        with open(os.path.join(work_dir, 'retriever_stdout.log'), 'w') as outFile:
+            outFile.write(proc.stdout)
+        logger.info(proc.stdout[-5000:])
+
+        if proc.returncode != 0:
+            missing=[l for l in proc.stdout.splitlines() if l.startswith('ModuleNotFoundError')]
+            if missing:
+                raise SkipExecution("%s needs a module that is not installed: %s" % (database, missing[-1]))
+            lastLine=proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else ''
+            raise AssertionError("%s query failed: %s" % (database, lastLine))
+        resultLines=[l for l in proc.stdout.splitlines() if l.startswith('RETRIEVER_RESULT ')]
+        if not resultLines:
+            raise AssertionError("%s query produced no result - see retriever_stdout.log" % (database))
+        result=json.loads(resultLines[-1][len('RETRIEVER_RESULT '):])
+        logger.info("Result: %s" % (result))
+        if result['numGalaxies'] is None:
+            raise AssertionError("%s retriever returned None (position outside the survey area?)" % (database))
+        if result['numGalaxies'] < int(min_galaxies):
+            raise AssertionError("%s returned %d galaxies (expected at least %s)"
+                                 % (database, result['numGalaxies'], min_galaxies))
+        for k in ['RADeg', 'decDeg']:
+            if k not in result['keys']:
+                raise AssertionError("%s catalog has no '%s' key" % (database, k))
+
+        return result['numGalaxies']
 
     @keyword
     def get_cluster_result(self, fits_path, cluster_name):
