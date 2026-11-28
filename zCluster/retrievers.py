@@ -1725,6 +1725,35 @@ def RubinDP1Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
     return _parseRubinObjectTable(tab, bands, extCoeffs, optionsDict)
 
 #-------------------------------------------------------------------------------------------------------------
+def runTAPQueryAsync(tap, query):
+    """Runs a TAP query as an asynchronous job, and returns the result as an astropy table. Use this instead of
+    a synchronous query (tap.run_sync) for queries that may take longer than the service's timeout for
+    synchronous queries (e.g., Rubin DP2 queries over large areas).
+
+    Args:
+        tap (:obj:`pyvo.dal.TAPService`): TAP service.
+        query (:obj:`str`): ADQL query.
+
+    Returns:
+        :obj:`astropy.table.Table`
+
+    """
+
+    job=tap.submit_job(query)
+    try:
+        job.run()
+        job.wait(phases = ['COMPLETED', 'ERROR', 'ABORTED'])
+        job.raise_if_error()
+        tab=job.fetch_result().to_table()
+    finally:
+        try:
+            job.delete()
+        except Exception:
+            pass
+
+    return tab
+
+#-------------------------------------------------------------------------------------------------------------
 def RubinDP2Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {}):
     """Retrieve Rubin DP2 catalog data, assuming we have an API access token.
 
@@ -1752,7 +1781,7 @@ def RubinDP2Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
         query=query+" WHERE CONTAINS(POINT('ICRS', coord_ra, coord_dec), CIRCLE('ICRS', "+strCenterCoords+", "+strRadius+")) = 1 "
         query=query+" AND r_cModelFlux/r_cModelFluxErr > 5"
         query=query+" AND refExtendedness = 1"
-        tab=tap.run_sync(query).to_table()
+        tab=runTAPQueryAsync(tap, query)
         tab.write(outFileName, overwrite = True)
     else:
         print("... reading from cache: %s ..." % (outFileName))
