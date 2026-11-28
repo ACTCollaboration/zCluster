@@ -1405,7 +1405,7 @@ def RubinDP0Retriever(RADeg, decDeg, halfBoxSizeDeg = 36.0/60.0, optionsDict = {
         query=query+", %s_cModelFlux, %s_cModelFluxErr"% (band, band)
     query=query+" FROM dp02_dc2_catalogs.Object"
     query=query+" WHERE CONTAINS(POINT('ICRS', coord_ra, coord_dec), CIRCLE('ICRS', "+strCenterCoords+", "+strRadius+")) = 1 "
-    query=query+" AND r_cModelFluxErr/r_cModelFlux > 5"
+    query=query+" AND r_cModelFlux/r_cModelFluxErr > 5"
     query=query+" AND detect_isPrimary = 1 and r_extendedness = 1"
     tab=tap.run_sync(query).to_table()
 
