@@ -43,6 +43,10 @@ def makeParser():
                         is to use the given RA, Dec coordinates in the output file names).", default = None)
     parser.add_argument("-t", "--templates-directory", dest="templatesDir", help="Specify a directory containing\
                         a custom set of spectral templates.", default = None)
+    parser.add_argument("-T", "--template-set", dest="templateSet", default = "EAZY_v1.0+CWW",
+                        choices = list(PhotoRedshiftEngine.PhotoRedshiftEngine.DEFAULT_TEMPLATE_SETS.keys()),
+                        help="Built-in spectral template set to use (default: EAZY_v1.0+CWW; ignored\
+                        if -t is given).")
     parser.add_argument("-e", "--max-mag-error", dest="maxMagError", help="Maximum acceptable\
                         photometric error (in magnitudes; default: 0.2).", default = 0.2)
     parser.add_argument("-E", "--photometric-zero-point-error", dest="ZPError", type = float,
@@ -163,6 +167,7 @@ if __name__ == '__main__':
     photoRedshiftEngine=PhotoRedshiftEngine.PhotoRedshiftEngine(absMagCut, ZPError = ZPError,
                                                                 passbandSet = passbandSet,
                                                                 templatesDir = templatesDir,
+                                                                templateSet = args.templateSet,
                                                                 ZPOffsets = ZPOffsets,
                                                                 zStep = args.zStep)
     bands=photoRedshiftEngine.bands

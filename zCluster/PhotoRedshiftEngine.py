@@ -27,16 +27,28 @@ class PhotoRedshiftEngine:
     in place.
     
     """
+
+    # Built-in template sets: name -> list of (subdirectory of zCluster/SED, file glob pattern)
+    DEFAULT_TEMPLATE_SETS={'EAZY_v1.0+CWW': [('EAZY_v1.0', '*.dat'), ('CWW', '*.sed')],
+                           'DECaLSDR10_learned_N20': [('DECaLSDR10_learned_N20', '*.sed')]}
     
     def __init__(self, absMagCut, passbandSet = 'SDSS+Ks', zMin = 0.01, zMax = 3.0, zStep = 0.01, 
-                 ZPError = 0.0, ZPOffsets = None, templatesDir = None, EBMinusVList = [0.0],
+                 ZPError = 0.0, ZPOffsets = None, templatesDir = None, templateSet = 'EAZY_v1.0+CWW',
+                 EBMinusVList = [0.0],
                  emLinesScaleList = [0.0]):
                  # EBMinusVList = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5],
                  # emLinesScaleList = [0.0, 1.0, 2.0, 4.0, 6.0, 8.0, 10.0]):
                  # EBMinusVList = list(np.linspace(0, 0.48, 13))):
                  # EBMinusVList = list(np.linspace(0, 1.5, 16)),):
         """Sets up the stuff we would otherwise calculate every time, i.e., the templates.
-        
+
+        Args:
+            templatesDir (str, optional): Path to a directory containing a custom set of SED templates.
+                If given, this overrides ``templateSet``.
+            templateSet (str, optional): Which built-in template set to use when ``templatesDir`` is not
+                given. One of the keys of :attr:`DEFAULT_TEMPLATE_SETS` (default: 'EAZY_v1.0+CWW', which is
+                the template set used for every passbandSet in zCluster v0.5.1 and earlier).
+
         """
 
         if zStep < 0:
@@ -121,19 +133,15 @@ class PhotoRedshiftEngine:
         # to reproduce the colours of galaxies in SDSS.
         self.modelSEDDictList=[]
         if templatesDir is None:
-            if passbandSet == 'DECaLS':
-                print(">>> Using default DECaLSDR10_learned_N20 templates [as DECaLS passbands used]")
-                pickleFileName=None
-                SEDDir=zCluster.__path__[0]+os.path.sep+'SED'
-                self.SEDFiles=glob.glob(SEDDir+os.path.sep+"DECaLSDR10_learned_N20"+os.path.sep+"*.sed")
-            else:
-                # NOTE: This is the default template set used for every passbandSet in zCluster v0.5.1 and earlier
-                print(">>> Using default EAZY_v1.0 and CWW templates")
-                pickleFileName=None
-                #SEDDir=resource_filename('zCluster', 'SED/')
-                SEDDir=zCluster.__path__[0]+os.path.sep+'SED'
-                self.SEDFiles=glob.glob(SEDDir+os.path.sep+"EAZY_v1.0"+os.path.sep+"*.dat")+ \
-                            glob.glob(SEDDir+os.path.sep+"CWW"+os.path.sep+"*.sed")
+            if templateSet not in self.DEFAULT_TEMPLATE_SETS:
+                raise Exception("Unknown template set '%s' - options are: %s"
+                                % (templateSet, ", ".join(self.DEFAULT_TEMPLATE_SETS.keys())))
+            print(">>> Using default %s templates" % (templateSet))
+            pickleFileName=None
+            SEDDir=zCluster.__path__[0]+os.path.sep+'SED'
+            self.SEDFiles=[]
+            for subDir, pattern in self.DEFAULT_TEMPLATE_SETS[templateSet]:
+                self.SEDFiles=self.SEDFiles+glob.glob(SEDDir+os.path.sep+subDir+os.path.sep+pattern)
             #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/uvista_nmf/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.0/*.dat")
             #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/EAZY_v1.1_lines/*.dat")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/uvista_nmf/*.dat")
             #self.SEDFiles=glob.glob(zCluster.__path__[0]+os.path.sep+"SED/BC03Templates/*.res")#+glob.glob(zCluster.__path__[0]+os.path.sep+"SED/CWW/*.sed")
