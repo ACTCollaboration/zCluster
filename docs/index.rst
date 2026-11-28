@@ -15,6 +15,7 @@ zCluster - a tool for measuring photometric redshifts for galaxy clusters
    install
    usage
    commands
+   testing
    reference
 
 Indices and tables
